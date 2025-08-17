@@ -2,28 +2,36 @@
 
 namespace App\Controllers;
 
-use CodeIgniter\Controller;
-
-class Admin extends Controller
+class Admin extends BaseController
 {
-    public function index() {
-        return view('admin/index');  // Load the admin dashboard view
+    public function index()
+    {
+        return view('admin/index');
     }
 
-    public function login() {
-        return view('admin/login');  // Load the admin login view
+    public function login()
+    {
+        return view('admin/login');
     }
 
-    public function charts() {
-        return view('admin/charts');  // Load the charts page for admin
+
+    public function layoutStatic()
+    {
+        return view('admin/layout-static');
     }
 
-    // Add methods for other pages like 404, 401, etc.
-    public function page404() {
-        return view('admin/404');  // Load 404 page
+    public function charts()
+    {
+        return view('admin/charts');
     }
 
-    public function page401() {
-        return view('admin/401');  // Load 401 page
+    public function page404()
+    {
+        return view('admin/404');
+    }
+
+    public function page401()
+    {
+        return view('admin/401');
     }
 }

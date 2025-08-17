@@ -1,28 +1,17 @@
 <?php
 
-namespace App\Controllers;
+use CodeIgniter\Router\RouteCollection;
 
-use CodeIgniter\Controller;
+/**
+ * @var RouteCollection $routes
+ */
 
-class Admin extends Controller
-{
-    public function index() {
-        return view('admin/index');  // This will load the admin dashboard (index.php)
-    }
+$routes->get('/', 'Home::index');
 
-    public function login() {
-        return view('admin/login');  // This will load the login page
-    }
-
-    public function charts() {
-        return view('admin/charts');  // This will load the charts page
-    }
-
-    public function page404() {
-        return view('admin/404');  // This will load the 404 page
-    }
-
-    public function page401() {
-        return view('admin/401');  // This will load the 401 page
-    }
-}
+// ✅ Add your admin routes here
+$routes->get('admin', 'Admin::index');
+$routes->get('admin/layoutstatic', 'Admin::layoutStatic');
+$routes->get('admin/login', 'Admin::login');
+$routes->get('admin/charts', 'Admin::charts');
+$routes->get('admin/404', 'Admin::page404');
+$routes->get('admin/401', 'Admin::page401');
