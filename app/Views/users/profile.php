@@ -28,8 +28,8 @@
                         <dt class="col-sm-4">Account Status</dt>
                         <dd class="col-sm-8"><span class="badge bg-success">Verified</span></dd>
                     </dl>
-                    <a href="#" class="btn btn-outline-primary btn-sm mt-3">Edit Profile</a>
-                    <a href="#" class="btn btn-outline-secondary btn-sm mt-3">Change Password</a>
+                    <a href="<?= base_url('users/editprofile') ?>" class="btn btn-outline-primary btn-sm mt-3">Edit Profile</a>
+                    <a href="<?= base_url('users/changepassword') ?>" class="btn btn-outline-secondary btn-sm mt-3">Change Password</a>
                 </div>
             </div>
         </div>

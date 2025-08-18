@@ -16,7 +16,7 @@ $routes->group('users', function($routes) {
     $routes->get('report', 'Users::report');       // Report a problem
     $routes->get('profile', 'Users::profile');     // Profile settings
     $routes->get('changepassword', 'Users::changePassword'); // Change password
-    $routes->get('settings', 'Users::settings');   // User settings
+    $routes->get('editprofile', 'Users::editprofile');   // User settings
 });
 // Admin routes grouped under 'admin'
 $routes->group('admin', function($routes) {

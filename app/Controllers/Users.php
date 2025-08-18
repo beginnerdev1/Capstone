@@ -39,9 +39,9 @@ class Users extends BaseController
         // Logic to change user password
         return view('users/changepassword');
     }
-    public function settings()
+    public function editprofile()
     {
         // Logic to update user settings
-        return view('users/settings');
+        return view('users/editprofile');
     }
 }
