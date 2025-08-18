@@ -1,0 +1,206 @@
+CRITICAL - 2025-08-18 05:58:43 --> ErrorException: Undefined variable $userName
+[Method: GET, Route: users]
+in APPPATH\Views\users\index.php on line 12.
+ 1 APPPATH\Views\users\index.php(12): CodeIgniter\Debug\Exceptions->errorHandler(2, 'Undefined variable $userName', 'C:\\xampp\\htdocs\\Capstone\\app\\Views\\users\\index.php', 12)
+ 2 SYSTEMPATH\View\View.php(226): include('C:\\xampp\\htdocs\\Capstone\\app\\Views\\users\\index.php')
+ 3 SYSTEMPATH\View\View.php(229): CodeIgniter\View\View->CodeIgniter\View\{closure}()
+ 4 SYSTEMPATH\Common.php(1167): CodeIgniter\View\View->render('users/index', [], true)
+ 5 APPPATH\Controllers\Users.php(9): view('users/index')
+ 6 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Users->index()
+ 7 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Users))
+ 8 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 9 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+10 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+11 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-08-18 06:01:21 --> ErrorException: Undefined variable $userName
+[Method: GET, Route: users]
+in APPPATH\Views\users\index.php on line 12.
+ 1 APPPATH\Views\users\index.php(12): CodeIgniter\Debug\Exceptions->errorHandler(2, 'Undefined variable $userName', 'C:\\xampp\\htdocs\\Capstone\\app\\Views\\users\\index.php', 12)
+ 2 SYSTEMPATH\View\View.php(226): include('C:\\xampp\\htdocs\\Capstone\\app\\Views\\users\\index.php')
+ 3 SYSTEMPATH\View\View.php(229): CodeIgniter\View\View->CodeIgniter\View\{closure}()
+ 4 SYSTEMPATH\Common.php(1167): CodeIgniter\View\View->render('users/index', [], true)
+ 5 APPPATH\Controllers\Users.php(9): view('users/index')
+ 6 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Users->index()
+ 7 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Users))
+ 8 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 9 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+10 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+11 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-08-18 06:01:24 --> ErrorException: Undefined variable $userName
+[Method: GET, Route: users]
+in APPPATH\Views\users\index.php on line 12.
+ 1 APPPATH\Views\users\index.php(12): CodeIgniter\Debug\Exceptions->errorHandler(2, 'Undefined variable $userName', 'C:\\xampp\\htdocs\\Capstone\\app\\Views\\users\\index.php', 12)
+ 2 SYSTEMPATH\View\View.php(226): include('C:\\xampp\\htdocs\\Capstone\\app\\Views\\users\\index.php')
+ 3 SYSTEMPATH\View\View.php(229): CodeIgniter\View\View->CodeIgniter\View\{closure}()
+ 4 SYSTEMPATH\Common.php(1167): CodeIgniter\View\View->render('users/index', [], true)
+ 5 APPPATH\Controllers\Users.php(9): view('users/index')
+ 6 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Users->index()
+ 7 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Users))
+ 8 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 9 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+10 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+11 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-08-18 06:06:13 --> ErrorException: Undefined variable $userName
+[Method: GET, Route: users]
+in APPPATH\Views\users\index.php on line 12.
+ 1 APPPATH\Views\users\index.php(12): CodeIgniter\Debug\Exceptions->errorHandler(2, 'Undefined variable $userName', 'C:\\xampp\\htdocs\\Capstone\\app\\Views\\users\\index.php', 12)
+ 2 SYSTEMPATH\View\View.php(226): include('C:\\xampp\\htdocs\\Capstone\\app\\Views\\users\\index.php')
+ 3 SYSTEMPATH\View\View.php(229): CodeIgniter\View\View->CodeIgniter\View\{closure}()
+ 4 SYSTEMPATH\Common.php(1167): CodeIgniter\View\View->render('users/index', [], true)
+ 5 APPPATH\Controllers\Users.php(9): view('users/index')
+ 6 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Users->index()
+ 7 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Users))
+ 8 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 9 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+10 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+11 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-08-18 06:07:32 --> ErrorException: Undefined variable $userName
+[Method: GET, Route: users/index]
+in APPPATH\Views\users\index.php on line 12.
+ 1 APPPATH\Views\users\index.php(12): CodeIgniter\Debug\Exceptions->errorHandler(2, 'Undefined variable $userName', 'C:\\xampp\\htdocs\\Capstone\\app\\Views\\users\\index.php', 12)
+ 2 SYSTEMPATH\View\View.php(226): include('C:\\xampp\\htdocs\\Capstone\\app\\Views\\users\\index.php')
+ 3 SYSTEMPATH\View\View.php(229): CodeIgniter\View\View->CodeIgniter\View\{closure}()
+ 4 SYSTEMPATH\Common.php(1167): CodeIgniter\View\View->render('users/index', [], true)
+ 5 APPPATH\Controllers\Users.php(9): view('users/index')
+ 6 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Users->index()
+ 7 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Users))
+ 8 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 9 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+10 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+11 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-08-18 06:53:56 --> ParseError: syntax error, unexpected token "<", expecting end of file
+[Method: GET, Route: users]
+in APPPATH\Views\users\sidebar.php on line 2.
+ 1 SYSTEMPATH\View\View.php(226): include()
+ 2 SYSTEMPATH\View\View.php(229): CodeIgniter\View\View->CodeIgniter\View\{closure}()
+ 3 SYSTEMPATH\Common.php(1167): CodeIgniter\View\View->render('users/index', [], true)
+ 4 APPPATH\Controllers\Users.php(9): view('users/index')
+ 5 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Users->index()
+ 6 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Users))
+ 7 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 8 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 9 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+10 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-08-18 07:05:49 --> ParseError: syntax error, unexpected token "<", expecting end of file
+[Method: GET, Route: users]
+in APPPATH\Views\users\sidebar.php on line 2.
+ 1 SYSTEMPATH\View\View.php(226): include()
+ 2 SYSTEMPATH\View\View.php(229): CodeIgniter\View\View->CodeIgniter\View\{closure}()
+ 3 SYSTEMPATH\Common.php(1167): CodeIgniter\View\View->render('users/index', [], true)
+ 4 APPPATH\Controllers\Users.php(9): view('users/index')
+ 5 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Users->index()
+ 6 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Users))
+ 7 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 8 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 9 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+10 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-08-18 07:13:18 --> ParseError: syntax error, unexpected token "<", expecting end of file
+[Method: GET, Route: users]
+in APPPATH\Views\users\index.php on line 130.
+ 1 SYSTEMPATH\View\View.php(229): CodeIgniter\View\View->CodeIgniter\View\{closure}()
+ 2 SYSTEMPATH\Common.php(1167): CodeIgniter\View\View->render('users/index', [], true)
+ 3 APPPATH\Controllers\Users.php(9): view('users/index')
+ 4 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Users->index()
+ 5 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Users))
+ 6 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 7 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 8 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 9 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-08-18 07:13:33 --> ParseError: syntax error, unexpected token "<", expecting end of file
+[Method: GET, Route: users]
+in APPPATH\Views\users\index.php on line 129.
+ 1 SYSTEMPATH\View\View.php(229): CodeIgniter\View\View->CodeIgniter\View\{closure}()
+ 2 SYSTEMPATH\Common.php(1167): CodeIgniter\View\View->render('users/index', [], true)
+ 3 APPPATH\Controllers\Users.php(9): view('users/index')
+ 4 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Users->index()
+ 5 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Users))
+ 6 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 7 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 8 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 9 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-08-18 07:13:49 --> ParseError: syntax error, unexpected token "<", expecting end of file
+[Method: GET, Route: users]
+in APPPATH\Views\users\index.php on line 31.
+ 1 SYSTEMPATH\View\View.php(229): CodeIgniter\View\View->CodeIgniter\View\{closure}()
+ 2 SYSTEMPATH\Common.php(1167): CodeIgniter\View\View->render('users/index', [], true)
+ 3 APPPATH\Controllers\Users.php(9): view('users/index')
+ 4 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Users->index()
+ 5 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Users))
+ 6 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 7 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 8 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 9 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-08-18 07:14:21 --> ParseError: syntax error, unexpected token "<", expecting end of file
+[Method: GET, Route: users]
+in APPPATH\Views\users\index.php on line 32.
+ 1 SYSTEMPATH\View\View.php(229): CodeIgniter\View\View->CodeIgniter\View\{closure}()
+ 2 SYSTEMPATH\Common.php(1167): CodeIgniter\View\View->render('users/index', [], true)
+ 3 APPPATH\Controllers\Users.php(9): view('users/index')
+ 4 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Users->index()
+ 5 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Users))
+ 6 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 7 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 8 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 9 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-08-18 07:14:37 --> ParseError: syntax error, unexpected token "<", expecting end of file
+[Method: GET, Route: users]
+in APPPATH\Views\users\index.php on line 131.
+ 1 SYSTEMPATH\View\View.php(229): CodeIgniter\View\View->CodeIgniter\View\{closure}()
+ 2 SYSTEMPATH\Common.php(1167): CodeIgniter\View\View->render('users/index', [], true)
+ 3 APPPATH\Controllers\Users.php(9): view('users/index')
+ 4 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Users->index()
+ 5 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Users))
+ 6 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 7 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 8 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 9 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-08-18 07:14:38 --> ParseError: syntax error, unexpected token "<", expecting end of file
+[Method: GET, Route: users]
+in APPPATH\Views\users\index.php on line 131.
+ 1 SYSTEMPATH\View\View.php(229): CodeIgniter\View\View->CodeIgniter\View\{closure}()
+ 2 SYSTEMPATH\Common.php(1167): CodeIgniter\View\View->render('users/index', [], true)
+ 3 APPPATH\Controllers\Users.php(9): view('users/index')
+ 4 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Users->index()
+ 5 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Users))
+ 6 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 7 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 8 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 9 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-08-18 07:14:39 --> ParseError: syntax error, unexpected token "<", expecting end of file
+[Method: GET, Route: users]
+in APPPATH\Views\users\index.php on line 131.
+ 1 SYSTEMPATH\View\View.php(229): CodeIgniter\View\View->CodeIgniter\View\{closure}()
+ 2 SYSTEMPATH\Common.php(1167): CodeIgniter\View\View->render('users/index', [], true)
+ 3 APPPATH\Controllers\Users.php(9): view('users/index')
+ 4 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Users->index()
+ 5 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Users))
+ 6 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 7 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 8 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 9 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-08-18 07:14:45 --> ParseError: syntax error, unexpected token "<", expecting end of file
+[Method: GET, Route: users]
+in APPPATH\Views\users\index.php on line 126.
+ 1 SYSTEMPATH\View\View.php(229): CodeIgniter\View\View->CodeIgniter\View\{closure}()
+ 2 SYSTEMPATH\Common.php(1167): CodeIgniter\View\View->render('users/index', [], true)
+ 3 APPPATH\Controllers\Users.php(9): view('users/index')
+ 4 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Users->index()
+ 5 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Users))
+ 6 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 7 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 8 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 9 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-08-18 07:20:46 --> ErrorException: Undefined variable $userName
+[Method: GET, Route: users]
+in APPPATH\Views\users\index.php on line 22.
+ 1 APPPATH\Views\users\index.php(22): CodeIgniter\Debug\Exceptions->errorHandler(2, 'Undefined variable $userName', 'C:\\xampp\\htdocs\\Capstone\\app\\Views\\users\\index.php', 22)
+ 2 SYSTEMPATH\View\View.php(226): include('C:\\xampp\\htdocs\\Capstone\\app\\Views\\users\\index.php')
+ 3 SYSTEMPATH\View\View.php(229): CodeIgniter\View\View->CodeIgniter\View\{closure}()
+ 4 SYSTEMPATH\Common.php(1167): CodeIgniter\View\View->render('users/index', [], true)
+ 5 APPPATH\Controllers\Users.php(9): view('users/index')
+ 6 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Users->index()
+ 7 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Users))
+ 8 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 9 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+10 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+11 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
