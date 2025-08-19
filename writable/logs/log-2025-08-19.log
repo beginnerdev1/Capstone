@@ -1,0 +1,151 @@
+CRITICAL - 2025-08-19 07:24:44 --> mysqli_sql_exception: Unknown database 'capstone'
+[Method: GET, Route: admin/registeredUsers]
+in APPPATH\Views\admin\registereduserS.php on line 3.
+ 1 APPPATH\Views\admin\registereduserS.php(3): mysqli->__construct('localhost', 'root', Object(SensitiveParameterValue), 'capstone')
+ 2 SYSTEMPATH\View\View.php(226): include('C:\\xampp\\htdocs\\Capstone\\app\\Views\\admin\\registereduserS.php')
+ 3 SYSTEMPATH\View\View.php(229): CodeIgniter\View\View->CodeIgniter\View\{closure}()
+ 4 SYSTEMPATH\Common.php(1167): CodeIgniter\View\View->render('admin/registeredUsers', [], true)
+ 5 APPPATH\Controllers\Admin.php(57): view('admin/registeredUsers', [...])
+ 6 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Admin->registeredUsers()
+ 7 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Admin))
+ 8 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 9 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+10 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+11 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-08-19 07:24:49 --> mysqli_sql_exception: Unknown database 'capstone'
+[Method: GET, Route: admin/registeredUsers]
+in APPPATH\Views\admin\registereduserS.php on line 3.
+ 1 APPPATH\Views\admin\registereduserS.php(3): mysqli->__construct('localhost', 'root', Object(SensitiveParameterValue), 'capstone')
+ 2 SYSTEMPATH\View\View.php(226): include('C:\\xampp\\htdocs\\Capstone\\app\\Views\\admin\\registereduserS.php')
+ 3 SYSTEMPATH\View\View.php(229): CodeIgniter\View\View->CodeIgniter\View\{closure}()
+ 4 SYSTEMPATH\Common.php(1167): CodeIgniter\View\View->render('admin/registeredUsers', [], true)
+ 5 APPPATH\Controllers\Admin.php(57): view('admin/registeredUsers', [...])
+ 6 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Admin->registeredUsers()
+ 7 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Admin))
+ 8 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 9 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+10 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+11 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-08-19 07:26:49 --> mysqli_sql_exception: Unknown database 'capstone'
+[Method: GET, Route: admin/registeredUsers]
+in APPPATH\Views\admin\registeredUsers.php on line 3.
+ 1 APPPATH\Views\admin\registeredUsers.php(3): mysqli->__construct('localhost', 'root', Object(SensitiveParameterValue), 'capstone')
+ 2 SYSTEMPATH\View\View.php(226): include('C:\\xampp\\htdocs\\Capstone\\app\\Views\\admin\\registeredUsers.php')
+ 3 SYSTEMPATH\View\View.php(229): CodeIgniter\View\View->CodeIgniter\View\{closure}()
+ 4 SYSTEMPATH\Common.php(1167): CodeIgniter\View\View->render('admin/registeredUsers', [], true)
+ 5 APPPATH\Controllers\Admin.php(57): view('admin/registeredUsers', [...])
+ 6 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Admin->registeredUsers()
+ 7 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Admin))
+ 8 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 9 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+10 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+11 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-08-19 07:26:53 --> mysqli_sql_exception: Unknown database 'capstone'
+[Method: GET, Route: admin/registeredUsers]
+in APPPATH\Views\admin\registeredUsers.php on line 3.
+ 1 APPPATH\Views\admin\registeredUsers.php(3): mysqli->__construct('localhost', 'root', Object(SensitiveParameterValue), 'capstone')
+ 2 SYSTEMPATH\View\View.php(226): include('C:\\xampp\\htdocs\\Capstone\\app\\Views\\admin\\registeredUsers.php')
+ 3 SYSTEMPATH\View\View.php(229): CodeIgniter\View\View->CodeIgniter\View\{closure}()
+ 4 SYSTEMPATH\Common.php(1167): CodeIgniter\View\View->render('admin/registeredUsers', [], true)
+ 5 APPPATH\Controllers\Admin.php(57): view('admin/registeredUsers', [...])
+ 6 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Admin->registeredUsers()
+ 7 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Admin))
+ 8 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 9 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+10 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+11 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-08-19 07:30:17 --> Error: Class "App\Controllers\mysqli" not found
+[Method: GET, Route: admin/registeredUsers]
+in APPPATH\Controllers\Admin.php on line 51.
+ 1 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Admin->registeredUsers()
+ 2 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Admin))
+ 3 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 4 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 5 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 6 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-08-19 07:34:05 --> Error: Class "App\Controllers\mysqli" not found
+[Method: GET, Route: admin/registeredUsers]
+in APPPATH\Controllers\Admin.php on line 51.
+ 1 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Admin->registeredUsers()
+ 2 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Admin))
+ 3 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 4 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 5 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 6 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-08-19 07:34:08 --> Error: Class "App\Controllers\mysqli" not found
+[Method: GET, Route: admin/registeredUsers]
+in APPPATH\Controllers\Admin.php on line 51.
+ 1 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Admin->registeredUsers()
+ 2 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Admin))
+ 3 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 4 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 5 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 6 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-08-19 07:34:25 --> ErrorException: Undefined variable $user
+[Method: GET, Route: admin/registeredUsers]
+in APPPATH\Views\admin\registeredUsers.php on line 21.
+ 1 APPPATH\Views\admin\registeredUsers.php(21): CodeIgniter\Debug\Exceptions->errorHandler(2, 'Undefined variable $user', 'C:\\xampp\\htdocs\\Capstone\\app\\Views\\admin\\registeredUsers.php', 21)
+ 2 SYSTEMPATH\View\View.php(226): include('C:\\xampp\\htdocs\\Capstone\\app\\Views\\admin\\registeredUsers.php')
+ 3 SYSTEMPATH\View\View.php(229): CodeIgniter\View\View->CodeIgniter\View\{closure}()
+ 4 SYSTEMPATH\Common.php(1167): CodeIgniter\View\View->render('admin/registeredUsers', [], true)
+ 5 APPPATH\Controllers\Admin.php(66): view('admin/registeredUsers', [...])
+ 6 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Admin->registeredUsers()
+ 7 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Admin))
+ 8 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 9 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+10 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+11 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-08-19 07:37:22 --> ErrorException: Undefined variable $conn
+[Method: GET, Route: admin/registeredUsers]
+in APPPATH\Views\admin\registeredUsers.php on line 39.
+ 1 APPPATH\Views\admin\registeredUsers.php(39): CodeIgniter\Debug\Exceptions->errorHandler(2, 'Undefined variable $conn', 'C:\\xampp\\htdocs\\Capstone\\app\\Views\\admin\\registeredUsers.php', 39)
+ 2 SYSTEMPATH\View\View.php(226): include('C:\\xampp\\htdocs\\Capstone\\app\\Views\\admin\\registeredUsers.php')
+ 3 SYSTEMPATH\View\View.php(229): CodeIgniter\View\View->CodeIgniter\View\{closure}()
+ 4 SYSTEMPATH\Common.php(1167): CodeIgniter\View\View->render('admin/registeredUsers', [], true)
+ 5 APPPATH\Controllers\Admin.php(66): view('admin/registeredUsers', [...])
+ 6 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Admin->registeredUsers()
+ 7 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Admin))
+ 8 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 9 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+10 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+11 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-08-19 07:37:25 --> ErrorException: Undefined variable $conn
+[Method: GET, Route: admin/registeredUsers]
+in APPPATH\Views\admin\registeredUsers.php on line 39.
+ 1 APPPATH\Views\admin\registeredUsers.php(39): CodeIgniter\Debug\Exceptions->errorHandler(2, 'Undefined variable $conn', 'C:\\xampp\\htdocs\\Capstone\\app\\Views\\admin\\registeredUsers.php', 39)
+ 2 SYSTEMPATH\View\View.php(226): include('C:\\xampp\\htdocs\\Capstone\\app\\Views\\admin\\registeredUsers.php')
+ 3 SYSTEMPATH\View\View.php(229): CodeIgniter\View\View->CodeIgniter\View\{closure}()
+ 4 SYSTEMPATH\Common.php(1167): CodeIgniter\View\View->render('admin/registeredUsers', [], true)
+ 5 APPPATH\Controllers\Admin.php(66): view('admin/registeredUsers', [...])
+ 6 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Admin->registeredUsers()
+ 7 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Admin))
+ 8 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 9 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+10 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+11 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-08-19 07:37:28 --> ErrorException: Undefined variable $conn
+[Method: GET, Route: admin/registeredUsers]
+in APPPATH\Views\admin\registeredUsers.php on line 39.
+ 1 APPPATH\Views\admin\registeredUsers.php(39): CodeIgniter\Debug\Exceptions->errorHandler(2, 'Undefined variable $conn', 'C:\\xampp\\htdocs\\Capstone\\app\\Views\\admin\\registeredUsers.php', 39)
+ 2 SYSTEMPATH\View\View.php(226): include('C:\\xampp\\htdocs\\Capstone\\app\\Views\\admin\\registeredUsers.php')
+ 3 SYSTEMPATH\View\View.php(229): CodeIgniter\View\View->CodeIgniter\View\{closure}()
+ 4 SYSTEMPATH\Common.php(1167): CodeIgniter\View\View->render('admin/registeredUsers', [], true)
+ 5 APPPATH\Controllers\Admin.php(66): view('admin/registeredUsers', [...])
+ 6 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Admin->registeredUsers()
+ 7 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Admin))
+ 8 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 9 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+10 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+11 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-08-19 07:55:04 --> ParseError: syntax error, unexpected token "<", expecting end of file
+[Method: GET, Route: admin/paidBills]
+in APPPATH\Views\admin\paidBills.php on line 2.
+ 1 SYSTEMPATH\View\View.php(229): CodeIgniter\View\View->CodeIgniter\View\{closure}()
+ 2 SYSTEMPATH\Common.php(1167): CodeIgniter\View\View->render('admin/paidBills', [], true)
+ 3 APPPATH\Controllers\Admin.php(96): view('admin/paidBills', [...])
+ 4 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Admin->paidBills()
+ 5 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Admin))
+ 6 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 7 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+ 8 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 9 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))

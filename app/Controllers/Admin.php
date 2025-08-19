@@ -34,4 +34,98 @@ class Admin extends BaseController
     {
         return view('admin/401');
     }
+
+    public function page500(){
+        return view('admin/500');
+    }
+
+    public function tables(){
+        return view('admin/tables');
+    }
+
+    public function registeredUsers()
+    {
+        // Logic to fetch registered users from the database
+        // For now, we will return a view with dummy data
+        // Database connection
+        // $conn = new mysqli("localhost", "root", "", "capstone");
+        // if ($conn->connect_error) {
+        //     die("Connection failed: " . $conn->connect_error);
+        // }
+
+        // Fetch users
+        // $sql = "SELECT id, name, email FROM users";
+        // $result = $conn->query($sql);
+        $data = [
+            'users' => [
+                ['id' => 1, 'name' => 'John Doe', 'email' => 'john@example.com'],
+                ['id' => 2, 'name' => 'Jane Smith', 'email' => 'jane@example.com'],
+                ['id' => 3, 'name' => 'Alice Johnson', 'email' => 'alice@example.com'],
+            ]
+        ];
+        return view('admin/registeredUsers', $data);
+    }
+    public function billings()
+    {
+        // Example: Fetch billing data from database (replace with actual logic)
+        // $billingModel = new \App\Models\BillingModel();
+        // $data['billings'] = $billingModel->findAll();
+
+        // Dummy data for demonstration
+        $data = [
+            'billings' => [
+                ['id' => 101, 'user' => 'John Doe', 'amount' => 120.50, 'date' => '2024-06-01'],
+                ['id' => 102, 'user' => 'Jane Smith', 'amount' => 75.00, 'date' => '2024-06-02'],
+                ['id' => 103, 'user' => 'Alice Johnson', 'amount' => 200.00, 'date' => '2024-06-03'],
+            ]
+        ];
+        return view('admin/billings', $data);
+    }
+    public function paidBills()
+    {
+        // Dummy data for paid bills (dates from last year till today)
+        $data = [
+            'paidBills' => [
+                ['id' => 201, 'user' => 'John Doe', 'amount' => 150.00, 'date' => '2024-08-19'],
+                ['id' => 202, 'user' => 'Jane Smith', 'amount' => 95.50, 'date' => '2025-02-10'],
+                ['id' => 203, 'user' => 'Alice Johnson', 'amount' => 210.75, 'date' => '2025-07-05'],
+                ['id' => 204, 'user' => 'Bob Lee', 'amount' => 80.00, 'date' => '2024-12-22'],
+                ['id' => 205, 'user' => 'Maria Garcia', 'amount' => 120.00, 'date' => '2025-08-01'],
+            ]
+        ];
+        return view('admin/paidBills', $data);
+    }
+    public function reports()
+    {
+        $data = [
+            'reports' => [
+                [
+                    'user' => 'John Doe',
+                    'problem' => 'No water supply',
+                    'date' => '2025-08-10',
+                    'location' => 'Main St, Cityville',
+                    'latitude' => 37.7749,
+                    'longitude' => -122.4194
+                ],
+                [
+                    'user' => 'Jane Smith',
+                    'problem' => 'Low pressure',
+                    'date' => '2025-08-15',
+                    'location' => '2nd Ave, Cityville',
+                    'latitude' => 37.7849,
+                    'longitude' => -122.4094
+                ],
+                [
+                    'user' => 'Alice Johnson',
+                    'problem' => 'Leaking pipe',
+                    'date' => '2025-08-18',
+                    'location' => '3rd Blvd, Cityville',
+                    'latitude' => 37.7649,
+                    'longitude' => -122.4294
+                ],
+            ]
+        ];
+        return view('admin/Reports', $data);
+    }
+    
 }

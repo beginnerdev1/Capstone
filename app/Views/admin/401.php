@@ -7,7 +7,7 @@
         <meta name="description" content="" />
         <meta name="author" content="" />
         <title>404 Error - SB Admin</title>
-        <link href="<?php echo base_url('assets/css') ?>"/styles.css" rel="stylesheet" />
+        <link href="<?php echo base_url('public/assets/css/styles.css') ?>" rel="stylesheet" />
         <script src="https://use.fontawesome.com/releases/v6.3.0/js/all.js" crossorigin="anonymous"></script>
     </head>
     <body>
@@ -21,7 +21,7 @@
                                     <h1 class="display-1">401</h1>
                                     <p class="lead">Unauthorized</p>
                                     <p>Access to this resource is denied.</p>
-                                    <a href="index.html">
+                                    <a href="<?= base_url('admin/') ?>">
                                         <i class="fas fa-arrow-left me-1"></i>
                                         Return to Dashboard
                                     </a>

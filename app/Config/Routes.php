@@ -20,12 +20,18 @@ $routes->group('users', function($routes) {
 });
 // Admin routes grouped under 'admin'
 $routes->group('admin', function($routes) {
-    $routes->get('/', 'Admin::index');           // Admin dashboard
-    $routes->get('layoutstatic', 'Admin::layoutStatic');
-    $routes->get('login', 'Admin::login');
-    $routes->get('charts', 'Admin::charts');
-    $routes->get('404', 'Admin::page404');
-    $routes->get('401', 'Admin::page401');
+    $routes->get('/'                , 'Admin::index'            );           // Admin dashboard
+    $routes->get('layoutstatic'     , 'Admin::layoutStatic'     );
+    $routes->get('login'            , 'Admin::login'            );
+    $routes->get('charts'           , 'Admin::charts'           );
+    $routes->get('tables'           , 'Admin::tables'           );
+    $routes->get('404'              , 'Admin::page404'          );
+    $routes->get('401'              , 'Admin::page401'          );
+    $routes->get('500'              , 'Admin::page500'          );
+    $routes->get('registeredUsers'  , 'Admin::registeredUsers'  );          // Registered users
+    $routes->get('billings'         , 'Admin::billings'         );          // Billings
+    $routes->get('paidBills'        , 'Admin::paidBills'        );          // Paid bills
+    $routes->get('reports'          , 'Admin::reports'          );          // User reports dashboard
 });
 
 // You can also add more user routes here, for example:
