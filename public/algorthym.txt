@@ -1,0 +1,37 @@
+//Admin side
+1. Start
+ 1.1 Connect to the Database / Internet
+2. Login
+3. Mga Makikita ng Admin
+ 3.1. Show Registered Users
+ 3.2. Show Billings 
+ 3.3. Show Paid Billings(Receipt) from the last 10 years to today
+  3.3.1. Print receipts
+ 3.4. Show User reports
+  3.4.1. merong report?
+   3.4.1.1. True
+    3.4.1.1.1. Mag papunta ng personnel
+     3.4.1.1.1.1. is the issue resolved?
+      3.4.1.1.1.1. True
+       3.4.1.1.1.1.1. Set ticket as done and save to database.
+      3.4.1.1.1.2. False 
+       3.4.1.1.1.2.1 Set ticket on standby and resolve another time.
+   3.4.1.2. False, Move on check again another time.
+4. Logout
+5. End
+
+//User side
+1. Start
+ 1.1. Connect to the database / Internet
+2. Login
+3. Mga makikita ng User
+ 3.1 Check my Current Bill
+  3.1.2 Pay bill
+   3.1.2.1 pay via Quick Response (QR) code / E Wallet (Receipt Recieved Via Email, User Account in MAIL, or Via Text Message)
+   3.1.2.2 pay via Cash/Personally (Receipt Recieved Personally and Physically)
+ 3.2 Check Email
+ 3.3 Send Reports / Issue / Mark Problems sa Mapa
+ 3.4 Account Settings
+  3.4.1 Payment Methods.
+  3.4.2 Change Password.
+4. End
