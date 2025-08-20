@@ -1194,7 +1194,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@srexi/purecounterjs/dist/purecounter_vanilla.js"></script>
 
   <!-- Local JS -->
-  <script src="<?= base_url('assets/Users/js/main.js') ?>"></script>
+  <script src="<?= base_url('public/assets/Users/js/main.js') ?>"></script>
 
 </body>
 
