@@ -7,7 +7,7 @@
         <meta name="description" content="" />
         <meta name="author" content="" />
         <title>Sidenav Light - SB Admin</title>
-        <link href="<?php echo base_url('public/assets/css/styles.css') ?>" rel="stylesheet" />
+         <link href="<?php echo base_url('public/assets/admin/css/styles.css') ?>" rel="stylesheet" />
         <script src="https://use.fontawesome.com/releases/v6.3.0/js/all.js" crossorigin="anonymous"></script>
     </head>
      <?php require_once(APPPATH . 'Views/admin/navbar.php'); ?>

@@ -84,7 +84,8 @@
                                 DataTable Example
                             </div>
                             <div class="card-body">
-                                <table id="datatablesSimple">
+                               <div class="table-responsive">
+                                <table class="datatable-table table table-striped table-bordered">
                                     <thead>
                                         <tr>
                                             <th>Name</th>
@@ -564,6 +565,7 @@
                                         </tr>
                                     </tbody>
                                 </table>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -585,8 +587,9 @@
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
         <script src="<?= base_url('public/assets/js/scripts.js') ?>"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.min.js" crossorigin="anonymous"></script>
-        <script src="<?= base_url('public/assets/demo/chart-area-demo.js') ?>"></script>
-        <script src="<?= base_url('public/assets/demo/chart-bar-demo.js') ?>"></script>
+        <script src="<?= base_url('public/assets/admin/demo/chart-area-demo.js') ?>"></script>
+        <script src="<?= base_url('public/assets/admin/demo/chart-bar-demo.js') ?>"></script>
+        <script src="<?= base_url('public/assets/admin/demo/chart-pie-demo.js') ?>"></script>
         <script src="https://cdn.jsdelivr.net/npm/simple-datatables@7.1.2/dist/umd/simple-datatables.min.js" crossorigin="anonymous"></script>
         <script src="<?= base_url('public/assets/js/datatables-simple-demo.js') ?>"></script>
     </body>

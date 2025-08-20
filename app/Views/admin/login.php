@@ -7,7 +7,7 @@
         <meta name="description" content="" />
         <meta name="author" content="" />
         <title>Login - SB Admin</title>
-        <link href="<?php echo base_url('assets/css') ?>"/styles.css" rel="stylesheet" />
+         <link href="<?php echo base_url('public/assets/admin/css/styles.css') ?>" rel="stylesheet" />
         <script src="https://use.fontawesome.com/releases/v6.3.0/js/all.js" crossorigin="anonymous"></script>
     </head>
     <body class="bg-primary">
