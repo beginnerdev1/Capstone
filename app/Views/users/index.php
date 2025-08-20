@@ -8,6 +8,7 @@
   <meta name="description" content="">
   <meta name="keywords" content="">
 
+
   <!-- Favicons -->
   <link href="<?= base_url('assets/img/favicon.png') ?>" rel="icon">
   <link href="<?= base_url('assets/img/apple-touch-icon.png') ?>" rel="apple-touch-icon">
@@ -18,14 +19,16 @@
   <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,800;1,900&family=Montserrat:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap" rel="stylesheet">
 
   <!-- Vendor CSS Files -->
-  <link href="<?= base_url('Users/vendor/bootstrap/css/bootstrap.min.css') ?>" rel="stylesheet">
-  <link href="<?= base_url('Users/vendor/bootstrap-icons/bootstrap-icons.css') ?>" rel="stylesheet">
-  <link href="<?= base_url('Users/vendor/aos/aos.css') ?>" rel="stylesheet">
-  <link href="<?= base_url('Users/vendor/glightbox/css/glightbox.min.css') ?>" rel="stylesheet">
-  <link href="<?= base_url('Users/vendor/swiper/swiper-bundle.min.css') ?>" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/swiper@9/swiper-bundle.min.css" rel="stylesheet">
 
   <!-- Main CSS File -->
-  <link href="<?= base_url('Users/assets/css/main.css') ?>" rel="stylesheet">
+  <link href="<?= base_url('public/assets/Users/css/main.css') ?>" rel="stylesheet">
+
+
 
   <!-- =======================================================
   * Template Name: Impact
@@ -1182,19 +1185,16 @@
 
   <!-- Preloader -->
   <div id="preloader"></div>
-
   <!-- Vendor JS Files -->
-  <script src="<?= base_url('public/Users/vendor/bootstrap/js/bootstrap.bundle.min.js') ?>"></script>
-  <script src="<?= base_url('public/Users/vendor/php-email-form/validate.js') ?>"></script>
-  <script src="<?= base_url('public/Users/vendor/aos/aos.js') ?>"></script>
-  <script src="<?= base_url('public/Users/vendor/glightbox/js/glightbox.min.js') ?>"></script>
-  <script src="<?= base_url('public/Users/vendor/swiper/swiper-bundle.min.js') ?>"></script>
-  <script src="<?= base_url('public/Users/vendor/purecounter/purecounter_vanilla.js') ?>"></script>
-  <script src="<?= base_url('public/Users/vendor/imagesloaded/imagesloaded.pkgd.min.js') ?>"></script>
-  <script src="<?= base_url('public/Users/vendor/isotope-layout/isotope.pkgd.min.js') ?>"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/swiper@9/swiper-bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/isotope-layout@3/dist/isotope.pkgd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@srexi/purecounterjs/dist/purecounter_vanilla.js"></script>
 
-  <!-- Main JS File -->
-  <script src="<?= base_url('public/Users/js/main.js') ?>"></script>
+  <!-- Local JS -->
+  <script src="<?= base_url('assets/Users/js/main.js') ?>"></script>
 
 </body>
 
