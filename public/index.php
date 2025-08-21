@@ -48,7 +48,7 @@ if (getcwd() . DIRECTORY_SEPARATOR !== FCPATH) {
 
 // LOAD OUR PATHS CONFIG FILE
 // This is the line that might need to be changed, depending on your folder structure.
-require FCPATH . 'app/Config/Paths.php';
+require FCPATH . '../app/Config/Paths.php';
 $system_path = 'system';
 $application_folder = 'app';
 
