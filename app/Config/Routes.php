@@ -17,6 +17,7 @@ $routes->group('users', function($routes) {
     $routes->get('profile', 'Users::profile');     // Profile settings
     $routes->get('changepassword', 'Users::changePassword'); // Change password
     $routes->get('editprofile', 'Users::editprofile');   // User settings
+    $routes->get('login', 'Auth::login');
 });
 // Admin routes grouped under 'admin'
 $routes->group('admin', function($routes) {
