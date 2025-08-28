@@ -7,7 +7,7 @@
         <meta name="description" content="" />
         <meta name="author" content="" />
         <title>Sidenav Light - SB Admin</title>
-         <link href="<?php echo base_url('public/assets/admin/css/styles.css') ?>" rel="stylesheet" />
+         <link href="<?php echo base_url('assets/admin/css/styles.css') ?>" rel="stylesheet" />
         <script src="https://use.fontawesome.com/releases/v6.3.0/js/all.js" crossorigin="anonymous"></script>
     </head>
      <?php require_once(APPPATH . 'Views/admin/navbar.php'); ?>
@@ -53,6 +53,6 @@
             </div>
         </div>
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
-        <script src="<?php echo base_url('assets/js/scripts.js') ?>"></script>
+        <script src="<?php echo base_url('assets/admin/js/scripts.js') ?>"></script>
     </body>
 </html>

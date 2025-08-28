@@ -26,7 +26,7 @@
   <link href="https://cdn.jsdelivr.net/npm/swiper@9/swiper-bundle.min.css" rel="stylesheet">
 
   <!-- Main CSS File -->
-  <link href="<?= base_url('public/assets/Users/css/main.css') ?>" rel="stylesheet">
+  <link href="<?= base_url('assets/Users/css/main.css') ?>" rel="stylesheet">
 
 
 
@@ -1194,7 +1194,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@srexi/purecounterjs/dist/purecounter_vanilla.js"></script>
 
   <!-- Local JS -->
-  <script src="<?= base_url('public/assets/Users/js/main.js') ?>"></script>
+  <script src="<?= base_url('assets/Users/js/main.js') ?>"></script>
 
 </body>
 
