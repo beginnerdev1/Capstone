@@ -45,10 +45,11 @@ class Admin extends BaseController
 
     public function registeredUsers()
     {
+        //inayos ko yung pag kuha ng query
         $db = \Config\Database::connect();
         $builder = $db->table('users');
         $query = $builder->select('id, username, email, phone_number, created_at, updated_at')->get();
-        
+
         $data = [
             'users' => $query->getResultArray()
         ];

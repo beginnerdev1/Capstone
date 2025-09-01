@@ -15,6 +15,7 @@
     <?php require_once(APPPATH . 'Views/admin/navbar.php'); ?>
     <div id="layoutSidenav_content">
         <main>
+            <!--updated table-->
             <div class="container-fluid px-4">
                 <h1 class="mt-4">Registered Users</h1>
                     <div class="card mb-4">
@@ -40,7 +41,7 @@
                                             <?php foreach ($users as $row): ?>
                                                 <tr>
                                                     <td><?= htmlspecialchars($row['id']); ?></td>
-                                                    <td><?= htmlspecialchars($row['name']); ?></td>
+                                                    <td><?= htmlspecialchars($row['username']); ?></td>
                                                     <td><?= htmlspecialchars($row['email']); ?></td>
                                                     <td><?= htmlspecialchars($row['phone_number']); ?></td>
                                                     <td><?= htmlspecialchars($row['created_at']); ?></td>
