@@ -17,38 +17,44 @@
         <main>
             <div class="container-fluid px-4">
                 <h1 class="mt-4">Registered Users</h1>
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <i class="fas fa-users me-1"></i>
-                        Users Table
-                    </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="datatable-table table table-striped table-bordered">
-                                <thead>
-                                    <tr>
-                                        <th>ID</th>
-                                        <th>Name</th>
-                                        <th>Email</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php if (!empty($users)): ?>
-                                        <?php foreach ($users as $row): ?>
-                                            <tr>
-                                                <td><?php echo htmlspecialchars($row['id']); ?></td>
-                                                <td><?php echo htmlspecialchars($row['name']); ?></td>
-                                                <td><?php echo htmlspecialchars($row['email']); ?></td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    <?php else: ?>
-                                        <tr><td colspan="3">No users found.</td></tr>
-                                    <?php endif; ?>
-                                </tbody>
-                            </table>
+                    <div class="card mb-4">
+                         <div class="card-header">
+                             <i class="fas fa-users me-1"></i>
+                                Users Table
+                         </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="datatable-table table table-striped table-bordered">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Name</th>
+                                            <th>Email</th>
+                                            <th>Phone Number</th>
+                                            <th>Created At</th>
+                                            <th>Updated At</th>
+                                        </tr>
+                                    </thead>
+                                     <tbody>
+                                        <?php if (!empty($users)): ?>
+                                            <?php foreach ($users as $row): ?>
+                                                <tr>
+                                                    <td><?= htmlspecialchars($row['id']); ?></td>
+                                                    <td><?= htmlspecialchars($row['name']); ?></td>
+                                                    <td><?= htmlspecialchars($row['email']); ?></td>
+                                                    <td><?= htmlspecialchars($row['phone_number']); ?></td>
+                                                    <td><?= htmlspecialchars($row['created_at']); ?></td>
+                                                    <td><?= htmlspecialchars($row['updated_at']); ?></td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        <?php else: ?>
+                                            <tr><td colspan="6">No users found.</td></tr>
+                                        <?php endif; ?>
+                                    </tbody>
+                                </table>
+                             </div>
                         </div>
                     </div>
-                </div>
             </div>
         </main>
         <footer class="py-4 bg-light mt-auto">

@@ -45,23 +45,12 @@ class Admin extends BaseController
 
     public function registeredUsers()
     {
-        // Logic to fetch registered users from the database
-        // For now, we will return a view with dummy data
-        // Database connection
-        // $conn = new mysqli("localhost", "root", "", "capstone");
-        // if ($conn->connect_error) {
-        //     die("Connection failed: " . $conn->connect_error);
-        // }
-
-        // Fetch users
-        // $sql = "SELECT id, name, email FROM users";
-        // $result = $conn->query($sql);
+        $db = \Config\Database::connect();
+        $builder = $db->table('users');
+        $query = $builder->select('id, username, email, phone_number, created_at, updated_at')->get();
+        
         $data = [
-            'users' => [
-                ['id' => 1, 'name' => 'John Doe', 'email' => 'john@example.com'],
-                ['id' => 2, 'name' => 'Jane Smith', 'email' => 'jane@example.com'],
-                ['id' => 3, 'name' => 'Alice Johnson', 'email' => 'alice@example.com'],
-            ]
+            'users' => $query->getResultArray()
         ];
         return view('admin/registeredUsers', $data);
     }

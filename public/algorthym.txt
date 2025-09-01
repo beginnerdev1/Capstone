@@ -3,7 +3,7 @@
  1.1 Connect to the Database / Internet -done
 2. Login
 3. Mga Makikita ng Admin
- 3.1. Show Registered Users -link ok
+ 3.1. Show Registered Users -link ok, database query ok,
  3.2. Show Billings -link ok
  3.3. Show Paid Billings(Receipt) from the last 10 years to today - link ok
   3.3.1. Print receipts
