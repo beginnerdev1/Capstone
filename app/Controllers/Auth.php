@@ -16,36 +16,39 @@ class Auth extends BaseController
     public function attemptLogin()
     {
         helper(['form', 'url']);
-        $session = session();
         $userModel = new UserModel();
 
         $username = $this->request->getPost('username');
         $password = $this->request->getPost('password');
 
-        // Find user
+        // Find user by username
         $user = $userModel->where('username', $username)->first();
 
-        if ($user) {
-            // Verify password
-            if (password_verify($password, $user['password'])) {
-                $session->set([
-                    'user_id'   => $user['id'],
-                    'username'  => $user['username'],
-                    'logged_in' => true
-                ]);
-                return redirect()->to('/users'); // user dashboard
-            } else {
-                return redirect()->back()->with('error', 'Invalid password')->withInput();
-            }
-        } else {
-            return redirect()->back()->with('error', 'User not found')->withInput();
+        if ($user && password_verify($password, $user['password'])) {
+            // ✅ Start session only if login is successful
+            $session = session(); // CodeIgniter handles session instance
+            $session->set([
+                'user_id'   => $user['id'],
+                'username'  => $user['username'],
+                'logged_in' => true,
+            ]);
+
+            return redirect()->to('/users'); // Redirect to dashboard
         }
+
+        // ❌ Wrong username or password
+        return redirect()->back()
+                         ->with('error', 'Invalid username or password')
+                         ->withInput();
     }
 
     // Logout
     public function logout()
     {
-        session()->destroy();
+        $session = session();
+        if ($session->has('logged_in')) {
+            $session->destroy(); // ✅ Clear session completely
+        }
         return redirect()->to('/login');
     }
 }

@@ -34,6 +34,7 @@ class Filters extends BaseFilters
         'forcehttps'    => ForceHTTPS::class,
         'pagecache'     => PageCache::class,
         'performance'   => PerformanceMetrics::class,
+        'auth'          => \App\Filters\AuthFilter::class,
     ];
 
     /**
@@ -70,17 +71,19 @@ class Filters extends BaseFilters
      *     after: array<string, array{except: list<string>|string}>|list<string>
      * }
      */
-    public array $globals = [
-        'before' => [
-            // 'honeypot',
-            // 'csrf',
-            // 'invalidchars',
+  public array $globals = [
+    'before' => [
+        'auth' => [
+            'except' => [
+                'login',        // allow login page
+                'attemptLogin', // allow login form submit
+                'logout',       // allow logout
+            ],
         ],
-        'after' => [
-            // 'honeypot',
-            // 'secureheaders',
-        ],
-    ];
+    ],
+    'after' => [],
+];
+
 
     /**
      * List of filter aliases that works on a
@@ -106,5 +109,12 @@ class Filters extends BaseFilters
      *
      * @var array<string, array<string, list<string>>>
      */
-    public array $filters = [];
+    public array $filters = [
+                'auth' => [
+            'before' => [
+                'users/*',   // protect all users routes
+            ],
+        ],
+    ];
+
 }

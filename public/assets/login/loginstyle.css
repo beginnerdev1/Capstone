@@ -10,6 +10,7 @@ body {
 }
 
 .left-box {
+    position: relative;   /* needed for .img-centered absolute positioning */
     background-color: #fff;
     border-top-left-radius: 20px;
     border-bottom-left-radius: 20px;
@@ -18,15 +19,19 @@ body {
     overflow: hidden;
 }
 
+
 .img-centered {
-    max-width: 100%;
+    position: absolute;   /* make it absolute */
+    top: 0;
+    left: 0;
+    width: 100%;          /* stretch to container */
     height: 100%;
-    object-fit: cover;
+    object-fit: cover;    /* maintain aspect ratio while covering */
 }
 
 
 .right-box {
-    padding: 40px 30px;
+    padding: 67px 30px;
 }
 
 .header-text h2 {
