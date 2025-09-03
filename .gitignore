@@ -1,0 +1,25 @@
+# Ignore CodeIgniter writable debugbar files
+/writable/debugbar/*.json
+
+# OS / IDE junk
+.DS_Store
+Thumbs.db
+*.log
+*.bak
+*.tmp
+*.swp
+*.swo
+
+# Composer
+/vendor/
+/composer.lock
+
+# Environment
+.env
+
+# CodeIgniter writable dirs
+/writable/cache/*
+/writable/logs/*
+/writable/session/*
+/writable/debugbar/*
+!/writable/debugbar/.gitkeep
