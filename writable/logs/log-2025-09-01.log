@@ -151,3 +151,31 @@ Stack trace:
 #14 C:\xampp\htdocs\Capstone\system\Boot.php(133): CodeIgniter\Boot::runCommand(Object(CodeIgniter\CLI\Console))
 #15 C:\xampp\htdocs\Capstone\spark(87): CodeIgniter\Boot::bootSpark(Object(Config\Paths))
 #16 {main}
+CRITICAL - 2025-09-01 10:55:48 --> ErrorException: Undefined array key "name"
+[Method: GET, Route: admin/registeredUsers]
+in APPPATH\Views\admin\registeredUsers.php on line 43.
+ 1 APPPATH\Views\admin\registeredUsers.php(43): CodeIgniter\Debug\Exceptions->errorHandler(2, 'Undefined array key "name"', 'C:\\xampp\\htdocs\\Capstone\\app\\Views\\admin\\registeredUsers.php', 43)
+ 2 SYSTEMPATH\View\View.php(226): include('C:\\xampp\\htdocs\\Capstone\\app\\Views\\admin\\registeredUsers.php')
+ 3 SYSTEMPATH\View\View.php(229): CodeIgniter\View\View->CodeIgniter\View\{closure}()
+ 4 SYSTEMPATH\Common.php(1167): CodeIgniter\View\View->render('admin/registeredUsers', [], true)
+ 5 APPPATH\Controllers\Admin.php(55): view('admin/registeredUsers', [...])
+ 6 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Admin->registeredUsers()
+ 7 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Admin))
+ 8 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 9 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+10 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+11 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+CRITICAL - 2025-09-01 10:55:52 --> ErrorException: Undefined array key "name"
+[Method: GET, Route: admin/registeredUsers]
+in APPPATH\Views\admin\registeredUsers.php on line 43.
+ 1 APPPATH\Views\admin\registeredUsers.php(43): CodeIgniter\Debug\Exceptions->errorHandler(2, 'Undefined array key "name"', 'C:\\xampp\\htdocs\\Capstone\\app\\Views\\admin\\registeredUsers.php', 43)
+ 2 SYSTEMPATH\View\View.php(226): include('C:\\xampp\\htdocs\\Capstone\\app\\Views\\admin\\registeredUsers.php')
+ 3 SYSTEMPATH\View\View.php(229): CodeIgniter\View\View->CodeIgniter\View\{closure}()
+ 4 SYSTEMPATH\Common.php(1167): CodeIgniter\View\View->render('admin/registeredUsers', [], true)
+ 5 APPPATH\Controllers\Admin.php(55): view('admin/registeredUsers', [...])
+ 6 SYSTEMPATH\CodeIgniter.php(933): App\Controllers\Admin->registeredUsers()
+ 7 SYSTEMPATH\CodeIgniter.php(507): CodeIgniter\CodeIgniter->runController(Object(App\Controllers\Admin))
+ 8 SYSTEMPATH\CodeIgniter.php(354): CodeIgniter\CodeIgniter->handleRequest(null, Object(Config\Cache), false)
+ 9 SYSTEMPATH\Boot.php(363): CodeIgniter\CodeIgniter->run()
+10 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+11 FCPATH\index.php(62): CodeIgniter\Boot::bootWeb(Object(Config\Paths))

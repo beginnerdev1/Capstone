@@ -2,4 +2,5 @@ MIKE{ registeredUsers.php: table update;
       AdminModel.php: ADDED ADMINMODEL;
       Admin.php(controller): Updated Query for registeredUsers;
       index.php(admin): nag change lang ako ng title;
+      log daw ng github update?
       }
