@@ -7,8 +7,9 @@ use CodeIgniter\Router\RouteCollection;
  */
 
     $routes->get('/', 'Home::index');
-    $routes->get('/login', 'Auth::login');           // show login form
-    $routes->post('/login', 'Auth::attemptLogin');   // process login
+    $routes->get('/login', 'Auth::login', ['as' => 'login']);
+    $routes->post('/attemptLogin', 'Auth::attemptLogin', ['as' => 'attemptLogin']);
+
     $routes->get('/logout', 'Auth::logout');         // logout
     
     $routes->group('users', function($routes) {
