@@ -5,7 +5,7 @@ use CodeIgniter\Router\RouteCollection;
 /**
  * @var RouteCollection $routes
  */
-
+$routes->get('EmailTest', 'EmailTest::index');
     $routes->get('/', 'Home::index');
     $routes->get('/login', 'Auth::login', ['as' => 'login']);
     $routes->post('/attemptLogin', 'Auth::attemptLogin', ['as' => 'attemptLogin']);
@@ -21,6 +21,8 @@ use CodeIgniter\Router\RouteCollection;
     $routes->get('profile', 'Users::profile');
     $routes->get('changepassword', 'Users::changePassword');
     $routes->get('editprofile', 'Users::editprofile');
+    
+
 });
 
 

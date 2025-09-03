@@ -34,7 +34,8 @@ class Filters extends BaseFilters
         'forcehttps'    => ForceHTTPS::class,
         'pagecache'     => PageCache::class,
         'performance'   => PerformanceMetrics::class,
-        'auth'          => \App\Filters\AuthFilter::class,
+        'userauth'  => \App\Filters\UserAuthFilter::class,
+        'adminauth' => \App\Filters\AdminAuthFilter::class,
     ];
 
     /**
@@ -73,13 +74,7 @@ class Filters extends BaseFilters
      */
   public array $globals = [
     'before' => [
-        'auth' => [
-            'except' => [
-                'login',        // allow login page
-                'attemptLogin', // allow login form submit
-                'logout',       // allow logout
-            ],
-        ],
+    
     ],
     'after' => [],
 ];
@@ -110,11 +105,16 @@ class Filters extends BaseFilters
      * @var array<string, array<string, list<string>>>
      */
     public array $filters = [
-                'auth' => [
-            'before' => [
-                'users/*',   // protect all users routes
-            ],
+                'userauth' => [
+        'before' => [
+            'users/*', // protect all user routes
         ],
+    ],
+    'adminauth' => [
+        'before' => [
+            'admin/*', // protect all admin routes
+        ],
+    ],
     ];
 
 }
