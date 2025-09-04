@@ -13,23 +13,23 @@ class EmailTest extends BaseController
         $mail = new PHPMailer(true);
 
         try {
-            // Gmail SMTP config
+            // Gmail SMTP config using .env values
             $mail->isSMTP();
-            $mail->Host       = 'smtp.gmail.com';
+            $mail->Host       = getenv('SMTP_HOST');
             $mail->SMTPAuth   = true;
-            $mail->Username   = 'caspequiel27@gmail.com'; // your Gmail
-            $mail->Password   = 'lgle qffa oehs tuoe';   // Gmail App Password (NOT your Gmail login password)
+            $mail->Username   = getenv('SMTP_USER');
+            $mail->Password   = getenv('SMTP_PASS');
             $mail->SMTPSecure = 'tls';
-            $mail->Port       = 587;
+            $mail->Port       = getenv('SMTP_PORT');
 
             // Sender & recipient
-            $mail->setFrom('caspequiel27@gmail.com', 'CI4 Test');
-            $mail->addAddress('kahuenzgmail.com', 'User'); 
+            $mail->setFrom(getenv('SMTP_FROM'), 'CI4 Test');
+            $mail->addAddress('kahuenz@gmail.com', 'User'); // fixed typo
 
             // Email content
             $mail->isHTML(true);
             $mail->Subject = 'PHPMailer Test from CodeIgniter';
-            $mail->Body    = '<h3>This is a test email sent using Gmail SMTP + PHPMailer + CodeIgniter 🎉</h3>';
+            $mail->Body    = '<h3>This is a test email sent securely 🎉</h3>';
             $mail->AltBody = 'This is the plain text version of the email.';
 
             $mail->send();
