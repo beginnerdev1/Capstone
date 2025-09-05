@@ -57,18 +57,14 @@ class Admin extends BaseController
     }
     public function billings()
     {
-        // Example: Fetch billing data from database (replace with actual logic)
-        // $billingModel = new \App\Models\BillingModel();
-        // $data['billings'] = $billingModel->findAll();
+        $billingModel = new BillingModel();
 
-        // Dummy data for demonstration
-        $data = [
-            'billings' => [
-                ['id' => 101, 'user' => 'John Doe', 'amount' => 120.50, 'date' => '2024-06-01'],
-                ['id' => 102, 'user' => 'Jane Smith', 'amount' => 75.00, 'date' => '2024-06-02'],
-                ['id' => 103, 'user' => 'Alice Johnson', 'amount' => 200.00, 'date' => '2024-06-03'],
-            ]
-        ];
+        $data['billings'] =$billingModel
+            ->select('billings.id, users.username, billings.amount, billings.due_date, billings.status')
+            ->join('users', 'billings.user_id = users.id')
+            ->where('billings.status', 'unpaid')
+            ->orderBy('billings.due_date', 'ASC')
+            ->findAll(); 
         return view('admin/billings', $data);
     }
     public function paidBills()
