@@ -41,32 +41,38 @@ class Auth extends BaseController
     public function register()
     {
         $userModel = new UserModel();
+
+        $otp = rand(100000, 999999);
+
         $data = [
-            'name'        => $this->request->getPost('name'),
-            'email'       => $this->request->getPost('email'),
             'username'    => $this->request->getPost('username'),
+            'email'       => $this->request->getPost('email'),
             'password'    => password_hash($this->request->getPost('password'), PASSWORD_DEFAULT),
-            'is_verified' => 0
+            'is_verified' => 0,
+            'otp_code'    => $otp,
+            'otp_expires' => date('Y-m-d H:i:s', time() + 300) // 5 mins
         ];
 
-        $userId = $userModel->insert($data);
+        if (! $userModel->insert($data)) {
+            // show validation/db errors if insert fails
+            dd($userModel->errors());
+        }
+
+        $userId = $userModel->getInsertID();
 
         if ($userId) {
-            $otp = rand(100000, 999999);
+            session()->set('pending_user', $userId);
 
-            session()->set([
-                'pending_user' => $userId,
-                'otp_code'     => $otp,
-                'otp_expires'  => time() + 60
-            ]);
-
+            // send OTP to email
             $this->sendOtpEmail($data['email'], $otp);
 
-            return redirect()->to('/verify');
+            return redirect()->to('/verify')->with('message', 'OTP sent to your email.');
         }
 
         return redirect()->back()->with('error', 'Registration failed, try again.');
     }
+
+
 
     public function verify()
     {

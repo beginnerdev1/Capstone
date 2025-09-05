@@ -33,7 +33,7 @@
 
                     <!-- Name -->
                     <div class="input-group mb-3">
-                        <input type="text" name="name" class="form-control form-control-lg bg-light fs-6" placeholder="Full Name" required>
+                        <input type="text" name="username" class="form-control form-control-lg bg-light fs-6" placeholder="Full Name" required>
                     </div>
 
                     <!-- Email -->
