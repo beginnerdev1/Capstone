@@ -6,15 +6,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login</title>
 
-    <!-- Google Fonts (Poppins) -->
+    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
 
-    <!-- Bootstrap CSS (from CDN) -->
+    <!-- Bootstrap CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
 
-    <!-- Custom CSS for Login Page (stored in /public/assets/login/loginstyle.css) -->
+    <!-- Custom CSS -->
     <link href="<?= base_url('assets/login/loginstyle.css?v=' . time()) ?>" rel="stylesheet">
-
 </head>
 <body>
 
@@ -28,7 +27,7 @@
 
         <!-- Right Login Form Section -->
         <div class="col-md-6 right-box">
-           <form action="<?= route_to('attemptLogin') ?>" method="post">
+            <form action="<?= site_url('login') ?>" method="post">
                 <div class="row align-items-center">
                     
                     <!-- Header -->
@@ -37,12 +36,12 @@
                         <p>We are happy to have you back.</p>
                     </div>
 
-                    <!-- Username Input -->
+                    <!-- Username -->
                     <div class="input-group mb-3">
                         <input type="text" name="username" class="form-control form-control-lg bg-light fs-6" placeholder="Username" required>
                     </div>
 
-                    <!-- Password Input -->
+                    <!-- Password -->
                     <div class="input-group mb-1">
                         <input type="password" name="password" class="form-control form-control-lg bg-light fs-6" placeholder="Password" required>
                     </div>
@@ -52,7 +51,7 @@
                         <button type="submit" class="btn btn-lg btn-primary w-100 fs-6">Login</button>
                     </div>
 
-                    <!-- Error Message -->
+                    <!-- Flash Error -->
                     <?php if(session()->getFlashdata('error')): ?>
                         <div class="alert alert-danger w-100">
                             <?= session()->getFlashdata('error') ?>
@@ -62,7 +61,7 @@
                     <!-- Signup Link -->
                     <div class="row">
                         <small>Don't have an account? 
-                            <a href="<?= site_url('signup') ?>">Sign Up</a>
+                            <a href="<?= site_url('register') ?>">Sign Up</a>
                         </small>
                     </div>
                 </div>

@@ -15,11 +15,17 @@ class CreateUsersTable extends Migration
                 'unsigned'       => true,
                 'auto_increment' => true,
             ],
-            'username'       => [
+            'name' => [
+                'type'       => 'VARCHAR',
+                'constraint' => '150',
+                'null'       => true,
+            ],
+            'username'    => [
                 'type'       => 'VARCHAR',
                 'constraint' => '100',
+                'unique'     => true,
             ],
-            'email'      => [
+            'email'       => [
                 'type'       => 'VARCHAR',
                 'constraint' => '100',
                 'unique'     => true,
@@ -28,11 +34,25 @@ class CreateUsersTable extends Migration
                 'type'       => 'VARCHAR',
                 'constraint' => '255',
             ],
-            'created_at' => [
+            'is_verified' => [
+                'type'       => 'TINYINT',
+                'constraint' => 1,
+                'default'    => 0,
+            ],
+            'otp_code'    => [
+                'type'       => 'VARCHAR',
+                'constraint' => 6,
+                'null'       => true,
+            ],
+            'otp_expires' => [
+                'type'       => 'INT',
+                'null'       => true,
+            ],
+            'created_at'  => [
                 'type' => 'DATETIME',
                 'null' => true,
             ],
-            'updated_at' => [
+            'updated_at'  => [
                 'type' => 'DATETIME',
                 'null' => true,
             ],
@@ -43,6 +63,6 @@ class CreateUsersTable extends Migration
 
     public function down()
     {
-        //
+        $this->forge->dropTable('users');
     }
 }

@@ -1,0 +1,85 @@
+/* login design*/
+body {
+    background-color: #f0f2f5;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.box-area {
+    width: 900px;
+    max-width: 100%;
+}
+
+.left-box {
+    position: relative;   /* needed for .img-centered absolute positioning */
+    background-color: #fff;
+    border-top-left-radius: 20px;
+    border-bottom-left-radius: 20px;
+    height: 100%;
+    min-height: 500px;
+    overflow: hidden;
+}
+
+
+.img-centered {
+    position: absolute;   /* make it absolute */
+    top: 0;
+    left: 0;
+    width: 100%;          /* stretch to container */
+    height: 100%;
+    object-fit: cover;    /* maintain aspect ratio while covering */
+}
+
+
+.right-box {
+    padding: 67px 30px;
+}
+
+.header-text h2 {
+    font-weight: 700;
+}
+
+.input-group input {
+    border-radius: 10px;
+}
+
+.btn-primary {
+    background-color: #103cbe;
+    border: none;
+    border-radius: 10px;
+}
+
+.btn-light {
+    border-radius: 10px;
+    border: 1px solid #ccc;
+}
+
+.forgot a {
+    color: #103cbe;
+    text-decoration: none;
+}
+
+@media (max-width: 768px) {
+    .box-area {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .left-box, .right-box {
+        width: 100%;
+        border-radius: 0;
+    }
+
+    .left-box img {
+        border-radius: 0;
+        height: 300px;
+        object-fit: cover;
+    }
+   
+    
+}
+
+@media (max-width: 768px) {
+    .left-box {
+        display: none;
+    }
+}

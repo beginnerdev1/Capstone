@@ -5,14 +5,20 @@ use CodeIgniter\Router\RouteCollection;
 /**
  * @var RouteCollection $routes
  */
-$routes->get('EmailTest', 'EmailTest::index');
-$routes->get('/', 'Home::index');
+$routes->get('/login', 'Auth::login', ['as' => 'login']); // show login form
+$routes->post('/attemptLogin', 'Auth::attemptLogin', ['as' => 'attemptLogin']); // process login
 
-$routes->get('/login', 'Auth::login', ['as' => 'login']);
-$routes->post('/attemptLogin', 'Auth::attemptLogin', ['as' => 'attemptLogin']);
-$routes->get('/logout', 'Auth::logout'); // logout
+$routes->get('/register', 'Auth::registerForm');  // show register form
+$routes->post('/register', 'Auth::register');    // process register
 
-// Users routes (protected by userauth filter)
+$routes->get('/verify', 'Auth::verify');         // show verify page
+$routes->post('/verifyOtp', 'Auth::verifyOtp');  // process OTP
+$routes->get('/resendOtp', 'Auth::resendOtp');   // resend OTP
+
+$routes->get('/logout', 'Auth::logout');         // logout
+
+
+// 🔹 Users routes (protected by filter)
 $routes->group('users', ['filter' => 'userauth'], function($routes) {
     $routes->get('/', 'Users::index');
     $routes->get('billing', 'Users::billing');
