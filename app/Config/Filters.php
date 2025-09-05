@@ -110,11 +110,7 @@ class Filters extends BaseFilters
             'users/*', // protect all user routes
         ],
     ],
-    'adminauth' => [
-        'before' => [
-            'admin/*', // protect all admin routes
-        ],
-    ],
+    
     ];
 
 }
