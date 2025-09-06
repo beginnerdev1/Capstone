@@ -1,9 +1,10 @@
 window.addEventListener('DOMContentLoaded', event => {
-    // Simple-DataTables
-    // https://github.com/fiduswriter/Simple-DataTables/wiki
-
-    const datatablesSimple = document.getElementById('datatablesSimple');
-    if (datatablesSimple) {
-        new simpleDatatables.DataTable(datatablesSimple);
+    const billingsTable = document.getElementById('billingsTable');
+    if (billingsTable) {
+        new simpleDatatables.DataTable(billingsTable, {
+            searchable: true,
+            fixedHeight: true,
+            perPage: 5
+        });
     }
 });

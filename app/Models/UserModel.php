@@ -12,3 +12,4 @@ class UserModel extends Model
         'name', 'username', 'email', 'password', 'is_verified', 'otp_code', 'otp_expires'
     ];
 }
+?>

@@ -2,48 +2,33 @@
 
 namespace App\Controllers;
 
+use App\Models\BillingModel;
+
 class Admin extends BaseController
 {
     public function index()
     {
         return view('admin/index');
-    }
-
-    public function login()
+    }public function login()
     {
         return view('admin/login');
-    }
-
-
-    public function layoutStatic()
+    }public function layoutStatic()
     {
         return view('admin/layout-static');
-    }
-
-    public function charts()
+    } public function charts()
     {
         return view('admin/charts');
-    }
-
-    public function page404()
+    }public function page404()
     {
         return view('admin/404');
-    }
-
-    public function page401()
+    }public function page401()
     {
         return view('admin/401');
-    }
-
-    public function page500(){
+    }public function page500(){
         return view('admin/500');
-    }
-
-    public function tables(){
+    } public function tables(){
         return view('admin/tables');
-    }
-
-    public function registeredUsers()
+    } public function registeredUsers()
     {
         //inayos ko yung pag kuha ng query
         $db = \Config\Database::connect();
@@ -54,31 +39,16 @@ class Admin extends BaseController
             'users' => $query->getResultArray()
         ];
         return view('admin/registeredUsers', $data);
-    }
-    public function billings()
-    {
-        $billingModel = new BillingModel();
-
-        $data['billings'] =$billingModel
-            ->select('billings.id, users.username, billings.amount, billings.due_date, billings.status')
-            ->join('users', 'billings.user_id = users.id')
-            ->where('billings.status', 'unpaid')
-            ->orderBy('billings.due_date', 'ASC')
-            ->findAll(); 
+    } public function billings()
+    {  //para sa unpaid bills
+         $billingModel = new BillingModel();
+        $data['billings'] = $billingModel->getUnpaidBills();
         return view('admin/billings', $data);
     }
     public function paidBills()
-    {
-        // Dummy data for paid bills (dates from last year till today)
-        $data = [
-            'paidBills' => [
-                ['id' => 201, 'user' => 'John Doe', 'amount' => 150.00, 'date' => '2024-08-19'],
-                ['id' => 202, 'user' => 'Jane Smith', 'amount' => 95.50, 'date' => '2025-02-10'],
-                ['id' => 203, 'user' => 'Alice Johnson', 'amount' => 210.75, 'date' => '2025-07-05'],
-                ['id' => 204, 'user' => 'Bob Lee', 'amount' => 80.00, 'date' => '2024-12-22'],
-                ['id' => 205, 'user' => 'Maria Garcia', 'amount' => 120.00, 'date' => '2025-08-01'],
-            ]
-        ];
+    {   //para sa paid bills
+        $billingModel = new BillingModel();
+        $data['billings'] = $billingModel->getPaidBills();
         return view('admin/paidBills', $data);
     }
     public function reports()

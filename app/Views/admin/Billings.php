@@ -24,28 +24,28 @@
                     </div>
                     <div class="card-body">
                         <div class="table-responsive">
-                            <table class="datatable-table table table-striped table-bordered">
-                                <thead>
+                            <table id="billingsTable" class="table table-hover table-striped align-middle shadow-sm">
+                                <thead class="table-primary">
                                     <tr>
                                         <th>Bill ID</th>
                                         <th>User</th>
                                         <th>Amount</th>
-                                        <th>Date</th>
+                                        <th>Due Date</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <?php if (!empty($billings)): ?>
                                         <?php foreach ($billings as $bill): ?>
                                             <tr>
-                                                <td><?= htmlspecialchars($bill['id']) ?></td>
-                                                <td><?= htmlspecialchars($bill['user']) ?></td>
-                                                <td><?= htmlspecialchars(number_format($bill['amount'], 2)) ?></td>
-                                                <td><?= htmlspecialchars($bill['date']) ?></td>
+                                                <td><?= esc($bill['id']) ?></td>
+                                                <td><?= esc($bill['username']) ?></td>
+                                                <td><strong>₱<?= number_format($bill['amount'], 2) ?></strong></td>
+                                                <td><?= esc($bill['due_date']) ?></td>
                                             </tr>
                                         <?php endforeach; ?>
                                     <?php else: ?>
                                         <tr>
-                                            <td colspan="4" class="text-center">No bills found.</td>
+                                            <td colspan="4" class="text-center text-muted">No bills found.</td>
                                         </tr>
                                     <?php endif; ?>
                                 </tbody>
