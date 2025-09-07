@@ -6,22 +6,19 @@ use CodeIgniter\HTTP\RequestInterface;
 use CodeIgniter\HTTP\ResponseInterface;
 use CodeIgniter\Filters\FilterInterface;
 
-class AuthFilter implements FilterInterface
+class GuestFilter implements FilterInterface
 {
     public function before(RequestInterface $request, $arguments = null)
     {
-        $session = session();
-
-        // If not logged in, redirect to login page
-        if (!$session->get('logged_in')) {
-            return redirect()->to(site_url('login'))->with('error', 'You must log in first.');
-
-
+        // If user is already logged in, redirect them away
+        if (session()->get('isLoggedIn')) {
+            return redirect()->to(base_url('users'))
+                             ->with('message', 'You are already logged in.');
         }
     }
 
     public function after(RequestInterface $request, ResponseInterface $response, $arguments = null)
     {
-        // Not used in this case
+        // not needed
     }
 }

@@ -5,18 +5,20 @@ use CodeIgniter\Router\RouteCollection;
 /**
  * @var RouteCollection $routes
  */
-$routes->get('/login', 'Auth::login', ['as' => 'login']); // show login form
-$routes->post('/attemptLogin', 'Auth::attemptLogin', ['as' => 'attemptLogin']); // process login
+    // 🔹 Login
+    $routes->get('/login', 'Auth::login', ['as' => 'login', 'filter' => 'guest']); 
+    $routes->post('/login', 'Auth::attemptLogin', ['as' => 'attemptLogin', 'filter' => 'guest']);
+        // 🔹 Register
+    $routes->get('/register', 'Auth::registerForm', ['filter' => 'guest']);  
+    $routes->post('/register', 'Auth::register', ['filter' => 'guest']);
 
-$routes->get('/register', 'Auth::registerForm');  // show register form
-$routes->post('/register', 'Auth::register');    // process register
+    // 🔹 Verify (OTP)
+    $routes->get('/verify', 'Auth::verify', ['filter' => 'guest']);         
+    $routes->post('/verifyOtp', 'Auth::verifyOtp', ['filter' => 'guest']);  
+    $routes->get('/resendOtp', 'Auth::resendOtp', ['filter' => 'guest']);   
 
-$routes->get('/verify', 'Auth::verify');         // show verify page
-$routes->post('/verifyOtp', 'Auth::verifyOtp');  // process OTP
-$routes->get('/resendOtp', 'Auth::resendOtp');   // resend OTP
-
-$routes->get('/logout', 'Auth::logout');         // logout
-
+    // 🔹 Logout (always accessible if logged in)
+    $routes->get('/logout', 'Auth::logout');
 
 // 🔹 Users routes (protected by filter)
 $routes->group('users', ['filter' => 'userauth'], function($routes) {

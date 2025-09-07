@@ -36,9 +36,9 @@
                         <p>We are happy to have you back.</p>
                     </div>
 
-                    <!-- Username -->
+                   <!-- Email -->
                     <div class="input-group mb-3">
-                        <input type="text" name="username" class="form-control form-control-lg bg-light fs-6" placeholder="Username" required>
+                        <input type="email" name="email" class="form-control form-control-lg bg-light fs-6" placeholder="Email" required>
                     </div>
 
                     <!-- Password -->
@@ -61,7 +61,7 @@
                     <!-- Signup Link -->
                     <div class="row">
                         <small>Don't have an account? 
-                            <a href="<?= site_url('register') ?>">Sign Up</a>
+                            <a href="<?= base_url('register') ?>">Sign Up</a>
                         </small>
                     </div>
                 </div>

@@ -11,8 +11,8 @@ class UserAuthFilter implements FilterInterface
     public function before(RequestInterface $request, $arguments = null)
     {
         // Check kung naka-login ang user
-        if (! session()->get('isUserLoggedIn')) {
-            return redirect()->to('/login');
+        if (! session()->get('isLoggedIn')) {
+            return redirect()->to(base_url('login'))->with('error', 'You must log in first.');
         }
     }
 

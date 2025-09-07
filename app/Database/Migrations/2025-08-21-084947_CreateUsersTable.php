@@ -50,7 +50,7 @@ class CreateUsersTable extends Migration
                 'null'       => true,
             ],
             'otp_expires' => [
-                'type'       => 'INT',
+                'type'       => 'DATETIME',
                 'null'       => true,
             ],
             'created_at'  => [

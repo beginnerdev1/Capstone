@@ -69,7 +69,7 @@
                     <!-- Login Link -->
                     <div class="row">
                         <small>Already have an account? 
-                            <a href="<?= site_url('login') ?>">Login</a>
+                            <a href="<?= base_url('login') ?>">Login</a>
                         </small>
                     </div>
                 </div>
