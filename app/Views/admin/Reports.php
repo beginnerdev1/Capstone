@@ -43,9 +43,11 @@
                                                 <?php foreach ($reports as $report): ?>
                                                     <tr data-lat="<?= $report['latitude'] ?>" data-lng="<?= $report['longitude'] ?>">
                                                         <td><?= htmlspecialchars($report['user']) ?></td>
-                                                        <td><?= htmlspecialchars($report['problem']) ?></td>
-                                                        <td><?= htmlspecialchars($report['date']) ?></td>
-                                                        <td><?= htmlspecialchars($report['location']) ?></td>
+                                                        <td><?= htmlspecialchars($report['issue_type']) ?></td>
+                                                        <td><?= htmlspecialchars($report['description']) ?></td>
+                                                        <td><?= htmlspecialchars($report['status']) ?></td>
+                                                        <td><?= htmlspecialchars($report['address']) ?></td>
+                                                        <td><?= htmlspecialchars($report['created_at']) ?></td>
                                                     </tr>
                                                 <?php endforeach; ?>
                                             <?php else: ?>

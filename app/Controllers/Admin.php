@@ -29,15 +29,11 @@ class Admin extends BaseController
     } public function tables(){
         return view('admin/tables');
     } public function registeredUsers()
-    {
-        //inayos ko yung pag kuha ng query
-        $db = \Config\Database::connect();
-        $builder = $db->table('users');
-        $query = $builder->select('id, username, email, phone_number, created_at, updated_at')->get();
+    {   //load user model (panag pag tawag ng object sa java)
+        $userModel = new \App\Models\UserModel();
+        //para sa pag kuha ng  registered users
+        $data['users'] = $userModel->getRegisteredUsers();
 
-        $data = [
-            'users' => $query->getResultArray()
-        ];
         return view('admin/registeredUsers', $data);
     } public function billings()
     {  //para sa unpaid bills
@@ -53,34 +49,16 @@ class Admin extends BaseController
     }
     public function reports()
     {
-        $data = [
-            'reports' => [
-                [
-                    'user' => 'John Doe',
-                    'problem' => 'No water supply',
-                    'date' => '2025-08-10',
-                    'location' => 'Main St, Cityville',
-                    'latitude' => 37.7749,
-                    'longitude' => -122.4194
-                ],
-                [
-                    'user' => 'Jane Smith',
-                    'problem' => 'Low pressure',
-                    'date' => '2025-08-15',
-                    'location' => '2nd Ave, Cityville',
-                    'latitude' => 37.7849,
-                    'longitude' => -122.4094
-                ],
-                [
-                    'user' => 'Alice Johnson',
-                    'problem' => 'Leaking pipe',
-                    'date' => '2025-08-18',
-                    'location' => '3rd Blvd, Cityville',
-                    'latitude' => 37.7649,
-                    'longitude' => -122.4294
-                ],
-            ]
-        ];
+        $db = \Config\Database::connect();
+
+        // Build query with JOIN to users table
+        $builder = $db->table('service_reports sr')
+            ->select('sr.id, sr.issue_type, sr.description, sr.status, sr.address, sr.latitude, sr.longitude, sr.created_at, u.username as user')
+            ->join('users u', 'u.id = sr.user_id', 'left') // left join in case user is missing
+            ->orderBy('sr.created_at', 'DESC');
+
+        $data['reports'] = $builder->get()->getResultArray();
+
         return view('admin/Reports', $data);
     }
     
