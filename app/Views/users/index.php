@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta content="width=device-width, initial-scale=1.0" name="viewport">
-  <title>Index - Impact Bootstrap Template</title>
+  <title>Index - Home</title>
   <meta name="description" content="">
   <meta name="keywords" content="">
 
@@ -27,16 +27,6 @@
 
   <!-- Main CSS File -->
   <link href="<?= base_url('assets/Users/css/main.css') ?>" rel="stylesheet">
-
-
-
-  <!-- =======================================================
-  * Template Name: Impact
-  * Template URL: https://bootstrapmade.com/impact-bootstrap-business-website-template/
-  * Updated: Aug 07 2024 with Bootstrap v5.3.3
-  * Author: BootstrapMade.com
-  * License: https://bootstrapmade.com/license/
-  ======================================================== -->
 </head>
 
 <body class="index-page">
@@ -131,7 +121,7 @@
 
             <div class="col-xl-3 col-md-6">
               <div class="icon-box">
-                <div class="icon"><i class="bi bi-easel"></i></div>
+                <div class="icon"><i class="bi bi-clock-history"></i></div>
                 <h4 class="title"><a href="" class="stretched-link">Lorem Ipsum</a></h4>
               </div>
             </div><!--End Icon Box -->
@@ -145,8 +135,8 @@
 
             <div class="col-xl-3 col-md-6">
               <div class="icon-box">
-                <div class="icon"><i class="bi bi-geo-alt"></i></div>
-                <h4 class="title"><a href="" class="stretched-link">Magni Dolores</a></h4>
+                <div class="icon"><i class="bi bi-clock-history"></i></div>
+                <h4 class="title"><a href="" class="stretched-link">History</a></h4>
               </div>
             </div><!--End Icon Box -->
 
