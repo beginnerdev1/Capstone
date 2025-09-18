@@ -58,10 +58,12 @@
         <div class="container position-relative">
           <div class="row gy-4 mt-5">
 
-            <div class="col-xl-3 col-md-6">
+           <div class="col-xl-3 col-md-6">
               <div class="icon-box">
                 <div class="icon"><i class="bi bi-clock-history"></i></div>
-                <h4 class="title"><a href="" class="stretched-link">Lorem Ipsum</a></h4>
+                <h4 class="title">
+                  <a href="<?= base_url('users/payments') ?>" class="stretched-link">Payments</a>
+                </h4>
               </div>
             </div><!--End Icon Box -->
 
