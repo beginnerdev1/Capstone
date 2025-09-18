@@ -22,14 +22,14 @@ use CodeIgniter\Router\RouteCollection;
 
 // 🔹 Users routes (protected by filter)
 $routes->group('users', ['filter' => 'userauth'], function($routes) {
-    $routes->get('/', 'Users::index');
-    $routes->get('billing', 'Users::billing');
-    $routes->get('payments', 'Users::payments');
-    $routes->get('pressure', 'Users::pressure');
-    $routes->get('report', 'Users::report');
-    $routes->get('profile', 'Users::profile');
-    $routes->get('changepassword', 'Users::changePassword');
-    $routes->get('editprofile', 'Users::editProfile');
+    $routes->get('/'                , 'Users::index'            );
+    $routes->get('history'          , 'Users::history'          );
+    $routes->get('payments'         , 'Users::payments'         );
+    $routes->get('pressure'         , 'Users::pressure'         );
+    $routes->get('report'           , 'Users::report'           );
+    $routes->get('profile'          , 'Users::profile'          );
+    $routes->get('changepassword'   , 'Users::changePassword'   );
+    $routes->get('editprofile'      , 'Users::editProfile'      );
 });
 
 
