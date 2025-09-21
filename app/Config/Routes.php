@@ -18,7 +18,7 @@ use CodeIgniter\Router\RouteCollection;
     $routes->get('/resendOtp', 'Auth::resendOtp', ['filter' => 'guest']);   
 
     // 🔹 Logout (always accessible if logged in)
-    $routes->get('/logout', 'Auth::logout');
+    $routes->post('/logout', 'Auth::logout', ['as' => 'logout', 'filter' => 'userauth']);
 
 // 🔹 Users routes (protected by filter)
 $routes->group('users', ['filter' => 'userauth'], function($routes) {

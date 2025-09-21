@@ -17,9 +17,16 @@ class Users extends BaseController
         //fetching user id from session
         $user_id = session()->get('user_id');
 
+        //get limit from user input, default = 10
+        $limit = $this->request->getGet('limit') ?? 10;
+
         //loading billing model
         $billingModel = new BillingModel();
-        $data['billings'] = $billingModel->getUserPaidBills($user_id); 
+        $data['billings'] = $billingModel->getUserPaidBills($user_id, $limit);
+        $data['limit'] = $limit;
+       
+
+
 
         $data['monthlyExpenses'] = $billingModel->getMonthlyExpenses($user_id);
         if(count($monthlyExpenses)>=2){
@@ -33,6 +40,8 @@ class Users extends BaseController
         $data['yearlyExpenses'] = $billingModel->getYearlyExpenses($user_id);
 
         return view('users/history', $data);*/
+
+        //static data for testing and demo purposes
         $data['billings'] = [
         [
             'id'        => 201,
@@ -59,6 +68,17 @@ class Users extends BaseController
             'status'    => 'paid',
         ],
     ];
+     // ✅ Get user-selected limit (default = 3)
+    $limit = (int) ($this->request->getGet('limit') ?? 3);
+
+    // ✅ Slice the array based on limit
+    $data['billings'] = array_slice($data['billings'], 0, $limit);
+
+    // ✅ Pass limit back to view
+    $data['limit'] = $limit;
+
+    
+    //static data for monthly expenses
     $data['monthlyExpenses'] = [
         ['month' => 'January'   , 'total' => 1200.50   ],
         ['month' => 'February'  , 'total' => 950.00    ],
@@ -125,4 +145,5 @@ class Users extends BaseController
         // Logic to update user settings
         return view('users/editprofile');
     }
+   
 }

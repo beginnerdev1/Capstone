@@ -44,6 +44,7 @@ class BillingModel extends Model
                     ->where('status', 'paid')
                     ->where('billings.paid_date >=', date('Y-m-d H:i:s', strtotime("-$months months")))
                     ->orderBy('paid_date', 'DESC')
+                    ->limit($limit)
                     ->findAll();
     }
     //method for fecthing Monthly Expenses for charts

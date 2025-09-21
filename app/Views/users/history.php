@@ -41,7 +41,22 @@
           <h2>Your Bills</h2>
           <p>Overview of your water bills</p>
         </div>
-
+        <!-- Limit records form -->
+     <form method="get" action="<?= base_url('users/history') ?>" class="mb-3">
+        <label for="limit">Show records:</label>
+        <select name="limit" id="limit" onchange="this.form.submit()">
+            <!--For Static Selected Value-->
+            <option value="1" <?= $limit == 1 ? 'selected' : '' ?>>1</option>
+            <option value="2" <?= $limit == 2 ? 'selected' : '' ?>>2</option>
+            <option value="3" <?= $limit == 3 ? 'selected' : '' ?>>3</option>
+            <!-- for dynamic/yung may database na. selected value -->
+            <option value="5" <?= (isset($_GET['limit']) && $_GET['limit'] == 5) ? 'selected' : '' ?>>5</option>
+            <option value="10" <?= (isset($_GET['limit']) && $_GET['limit'] == 10) ? 'selected' : '' ?>>10</option>
+            <option value="20" <?= (isset($_GET['limit']) && $_GET['limit'] == 20) ? 'selected' : '' ?>>20</option>
+            <option value="50" <?= (isset($_GET['limit']) && $_GET['limit'] == 50) ? 'selected' : '' ?>>50</option>
+        </select>
+    </form>
+    <!-- End Limit records form --> 
         <div class="table-responsive">
           <table class="table table-striped table-hover align-middle">
             <thead class="table-primary">
