@@ -140,10 +140,39 @@ class Users extends BaseController
         // Logic to change user password
         return view('users/changepassword');
     }
-    public function editprofile()
-    {
-        // Logic to update user settings
-        return view('users/editprofile');
-    }
+
+
+        public function updateProfile()
+        {
+            $request = $this->request;
+
+            // Get POST data
+            $phone   = $request->getPost('phone');
+            $email   = $request->getPost('email');
+            $street  = $request->getPost('street');
+            $address = $request->getPost('address');
+
+            // Load model
+            $userModel = new \App\Models\UserInformationModel();
+
+            // Assume user_id is stored in session
+            $user_id = session()->get('user_id');
+
+            // Update the database
+            $updated = $userModel->update($user_id, [
+                'phone'  => $phone,
+                'email'  => $email,
+                'street' => $street,
+                'address'=> $address
+            ]);
+
+            // Return JSON response for AJAX
+            return $this->response->setJSON([
+                'status'  => $updated ? 'success' : 'error',
+                'message' => $updated ? 'Profile updated successfully' : 'Failed to update profile'
+            ]);
+        }
+
+
    
 }

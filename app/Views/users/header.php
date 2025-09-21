@@ -21,7 +21,7 @@
         <a href="<?= site_url() ?>" class="logo d-flex align-items-center">
           <!-- Uncomment the line below if you also wish to use an image logo -->
           <!-- <img src="<?= base_url('assets/img/logo.png') ?>" alt=""> -->
-          <h1 class="sitename">Impact</h1>
+          <h1 class="sitename">AquaBill</h1>
           <span>.</span>
         </a>
 
@@ -30,7 +30,7 @@
             <li><a href="<?= base_url('users') ?>" class="active">Home<br></a></li>
             <li><a href="#about">About</a></li>
             <li><a href="#services">Services</a></li>
-            <li><a href="#portfolio">Portfolio</a></li>
+             <li><a href="#contact">Contact</a></li>
             <li><a href="#team">Team</a></li>
             <li><a href="<?= site_url('blog') ?>">Blog</a></li>
             <li class="dropdown"><a href="#"><span>Dropdown</span> <i class="bi bi-chevron-down toggle-dropdown"></i></a>
@@ -50,7 +50,8 @@
                 <li><a href="#">Dropdown 4</a></li>
               </ul>
             </li>
-            <li><a href="#contact">Contact</a></li>
+           
+            <li><a  href="<?= base_url('users/profile') ?>"><i class="bi bi-person-circle"></i>Profile</a></li>
           </ul>
           <i class="mobile-nav-toggle d-xl-none bi bi-list"></i>
         </nav>

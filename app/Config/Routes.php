@@ -30,6 +30,8 @@ $routes->group('users', ['filter' => 'userauth'], function($routes) {
     $routes->get('profile'          , 'Users::profile'          );
     $routes->get('changepassword'   , 'Users::changePassword'   );
     $routes->get('editprofile'      , 'Users::editProfile'      );
+    $routes->get('users/profile', 'Users::profile');
+     $routes->post('updateProfile', 'Users::updateProfile'); //HAndle profile upda te
 });
 
 
