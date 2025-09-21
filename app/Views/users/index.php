@@ -27,6 +27,9 @@
 
   <!-- Main CSS File -->
    <link href="<?= base_url('assets/Users/css/main.css?v=' . time()) ?>" rel="stylesheet">
+   <!-- Payment CSS File -->
+   <link href="<?= base_url('assets/Users/css/payment.css?v=' . time()) ?>" rel="stylesheet">
+
 </head>
 
 
@@ -58,11 +61,13 @@
         <div class="container position-relative">
           <div class="row gy-4 mt-5">
 
-           <div class="col-xl-3 col-md-6">
+            <div class="col-xl-3 col-md-6">
               <div class="icon-box">
                 <div class="icon"><i class="bi bi-wallet2"></i></div>
                 <h4 class="title">
-                  <a href="<?= base_url('users/payments') ?>" class="stretched-link">Payments</a>
+                  <a href="javascript:void(0);" 
+                    id="openPaymentBtn" 
+                    class="stretched-link">Payments</a>
                 </h4>
               </div>
             </div><!--End Icon Box -->
@@ -376,6 +381,24 @@
 
   </main>
 
+
+<!-- Payment Modal -->
+<div class="modal fade" id="paymentModal" tabindex="-1" aria-labelledby="paymentModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered"><!-- centered vertically -->
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="paymentModalLabel">Payments</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="paymentModalBody">
+        Loading...
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
    <?= $this->include('Users/footer') ?>
 
   <!-- Scroll Top -->
@@ -384,6 +407,7 @@
   <!-- Preloader -->
   <div id="preloader"></div>
   <!-- Vendor JS Files -->
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js"></script>
@@ -393,6 +417,21 @@
 
   <!-- Local JS -->
   <script src="<?= base_url('assets/Users/js/main.js') ?>"></script>
+
+  <script>
+    $(function () {
+      $("#openPaymentBtn").on("click", function (e) {
+        e.preventDefault();
+        console.log("Payments button clicked ✅"); // Debug log
+
+        $("#paymentModalBody").load("<?= base_url('users/payments') ?>", function () {
+          console.log("Payments loaded ✅"); // Debug log
+          var modal = new bootstrap.Modal(document.getElementById("paymentModal"));
+          modal.show();
+        });
+      });
+    });
+   </script>
 
 </body>
 
