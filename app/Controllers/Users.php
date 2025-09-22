@@ -18,12 +18,12 @@ class Users extends BaseController
         $user_id = session()->get('user_id');
 
         //get limit from user input, default = 10
-        $limit = $this->request->getGet('limit') ?? 10;
+        //$limit = $this->request->getGet('limit') ?? 10;
 
         //loading billing model
-        $billingModel = new BillingModel();
-        $data['billings'] = $billingModel->getUserPaidBills($user_id, $limit);
-        $data['limit'] = $limit;
+       // $billingModel = new BillingModel();
+        //$data['billings'] = $billingModel->getUserPaidBills($user_id, $limit);
+        //$data['limit'] = $limit;
        
 
 
@@ -41,41 +41,8 @@ class Users extends BaseController
 
         return view('users/history', $data);*/
 
-        //static data for testing and demo purposes
-        $data['billings'] = [
-        [
-            'id'        => 201,
-            'user_id'   => 1,
-            'amount'    => 1500.75,
-            'due_date'  => '2025-08-01',
-            'paid_date' => '2025-08-03',
-            'status'    => 'paid',
-        ],
-        [
-            'id'        => 202,
-            'user_id'   => 1,
-            'amount'    => 980.00,
-            'due_date'  => '2025-07-01',
-            'paid_date' => '2025-07-02',
-            'status'    => 'paid',
-        ],
-        [
-            'id'        => 203,
-            'user_id'   => 1,
-            'amount'    => 500.00,
-            'due_date'  => '2025-06-01',
-            'paid_date' => '2025-06-05',
-            'status'    => 'paid',
-        ],
-    ];
-     // ✅ Get user-selected limit (default = 3)
-    $limit = (int) ($this->request->getGet('limit') ?? 3);
-
-    // ✅ Slice the array based on limit
-    $data['billings'] = array_slice($data['billings'], 0, $limit);
-
-    // ✅ Pass limit back to view
-    $data['limit'] = $limit;
+       
+      
 
     
     //static data for monthly expenses
@@ -173,6 +140,42 @@ class Users extends BaseController
             ]);
         }
 
+    public function getBillingsAjax(){
 
+        //For dynamic data from database
+        /*  $limit   = (int) ($this->request->getGet('limit') ?? 10);
+         $user_id = session()->get('user_id');
+
+         $billingModel = new \App\Models\BillingModel();
+
+           
+         $billings = $billingModel->getUserPaidBills($user_id, 12, $limit);
+
+         return $this->response->setJSON($billings);
+ */
+
+
+
+        $limit = (int) ($this->request->getGet('limit') ?? 10);
+
+        log_message('debug', 'getBillingsAjax CALLED with limit = '.$limit);
+        //mock static data 
+        $billings =[
+            ['id'=>302, 'amount'=>950.00,  'due_date'=>'2025-07-01', 'status'=>'paid'],
+            ['id'=>303, 'amount'=>1100.75, 'due_date'=>'2025-06-01', 'status'=>'paid'],
+            ['id'=>304, 'amount'=>1300.00, 'due_date'=>'2025-05-01', 'status'=>'paid'],
+            ['id'=>305, 'amount'=>1250.25, 'due_date'=>'2025-04-01', 'status'=>'paid'],
+            ['id'=>306, 'amount'=>1400.00, 'due_date'=>'2025-03-01', 'status'=>'paid'],
+            ['id'=>307, 'amount'=>1150.80, 'due_date'=>'2025-02-01', 'status'=>'paid'],
+            ['id'=>308, 'amount'=>1600.00, 'due_date'=>'2025-01-01', 'status'=>'paid'],
+            ['id'=>309, 'amount'=>1700.60, 'due_date'=>'2024-12-01', 'status'=>'paid'],
+            ['id'=>310, 'amount'=>1800.90, 'due_date'=>'2024-11-01', 'status'=>'paid'],
+            ['id'=>311, 'amount'=>1900.00, 'due_date'=>'2024-10-01', 'status'=>'paid'],
+            ['id'=>312, 'amount'=>2000.75, 'due_date'=>'2024-09-01', 'status'=>'paid'],
+        ];
+        $data = array_slice($billings, 0, $limit);
+
+        return $this->response->setJSON($data);
+    }
    
 }

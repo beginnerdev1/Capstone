@@ -12,6 +12,7 @@
   <link href="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/swiper@9/swiper-bundle.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@srexi/purecounterjs/dist/purecounter_vanilla.js"></script>
 
   <!-- Main CSS File -->
   <link href="<?= base_url('assets/Users/css/main.css?v=' . time()) ?>" rel="stylesheet">
@@ -42,80 +43,82 @@
           <p>Overview of your water bills</p>
         </div>
         <!-- Limit records form -->
-     <form method="get" action="<?= base_url('users/history') ?>" class="mb-3">
-        <label for="limit">Show records:</label>
-        <select name="limit" id="limit" onchange="this.form.submit()">
-            <!--For Static Selected Value-->
-            <option value="1" <?= $limit == 1 ? 'selected' : '' ?>>1</option>
-            <option value="2" <?= $limit == 2 ? 'selected' : '' ?>>2</option>
-            <option value="3" <?= $limit == 3 ? 'selected' : '' ?>>3</option>
-            <!-- for dynamic/yung may database na. selected value -->
-            <option value="5" <?= (isset($_GET['limit']) && $_GET['limit'] == 5) ? 'selected' : '' ?>>5</option>
-            <option value="10" <?= (isset($_GET['limit']) && $_GET['limit'] == 10) ? 'selected' : '' ?>>10</option>
-            <option value="20" <?= (isset($_GET['limit']) && $_GET['limit'] == 20) ? 'selected' : '' ?>>20</option>
-            <option value="50" <?= (isset($_GET['limit']) && $_GET['limit'] == 50) ? 'selected' : '' ?>>50</option>
-        </select>
-    </form>
+     <label for="limit">Show:</label>
+    <select id="limit" class="form-select" style="width:120px; display:inline-block;">
+        <option value="5">5</option>
+        <option value="10" selected>10</option>
+        <option value="15">15</option>
+        <option value="20">20</option>
+    </select> bills
     <!-- End Limit records form --> 
         <div class="table-responsive">
           <table class="table table-striped table-hover align-middle">
             <thead class="table-primary">
               <tr>
-                <th scope="col">#</th>
+                <th>Invoice ID</th>
                 <th scope="col">Billing Month</th>
                 <th scope="col">Amount</th>
                 <th scope="col">Status</th>
-                <th scope="col">Issued Date</th>
-                <th scope="col">Due Date</th>
+                <th scope="col">Date Paid</th>
                 <th scope="col">Action</th>
               </tr>
             </thead>
-           <tbody>
-                <?php if (!empty($billings)): ?>
-                    <?php foreach ($billings as $bill): ?>
-                        <tr>
-                            <!-- Bill ID -->
-                            <td><?= htmlspecialchars($bill['id']) ?></td>
-
-                            <!-- Billing Month (formatting due_date into Month-Year) -->
-                            <td><?= date('F Y', strtotime($bill['due_date'])) ?></td>
-
-                            <!-- Amount -->
-                            <td>₱<?= number_format($bill['amount'], 2) ?></td>
-
-                            <!-- Status -->
-                            <td>
-                                <?php if ($bill['status'] === 'paid'): ?>
-                                    <span class="badge bg-success">Paid</span>
-                                <?php else: ?>
-                                    <span class="badge bg-danger">Unpaid</span>
-                                <?php endif; ?>
-                            </td>
-
-                            <!-- Issued Date (paid_date) -->
-                            <td>
-                                <?= !empty($bill['paid_date']) ? htmlspecialchars($bill['paid_date']) : '-' ?>
-                            </td>
-
-                            <!-- Due Date -->
-                            <td><?= htmlspecialchars($bill['due_date']) ?></td>
-
-                            <!-- Action -->
-                            <td>
-                                <a href="#" class="btn btn-sm btn-outline-primary">
-                                    <i class="bi bi-receipt"></i> View
-                                </a>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                <?php else: ?>
-                    <tr>
-                        <td colspan="7" class="text-center">No bills found.</td>
-                    </tr>
-                <?php endif; ?>
+           <tbody id = "billingTableBody">
+               
             </tbody>
           </table>
         </div>
+                <!--Script for limit show js-->
+        <script>
+            function loadBillings(limit = 10) {
+                fetch(`<?= base_url('users/getBillingsAjax') ?>?limit=${limit}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log(data); // Debugging
+
+                        let rows = '';
+                        if (data.length > 0) {
+                            data.forEach(bill => {
+                                rows += `
+                                    <tr>
+                                        <td>${bill.id}</td>
+                                        <td>${new Date(bill.due_date).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</td>
+                                        <td>₱${parseFloat(bill.amount).toFixed(2)}</td>
+                                        <td>
+                                            ${bill.status === 'paid' 
+                                                ? '<span class="badge bg-success">Paid</span>' 
+                                                : '<span class="badge bg-danger">Unpaid</span>'}
+                                        </td>
+                                        <td>${bill.date_paid ? new Date(bill.date_paid).toLocaleDateString('en-US') : '-'}</td>
+                                        <td>
+                                            <a href="#" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-receipt"></i> View
+                                            </a>
+                                        </td>
+                                    </tr>
+                                `;
+                            });
+                        } else {
+                            rows = `
+                                <tr>
+                                    <td colspan="7" class="text-center">No bills found.</td>
+                                </tr>
+                            `;
+                        }
+                        document.getElementById('billingTableBody').innerHTML = rows;
+                    });
+            }
+        
+            document.addEventListener("DOMContentLoaded", function(){
+                loadBillings(); // Initial load with default limit
+
+                document.getElementById('limit').addEventListener('change',function(){
+                    loadBillings(this.value);//load with user input limit
+                });
+            });
+
+        </script>
+        <!-- End Table -->
         <div class="section-title my-5">
           <h2>Expenses Overview</h2>
           <p>Summary of your monthly and yearly expenses</p>

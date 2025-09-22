@@ -10,7 +10,7 @@ class BillingModel extends Model
     protected $primaryKey = 'id';
     protected $allowedFields = ['user_id', 'amount', 'due_date', 'status', 'paid_date'];
 
-    // 🔹 Custom method for unpaid bills
+    // 🔹 Custom method for unpaid bills admin side
     public function getUnpaidBills()
     {
         return $this->select('billings.id, users.username, billings.amount, billings.due_date, billings.status')
@@ -20,7 +20,7 @@ class BillingModel extends Model
                     ->findAll();
     }
 
-    // 🔹 Example: custom method for paid bills in last 12 months
+    // 🔹 Example: custom method for paid bills in last 12 months admin side
     public function getPaidBills()
     {
         return $this->select('billings.id, users.username, billings.amount, billings.due_date, billings.paid_date, billings.status')
@@ -39,7 +39,7 @@ class BillingModel extends Model
                     ->findAll();
     }
     // custom method for fecthing userPaidBills
-    public function getUserPaidBills($user_id, $months = 12){
+    public function getUserPaidBills($user_id, $months = 12 , $limit = 10){
         return $this->where('user_id', $user_id)
                     ->where('status', 'paid')
                     ->where('billings.paid_date >=', date('Y-m-d H:i:s', strtotime("-$months months")))
