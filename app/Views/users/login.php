@@ -63,6 +63,9 @@
                         <small>Don't have an account? 
                             <a href="<?= base_url('register') ?>">Sign Up</a>
                         </small>
+                        <small>
+                            <a href="<?= base_url('forgot-password') ?>">Forgot Password</a>
+                        </small>
                     </div>
                 </div>
             </form>

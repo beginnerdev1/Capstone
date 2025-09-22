@@ -20,6 +20,11 @@ use CodeIgniter\Router\RouteCollection;
     // 🔹 Logout (always accessible if logged in)
     $routes->post('/logout', 'Auth::logout', ['as' => 'logout', 'filter' => 'userauth']);
 
+    //forgot password
+    $routes->get('/forgot-password', 'Auth::forgotPasswordForm', ['filter' => 'guest']);
+    $routes->post('/forgot-password', 'Auth::sendResetLink', ['filter' => 'guest']);
+   
+
 // 🔹 Users routes (protected by filter)
 $routes->group('users', ['filter' => 'userauth'], function($routes) {
     $routes->get('/'                , 'Users::index'              );

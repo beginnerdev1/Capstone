@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Models\UserModel;
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
+use App\Models\PasswordResetModel;
 
 class Auth extends BaseController
 {
@@ -205,4 +206,78 @@ class Auth extends BaseController
         return redirect()->to('/login');
     }
 
+    public function forgotPasswordForm()
+    {
+        return view('auth/forgot_password');
+    }
+
+    public function sendResetLink()
+    {
+        $email = $this->request->getPost('email');
+
+        //checking if email exists in users table
+        $userModel = new \App\Models\UserModel();
+        $user = $userModel->where('email', $email)->first();
+
+        if (!$user) {
+            return redirect()->back()->with('error', 'Email address not found.');
+        }
+
+        //generate token
+        $token = bin2hex(random_bytes(32));
+        $hashedToken = password_hash($token, PASSWORD_DEFAULT);
+
+        //store token in password_resets table
+        $resetModel = new \App\Models\PasswordResetModel();
+        $resetModel->insert([
+            'email' => $email,
+            'token' => $hashedToken,
+            'expires_at' => date('Y-m-d H:i:s', strtotime('+1 hour')),
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+
+         //reset link
+        $resetLink = base_url("reset_password?token=$token&email=" . urlencode($email));
+
+        //email the reset link
+        $mail = new PHPMailer(true);
+
+        try {
+            //Server settings
+            $mail->isSMTP();
+            $mail->Host       = getenv('SMTP_HOST');
+            $mail->SMTPAuth   = true;
+            $mail->Username   = getenv('SMTP_USER');
+            $mail->Password   = getenv('SMTP_PASS');
+            $mail->SMTPSecure = 'tls';
+            $mail->Port       = getenv('SMTP_PORT');
+
+            //Recipients
+            $mail->setFrom(getenv('SMTP_FROM'), 'Password Reset');
+            $mail->addAddress($email);
+
+            //Content
+            $mail->isHTML(true);
+            $mail->Subject = 'Password Reset Request';
+            $mail->Body    = "<h3>Password Reset Request</h3>
+            <p>Click the link to reset your password: <a href=\"$resetLink\">$resetLink</a></p>
+            <p>If you did not request a password reset, please ignore this email.</p>
+            <h4>This link will expire in 1 hour.</h4>";
+
+            $mail->send();
+         
+           /*  if ($mail->send()) {
+                // ✅ Store a one-time success message
+                return redirect()->back()->with('success', 'A password reset link has been sent to your email.');
+            } else {
+                // ✅ Store error if email fails
+                return redirect()->back()->with('error', 'Failed to send reset email. Please try again.');
+            }
+ */
+        } catch (Exception $e) {
+            log_message('error', "Mailer Error: {$mail->ErrorInfo}");
+        }
+        
+        return redirect()->to('/login')->with('message', 'Password reset link sent to your email.');
+    }
 }
