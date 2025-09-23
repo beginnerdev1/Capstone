@@ -23,38 +23,59 @@ $(document).ready(function () {
 });
 
 
-// Handle Edit Personal Info Form Submission
-$(document).ready(function() {
-    $('#editPersonalInfoForm').on('submit', function(e) {
+
+// Handle Edit Personal Info Modal
+$(document).ready(function(){
+
+    // function to refresh profile info
+    function fetchProfileInfo(){
+        $.ajax({
+            url: base_url + "users/getProfileInfo",
+            type: "GET",
+            dataType: "json",
+            success: function(user){
+                $(".profile-name").text(user.full_name ?? '');
+                $(".profile-email").text(user.email ?? '');
+                $(".profile-phone").text(user.phone ?? '');
+                $(".profile-street").text(user.street ?? '');
+                $(".profile-address").text(user.address ?? '');
+
+                // preload values in modal form
+                $("#phone").val(user.phone ?? '');
+                $("#email").val(user.email ?? '');
+                $("#street").val(user.street ?? '');
+                $("#address").val(user.address ?? '');
+            }
+        });
+    }
+
+    // handle submit
+    $("#editPersonalInfoForm").submit(function(e){
         e.preventDefault();
 
-        let form = $(this);
-        let url = form.attr('action');
-        let formData = form.serialize();
-
         $.ajax({
-            url: url,
-            type: 'POST',
-            data: formData,
-            dataType: 'json',
-            success: function(response) {
-                if (response.status === 'success') {
-                    $('#editPersonalInfoModal').modal('hide');
-                    alert(response.message || 'Profile updated successfully');
+            url: $(this).attr("action"),
+            type: "POST",
+            data: $(this).serialize(),
+            dataType: "json",
+            success: function(res){
+                if(res.status === "success"){
+                    // ✅ Close modal
+                    let modal = bootstrap.Modal.getInstance(document.getElementById("editPersonalInfoModal"));
+                    modal.hide();
 
-                    // Update values on profile card
-                    $('#phone').text($('input[name="phone"]').val());
-                    $('#email').text($('input[name="email"]').val());
-                    $('#street').text($('input[name="street"]').val());
-                    $('#address').text($('textarea[name="address"]').val());
+                    // ✅ Refresh profile info
+                    fetchProfileInfo();
                 } else {
-                    alert(response.message || 'Something went wrong');
+                    alert("Failed to update profile.");
                 }
             },
-            error: function(xhr, status, error) {
-                console.error(error);
-                alert('Error: Could not update profile.');
+            error: function(){
+                alert("Error updating profile.");
             }
         });
     });
+
+    // load info on page ready
+    fetchProfileInfo();
 });

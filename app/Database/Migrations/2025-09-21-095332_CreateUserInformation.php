@@ -9,12 +9,6 @@ class CreateUserInformation extends Migration
     public function up()
     {
         $this->forge->addField([
-            'id'         => [
-                'type'           => 'INT',
-                'constraint'     => 11,
-                'unsigned'       => true,
-                'auto_increment' => true,
-            ],
             'user_id'    => [
                 'type'       => 'INT',
                 'constraint' => 11,
@@ -49,8 +43,13 @@ class CreateUserInformation extends Migration
             ],
         ]);
 
-        $this->forge->addKey('id', true);
+        // Make user_id the PRIMARY KEY
+        $this->forge->addKey('user_id', true);
+
+        // Foreign key links user_information.user_id to users.id
         $this->forge->addForeignKey('user_id', 'users', 'id', 'CASCADE', 'CASCADE');
+
+        // Create the table
         $this->forge->createTable('user_information');
     }
 

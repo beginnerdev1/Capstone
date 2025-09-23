@@ -37,7 +37,9 @@ $routes->group('users', ['filter' => 'userauth'], function($routes) {
     $routes->get('changepassword'   , 'Users::changePassword'     );
     $routes->get('editprofile'      , 'Users::editProfile'        );     
     $routes->get('users/profile'    , 'Users::profile'            ); // Alias for profile
-    $routes->post('updateProfile'  , 'Users::updateProfile'       ); //Handle profile update
+    // Profile AJAX
+    $routes->get('getProfileInfo', 'Users::getProfileInfo');
+    $routes->post('updateProfile', 'Users::updateProfile');
 });
 
 
