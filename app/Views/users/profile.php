@@ -42,35 +42,36 @@
 
       <!-- Right Column -->
       <div class="col-lg-8">
-        <div class="card mb-4 bg-dark text-light">
-          <div class="card-body">
-            <div class="row">
-              <div class="col-sm-3"><p class="mb-0">Full Name</p></div>
-              <div class="col-sm-9"><p class="text-muted mb-0 profile-name"></p></div>
-            </div>
-            <hr>
-            <div class="row">
-              <div class="col-sm-3"><p class="mb-0">Email</p></div>
-              <div class="col-sm-9"><p class="text-muted mb-0 profile-email"></p></div>
-            </div>
-            <hr>
-            <div class="row">
-              <div class="col-sm-3"><p class="mb-0">Phone</p></div>
-              <div class="col-sm-9"><p class="text-muted mb-0 profile-phone"></p></div>
-            </div>
-            <hr>
-            <div class="row">
-              <div class="col-sm-3"><p class="mb-0">Street</p></div>
-              <div class="col-sm-9"><p class="text-muted mb-0 profile-street"></p></div>
-            </div>
-            <hr>
-            <div class="row">
-              <div class="col-sm-3"><p class="mb-0">Address</p></div>
-              <div class="col-sm-9"><p class="text-muted mb-0 profile-address"></p></div>
+          <div class="card mb-4 bg-dark text-light">
+            <div class="card-body">
+              <div class="row">
+                <div class="col-sm-3"><p class="mb-0">Full Name</p></div>
+                <div class="col-sm-9"><p class="text-white mb-0 profile-name"></p></div>
+              </div>
+              <hr>
+              <div class="row">
+                <div class="col-sm-3"><p class="mb-0">Email</p></div>
+                <div class="col-sm-9"><p class="text-white mb-0 profile-email"></p></div>
+              </div>
+              <hr>
+              <div class="row">
+                <div class="col-sm-3"><p class="mb-0">Phone</p></div>
+                <div class="col-sm-9"><p class="text-white mb-0 profile-phone"></p></div>
+              </div>
+              <hr>
+              <div class="row">
+                <div class="col-sm-3"><p class="mb-0">Street</p></div>
+                <div class="col-sm-9"><p class="text-white mb-0 profile-street"></p></div>
+              </div>
+              <hr>
+              <div class="row">
+                <div class="col-sm-3"><p class="mb-0">Address</p></div>
+                <div class="col-sm-9"><p class="text-white mb-0 profile-address"></p></div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+
     </div>
   </div>
 </section>
@@ -124,8 +125,7 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
-$(document).ready(function () {
-  // Load profile info
+ $(document).ready(function () {
   function loadProfile() {
     $.ajax({
       url: "<?= site_url('users/getProfileInfo') ?>",
@@ -133,13 +133,12 @@ $(document).ready(function () {
       dataType: "json",
       success: function (data) {
         if (data) {
-          $(".profile-name").text(data.name);
+          $(".profile-name").text(data.username);
           $(".profile-email").text(data.email);
           $(".profile-phone").text(data.phone);
           $(".profile-street").text(data.street);
           $(".profile-address").text(data.address);
 
-          // Prefill modal form
           $("#phone").val(data.phone);
           $("#email").val(data.email);
           $("#street").val(data.street);
@@ -149,39 +148,28 @@ $(document).ready(function () {
     });
   }
 
-  loadProfile(); // initial load
+  loadProfile();
 
-  // Update profile
-  public function updateProfile()
-{
-    $request = $this->request;
-    $user_id = session()->get('user_id');
-    $userModel = new UserInformationModel();
+  $("#editPersonalInfoForm").on("submit", function (e) {
+    e.preventDefault();
 
-    $data = [
-        'user_id' => $user_id,
-        'phone'   => $request->getPost('phone'),
-        'email'   => $request->getPost('email'),
-        'street'  => $request->getPost('street'),
-        'address' => $request->getPost('address'),
-    ];
-
-    // Check if record exists
-    $existing = $userModel->where('user_id', $user_id)->first();
-
-    if ($existing) {
-        $updated = $userModel->where('user_id', $user_id)->set($data)->update();
-    } else {
-        $updated = $userModel->insert($data);
-    }
-
-    return $this->response->setJSON([
-        'status'  => $updated ? 'success' : 'error',
-        'message' => $updated ? 'Profile updated successfully' : 'Something went wrong'
-    ]);
-}
+    $.ajax({
+      url: $(this).attr("action"),
+      type: "POST",
+      data: $(this).serialize(),
+      dataType: "json",
+      success: function (response) {
+        if (response.status === "success") {
+          loadProfile();
+          $("#editPersonalInfoModal").modal("hide");
+        }
+      }
+    });
+  });
+});
 
 </script>
+
 
 </body>
 </html>

@@ -99,6 +99,7 @@ class Users extends BaseController
         ]);
     }
 
+
     // Return billing data via AJAX
     public function getBillingsAjax()
     {
@@ -128,10 +129,22 @@ class Users extends BaseController
     public function getProfileInfo()
     {
         $user_id = session()->get('user_id');
+        if (!$user_id) {
+            return $this->response->setJSON(['error' => 'No session user_id']);
+        }
+
         $userModel = new UserInformationModel();
 
-        $user = $userModel->find($user_id);
+        $user = $userModel
+            ->select('users.username, user_information.phone, user_information.email, user_information.street, user_information.address')
+            ->join('users', 'users.id = user_information.user_id', 'left')
+            ->where('user_information.user_id', $user_id)
+            ->first();
 
-        return $this->response->setJSON($user);
+        return $this->response->setJSON($user ?? []);
     }
+
+
 }
+
+
