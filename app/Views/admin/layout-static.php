@@ -14,26 +14,49 @@
          <?php require_once(APPPATH . 'Views/admin/navbar.php'); ?>
             <div id="layoutSidenav_content">
                 <main>
-                    <div class="container-fluid px-4">
-                        <h1 class="mt-4">Static Navigation</h1>
-                        <!-- <ol class="breadcrumb mb-4">
-                            <li class="breadcrumb-item"><a href="index.html">Dashboard</a></li>
-                            <li class="breadcrumb-item active">Static Navigation</li>
-                        </ol> -->
-                        <div class="card mb-4">
-                            <div class="card-body">
-                                <p class="mb-0">
-                                    This page is an example of using static navigation. By removing the
-                                    <code>.sb-nav-fixed</code>
-                                    class from the
-                                    <code>body</code>
-                                    , the top navigation and side navigation will become static on scroll. Scroll down this page to see an example.
-                                </p>
-                            </div>
-                        </div>
-                        <div style="height: 100vh"></div>
-                        <div class="card mb-4"><div class="card-body">When scrolling, the navigation stays at the top of the page. This is the end of the static navigation demo.</div></div>
-                    </div>
+<div class="container">
+  <h3 class="mb-3">Assign Water Bill</h3>
+  <div class="table-responsive">
+    <table class="table table-striped table-bordered table-hover align-middle">
+      <thead class="table-dark">
+        <tr>
+          <th>#</th>
+          <th>User</th>
+          <th>Email</th>
+          <th>Billing Month</th>
+          <th>Usage (m³)</th>
+          <th>Rate</th>
+          <th>Amount</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td>John Doe</td>
+          <td>john@example.com</td>
+          <td>2025-09</td>
+          <td><input type="number" class="form-control form-control-sm" value="15.50"></td>
+          <td>20.00</td>
+          <td>310.00</td>
+          <td><button class="btn btn-primary btn-sm">Assign</button></td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>Jane Smith</td>
+          <td>jane@example.com</td>
+          <td>2025-09</td>
+          <td><input type="number" class="form-control form-control-sm" value="25.00"></td>
+          <td>20.00</td>
+          <td>500.00</td>
+          <td><button class="btn btn-primary btn-sm">Assign</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+
                 </main>
                 <footer class="py-4 bg-light mt-auto">
                     <div class="container-fluid px-4">
