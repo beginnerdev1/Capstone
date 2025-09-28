@@ -8,34 +8,71 @@ class Admin extends BaseController
 {
     public function index()
     {
+        if(!session()->get('is_admin_logged_in')){
+            return redirect()->to('/admin/login');
+        }
         return view('admin/index');
-    }public function login()
+    }
+    public function adminLogin()
     {
         return view('admin/login');
-    }public function layoutStatic()
+    }
+    public function login()
+    {
+        $email = $this->request->getPost('email');
+        $password = $this->request->getPost('password');
+
+        $adminModel = new \App\Models\AdminModel();
+        $admin = $adminModel->where('email', $email)->first();
+
+        if($admin && password_verify($password, $admin['password'])){
+            session->set([
+                'admin_id' => $admin['id'],
+                'admin_email' => $admin['email'],
+                'is_admin_logged_in' => true
+            ]);
+            return redirect()->to('/index');
+        }
+        return redirect()->back()->with('error', 'Invalid email or password');
+    }
+    public function logout()
+    {
+        session()->destroy();
+        return redirect()->to('/admin/login');
+    }
+    public function layoutStatic()
     {
         return view('admin/layout-static');
-    } public function charts()
+    } 
+    public function charts()
     {
         return view('admin/charts');
-    }public function page404()
+    }
+    public function page404()
     {
         return view('admin/404');
-    }public function page401()
+    }
+    public function page401()
     {
         return view('admin/401');
-    }public function page500(){
+    }
+    public function page500()
+    {
         return view('admin/500');
-    } public function tables(){
+    }
+    public function tables()
+    {
         return view('admin/tables');
-    } public function registeredUsers()
+    }
+    public function registeredUsers()
     {   //load user model (panag pag tawag ng object sa java)
         $userModel = new \App\Models\UserModel();
         //para sa pag kuha ng  registered users
         $data['users'] = $userModel->getRegisteredUsers();
 
         return view('admin/registeredUsers', $data);
-    } public function billings()
+    }
+    public function billings()
     {  //para sa unpaid bills
          $billingModel = new BillingModel();
         $data['billings'] = $billingModel->getUnpaidBills();

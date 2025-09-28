@@ -52,9 +52,10 @@ $routes->group('users', ['filter' => 'userauth'], function($routes) {
 
 // Admin routes grouped under 'admin'
 $routes->group('admin', function($routes) {
-    $routes->get('/'                , 'Admin::index'            );           // Admin dashboard
+    $routes->get('/'                , 'Admin::index', ['filter' => 'adminauth']);           // Admin dashboard
     $routes->get('layoutstatic'     , 'Admin::layoutStatic'     );
-    $routes->get('login'            , 'Admin::login'            );
+    $routes->post('login'           , 'Admin::login'            );
+    $routes->get('logout'           , 'Admin::logout'           );
     $routes->get('charts'           , 'Admin::charts'           );
     $routes->get('tables'           , 'Admin::tables'           );
     $routes->get('404'              , 'Admin::page404'          );
