@@ -27,6 +27,11 @@
 
         <!-- Right Login Form Section -->
         <div class="col-md-6 right-box">
+            <?php if (session()->getFlashdata('success')): ?>
+                <div class="alert alert-success">
+                    <?= session()->getFlashdata('success') ?>
+                </div>
+            <?php endif; ?>
             <form action="<?= site_url('login') ?>" method="post">
                 <div class="row align-items-center">
                     

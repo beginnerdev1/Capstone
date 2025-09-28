@@ -1,0 +1,73 @@
+/* Main container box */
+.forgot-box {
+  width: 65%;
+  height: 70%;
+  border-radius: 15px;
+  overflow: hidden;
+  background: #fff;
+}
+
+/* Left image section */
+.forgot-left {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8f9fa;
+}
+
+.forgot-left img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Right form section */
+.forgot-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.header-text h2 {
+  font-weight: bold;
+  color: #333;
+}
+
+.header-text p {
+  color: #666;
+  font-size: 14px;
+}
+
+/* Buttons */
+.btn-primary {
+  background-color: #0d6efd;
+  border: none;
+}
+
+.btn-primary:hover {
+  background-color: #0b5ed7;
+}
+
+.btn-outline-secondary {
+  border-color: #6c757d;
+}
+
+.btn-outline-secondary:hover {
+  background-color: #6c757d;
+  color: #fff;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .forgot-box {
+    flex-direction: column;
+    width: 90%;
+    height: auto;
+  }
+
+  .forgot-left {
+    height: 200px;
+  }
+}

@@ -23,6 +23,13 @@ use CodeIgniter\Router\RouteCollection;
     //forgot password
     $routes->get('/forgot-password', 'Auth::forgotPasswordForm', ['filter' => 'guest']);
     $routes->post('/forgot-password', 'Auth::sendResetLink', ['filter' => 'guest']);
+
+    //show reset form (controller natin)
+    $routes->get('/reset-password', 'Auth::resetPasswordForm', ['filter' => 'guest']);
+
+    //handle reset form submission(mula sa controller natin)
+    $routes->post('/reset-password', 'Auth::processResetPassword', ['filter' => 'guest']);
+
    
 
 // 🔹 Users routes (protected by filter)

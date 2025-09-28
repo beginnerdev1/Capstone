@@ -211,11 +211,11 @@ class Auth extends BaseController
         return view('auth/forgot_password');
     }
 
-    public function sendResetLink()
+   public function sendResetLink()
     {
         $email = $this->request->getPost('email');
 
-        //checking if email exists in users table
+        // Check if email exists
         $userModel = new \App\Models\UserModel();
         $user = $userModel->where('email', $email)->first();
 
@@ -223,27 +223,33 @@ class Auth extends BaseController
             return redirect()->back()->with('error', 'Email address not found.');
         }
 
-        //generate token
+        // Generate token
         $token = bin2hex(random_bytes(32));
         $hashedToken = password_hash($token, PASSWORD_DEFAULT);
 
-        //store token in password_resets table
+        
+
+        //define reset model
         $resetModel = new \App\Models\PasswordResetModel();
+        
+        //delete previous tokens for this email
+        $resetModel -> where('email', $email)->delete();
+
+        // Store token
         $resetModel->insert([
-            'email' => $email,
-            'token' => $hashedToken,
+            'email'      => $email,
+            'token'      => $hashedToken,
             'expires_at' => date('Y-m-d H:i:s', strtotime('+1 hour')),
             'created_at' => date('Y-m-d H:i:s'),
         ]);
 
-         //reset link
-        $resetLink = base_url("reset_password?token=$token&email=" . urlencode($email));
+        // Build reset link
+        $resetLink = str_replace("https://", "http://", base_url("reset-password?token=$token&email=" . urlencode($email)));
 
-        //email the reset link
-        $mail = new PHPMailer(true);
 
+        // Send email
+        $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
         try {
-            //Server settings
             $mail->isSMTP();
             $mail->Host       = getenv('SMTP_HOST');
             $mail->SMTPAuth   = true;
@@ -252,32 +258,91 @@ class Auth extends BaseController
             $mail->SMTPSecure = 'tls';
             $mail->Port       = getenv('SMTP_PORT');
 
-            //Recipients
             $mail->setFrom(getenv('SMTP_FROM'), 'Password Reset');
             $mail->addAddress($email);
 
-            //Content
             $mail->isHTML(true);
             $mail->Subject = 'Password Reset Request';
-            $mail->Body    = "<h3>Password Reset Request</h3>
-            <p>Click the link to reset your password: <a href=\"$resetLink\">$resetLink</a></p>
-            <p>If you did not request a password reset, please ignore this email.</p>
-            <h4>This link will expire in 1 hour.</h4>";
+            $mail->Body    = "
+                <h3>Password Reset Request</h3>
+                <p>Click the link to reset your password: <a href=\"$resetLink\">$resetLink</a></p>
+                <p>If you did not request a password reset, please ignore this email.</p>
+                <h4>This link will expire in 1 hour.</h4>
+            ";
 
-            $mail->send();
-         
-           /*  if ($mail->send()) {
-                // ✅ Store a one-time success message
-                return redirect()->back()->with('success', 'A password reset link has been sent to your email.');
+            if ($mail->send()) {
+                // ✅ Redirect to login with success
+                return redirect()->to('/login')->with('success', 'A password reset link has been sent to your email.');
             } else {
-                // ✅ Store error if email fails
                 return redirect()->back()->with('error', 'Failed to send reset email. Please try again.');
             }
- */
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             log_message('error', "Mailer Error: {$mail->ErrorInfo}");
+            return redirect()->back()->with('error', 'Something went wrong while sending the email.');
         }
-        
-        return redirect()->to('/login')->with('message', 'Password reset link sent to your email.');
     }
+
+    public function resetPasswordForm()
+    {
+        $email = $this->request->getGet('email');
+        $token = $this->request->getGet('token');
+
+        if (!$email || !$token) {
+            return redirect()->to('/login')->with('error', 'Invalid password reset link.');
+        }
+
+        return view('auth/reset', ['email' => $email, 'token' => $token]);
+    }
+
+    public function processResetPassword()
+    {
+        $email = $this->request->getPost('email');
+        $token = $this->request->getPost('token');
+        $password = $this->request->getPost('password');
+        $passwordConfirm = $this->request->getPost('confirm_password');
+
+        if (!$email || !$token) {
+            return redirect()->to('/login')->with('error', 'Invalid request.');
+        }
+
+        if ($password !== $passwordConfirm) {
+            return redirect()->back()->with('error', 'Passwords do not match.');
+        }
+
+        $resetModel = new \App\Models\PasswordResetModel();
+        $resetEntry = $resetModel->where('email', $email)
+            ->orderBy('created_at', 'DESC')
+            ->first();
+
+        if (!$resetEntry) {
+            return redirect()->to('/login')->with('error', 'Invalid or expired reset link.');
+        }
+
+        // Check if token matches and is not expired
+        if (
+            !password_verify($token, $resetEntry['token']) ||
+            strtotime($resetEntry['expires_at']) < time()
+        ) {
+            return redirect()->to('/login')->with('error', 'Invalid or expired reset link.');
+        }
+
+        // Update user password
+        $userModel = new \App\Models\UserModel();
+        $user = $userModel->where('email', $email)->first();
+
+        if (!$user) {
+            return redirect()->to('/login')->with('error', 'User not found.');
+        }
+
+        $userModel->update($user['id'], [
+            'password' => password_hash($password, PASSWORD_DEFAULT)
+        ]);
+
+        // Delete all reset tokens for this email
+        $resetModel->where('email', $email)->delete();
+
+        return redirect()->to('/login')->with('message', 'Password reset successful. You can now log in.');
+    }
+
+
 }
