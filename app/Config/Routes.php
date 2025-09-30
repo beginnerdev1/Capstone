@@ -29,10 +29,14 @@ use CodeIgniter\Router\RouteCollection;
 
     //handle reset form submission(mula sa controller natin)
     $routes->post('/reset-password', 'Auth::processResetPassword', ['filter' => 'guest']);
+
     // Admin login (accessible to guests only)
-    $routes->get('admin/login', 'Admin::adminLoginForm', ['as' => 'adminLoginForm', 'filter' => 'guest']);
+    $routes->get('admin/login', 'Admin::adminLogin', ['as' => 'adminLoginForm', 'filter' => 'guest']);
     $routes->post('admin/login', 'Admin::login', ['as' => 'adminLoginPost', 'filter' => 'guest']);
-    
+    $routes->get('admin/loginVerify', 'Admin::showOtpForm');   // Show form
+    $routes->post('admin/loginVerify', 'Admin::loginVerify'); // Handle OTP
+    $routes->post('admin/resendOtp', 'Admin::resendOtp');     // Optional resend
+
 
 
 
@@ -56,19 +60,19 @@ $routes->group('users', ['filter' => 'userauth'], function($routes) {
 
 // Admin routes grouped under 'admin'
 $routes->group('admin', ['filter' => 'adminauth'], function($routes) {
-    $routes->get('/', 'Admin::index');           // Admin dashboard
-    $routes->get('layoutstatic', 'Admin::layoutStatic');
-    $routes->get('logout', 'Admin::logout');
-    $routes->get('charts', 'Admin::charts');
-    $routes->get('tables', 'Admin::tables');
-    $routes->get('404', 'Admin::page404');
-    $routes->get('401', 'Admin::page401');
-    $routes->get('500', 'Admin::page500');
-    $routes->get('registeredUsers', 'Admin::registeredUsers'); // Registered users
-    $routes->get('billings', 'Admin::billings');               // Billings
-    $routes->get('paidBills', 'Admin::paidBills');             // Paid bills
-    $routes->get('reports', 'Admin::reports');                 // User reports dashboard
-    $routes->get('test-email', 'Admin::testEmail');
+    $routes->get('/'                , 'Admin::index'                );           // Admin dashboard
+    $routes->get('layoutstatic'     , 'Admin::layoutStatic'         );
+    $routes->get('logout'           , 'Admin::logout'               );
+    $routes->get('charts'           , 'Admin::charts'              );
+    $routes->get('tables'           , 'Admin::tables'              );
+    $routes->get('404'              , 'Admin::page404'             );
+    $routes->get('401'              , 'Admin::page401'             );
+    $routes->get('500'              , 'Admin::page500'             );
+    $routes->get('registeredUsers'  , 'Admin::registeredUsers'     ); // Registered users
+    $routes->get('billings'         , 'Admin::billings'            );               // Billings
+    $routes->get('paidBills'        , 'Admin::paidBills'          );             // Paid bills
+    $routes->get('reports'          , 'Admin::reports'            );                 // User reports dashboard
+    $routes->get('test-email'       , 'Admin::testEmail'          );
 });
 
 // You can also add more user routes here, for example:

@@ -81,6 +81,54 @@ class Admin extends BaseController
 
          return redirect()->back()->with('error','Invalid or expired OTP');
     }
+    public function showOtpForm()
+    {
+        return view('admin/loginVerify');
+    }
+    public function resendOtp()
+    {
+        $adminId = session()->get('otp_admin_id');
+        $email   = session()->get('admin_email');
+
+        if (!$adminId || !$email) {
+            return redirect()->to('/admin/login')->with('error', 'Session expired. Please login again.');
+        }
+
+        // Generate a new OTP
+        $otp = rand(100000, 999999);
+
+        // Update OTP in session
+        session()->set([
+            'otp_code'   => $otp,
+            'otp_expires'=> time() + 300 // valid 5 mins
+        ]);
+
+        // Send OTP email
+        $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
+        try {
+            $mail->isSMTP();
+            $mail->Host       = getenv('SMTP_HOST');
+            $mail->SMTPAuth   = true;
+            $mail->Username   = getenv('SMTP_USER');
+            $mail->Password   = getenv('SMTP_PASS');
+            $mail->SMTPSecure = 'tls';
+            $mail->Port       = getenv('SMTP_PORT');
+
+            $mail->setFrom(getenv('SMTP_FROM'), 'Admin OTP');
+            $mail->addAddress($email);
+
+            $mail->isHTML(true);
+            $mail->Subject = 'Your Admin OTP Code (Resent)';
+            $mail->Body    = "<p>Your new OTP is <b>$otp</b>. It will expire in 5 minutes.</p>";
+
+            $mail->send();
+        } catch (\Exception $e) {
+            log_message('error', "Mailer Error (Resend): {$mail->ErrorInfo}");
+            return redirect()->back()->with('error', 'Failed to resend OTP.');
+        }
+
+        return redirect()->back()->with('success', 'A new OTP has been sent to your email.');
+    }
     public function logout()
     {
         session()->destroy();
@@ -111,7 +159,7 @@ class Admin extends BaseController
         return view('admin/tables');
     }
     public function registeredUsers()
-    {   //load user model (panag pag tawag ng object sa java)
+    {   //load user model (parang pag tawag ng object sa java)
         $userModel = new \App\Models\UserModel();
         //para sa pag kuha ng  registered users
         $data['users'] = $userModel->getRegisteredUsers();
