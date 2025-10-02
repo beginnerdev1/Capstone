@@ -75,5 +75,18 @@ $routes->group('admin', ['filter' => 'adminauth'], function($routes) {
     $routes->get('test-email'       , 'Admin::testEmail'            );           // Test email functionality yeah d pa to functional and idk when this was added...
 });
 
+// SuperAdmin routes grouped under 'superadmin'
+// SuperAdmin routes grouped under 'superadmin'
+$routes->group('superadmin', function($routes) {
+    $routes->get('/', 'SuperAdmin::index');              // /superadmin
+    $routes->get('dashboard', 'SuperAdmin::dashboard');      // /superadmin/dashboard
+    $routes->get('users', 'SuperAdmin::users');          // /superadmin/users
+    $routes->get('settings', 'SuperAdmin::settings');    // /superadmin/settings
+    $routes->get('login', 'SuperAdmin::login');          // /superadmin/login
+    $routes->get('logout', 'SuperAdmin::logout');        // /superadmin/logout
+    $routes->get('forgot-password', 'SuperAdmin::forgotPassword'); // /superadmin/forgot-password
+});
+
+
 // You can also add more user routes here, for example:
 $routes->get('about', 'Home::about'); // About page for users
