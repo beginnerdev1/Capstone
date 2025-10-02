@@ -63,16 +63,16 @@ $routes->group('admin', ['filter' => 'adminauth'], function($routes) {
     $routes->get('/'                , 'Admin::index'                );           // Admin dashboard
     $routes->get('layoutstatic'     , 'Admin::layoutStatic'         );
     $routes->get('logout'           , 'Admin::logout'               );
-    $routes->get('charts'           , 'Admin::charts'              );
-    $routes->get('tables'           , 'Admin::tables'              );
-    $routes->get('404'              , 'Admin::page404'             );
-    $routes->get('401'              , 'Admin::page401'             );
-    $routes->get('500'              , 'Admin::page500'             );
-    $routes->get('registeredUsers'  , 'Admin::registeredUsers'     ); // Registered users
-    $routes->get('billings'         , 'Admin::billings'            );               // Billings
-    $routes->get('paidBills'        , 'Admin::paidBills'          );             // Paid bills
-    $routes->get('reports'          , 'Admin::reports'            );                 // User reports dashboard
-    $routes->get('test-email'       , 'Admin::testEmail'          );
+    $routes->get('charts'           , 'Admin::charts'               );
+    $routes->get('tables'           , 'Admin::tables'               );
+    $routes->get('404'              , 'Admin::page404'              );
+    $routes->get('401'              , 'Admin::page401'              );
+    $routes->get('500'              , 'Admin::page500'              );
+    $routes->get('registeredUsers'  , 'Admin::registeredUsers'      ); // Registered users
+    $routes->get('billings'         , 'Admin::billings'             );               // Billings
+    $routes->get('paidBills'        , 'Admin::paidBills'            );             // Paid bills
+    $routes->get('reports'          , 'Admin::reports'              );                 // User reports dashboard
+    $routes->get('test-email'       , 'Admin::testEmail'            );           // Test email functionality yeah d pa to functional and idk when this was added...
 });
 
 // You can also add more user routes here, for example:
