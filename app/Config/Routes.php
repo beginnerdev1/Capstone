@@ -37,7 +37,11 @@ use CodeIgniter\Router\RouteCollection;
     $routes->post('admin/loginVerify', 'Admin::loginVerify'); // Handle OTP
     $routes->post('admin/resendOtp', 'Admin::resendOtp');     // Optional resend
 
-
+    //for sup admin
+    $routes->get('superadmin/check-code', 'SuperAdmin::checkCodeForm');
+    $routes->post('superadmin/check-code', 'SuperAdmin::checkCode');
+    $routes->get('superadmin/login', 'SuperAdmin::loginForm', ['filter'=>'superadminCode']);
+    $routes->post('superadmin/login', 'SuperAdmin::login');
 
 
 // 🔹 Users routes (protected by filter)
@@ -76,8 +80,7 @@ $routes->group('admin', ['filter' => 'adminauth'], function($routes) {
 });
 
 // SuperAdmin routes grouped under 'superadmin'
-// SuperAdmin routes grouped under 'superadmin'
-$routes->group('superadmin', function($routes) {
+$routes->group('superadmin', ['filter' => 'superadminauth'], function($routes) {
     $routes->get('/', 'SuperAdmin::index');              // /superadmin
     $routes->get('dashboard', 'SuperAdmin::dashboard');      // /superadmin/dashboard
     $routes->get('users', 'SuperAdmin::users');          // /superadmin/users

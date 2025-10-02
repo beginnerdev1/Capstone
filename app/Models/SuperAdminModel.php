@@ -7,7 +7,7 @@ class SuperAdminModel extends Model
 {
     protected $table      = 'super_admin'; // must match migration exactly
     protected $primaryKey = 'id';               // matches your migration's primary key
-    protected $allowedFields = ['admin_code', 'email', 'password', 'role']; // fields that can be set during insert/update
+    protected $allowedFields = ['admin_code', 'email', 'password', 'role', 'created_at', 'updated_at']; // fields that can be set during insert/update
     
     public function generateAdminCode()
     {
@@ -26,6 +26,9 @@ class SuperAdminModel extends Model
         // Format with leading zeros (e.g., 0001, 0002)
         return 'SUP-A-' . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
     }
+    protected $useTimestamps = true;
+    protected $createdField  = 'created_at';
+    protected $updatedField  = 'updated_at';
 }
 
 ?>
