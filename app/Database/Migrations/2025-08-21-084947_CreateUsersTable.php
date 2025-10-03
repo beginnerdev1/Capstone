@@ -15,11 +15,6 @@ class CreateUsersTable extends Migration
                 'unsigned'       => true,
                 'auto_increment' => true,
             ],
-            'name' => [
-                'type'       => 'VARCHAR',
-                'constraint' => '150',
-                'null'       => true,
-            ],
             'username'    => [
                 'type'       => 'VARCHAR',
                 'constraint' => '100',
@@ -29,11 +24,6 @@ class CreateUsersTable extends Migration
                 'type'       => 'VARCHAR',
                 'constraint' => '100',
                 'unique'     => true,
-            ],
-            'phone_number' => [
-                'type'       => 'VARCHAR',
-                'constraint' => '15',
-                'unique'     => false,
             ],
             'password'    => [
                 'type'       => 'VARCHAR',
