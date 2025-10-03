@@ -15,18 +15,41 @@ class CreateAdminTable extends Migration
                 'unsigned'       => true,
                 'auto_increment' => true,
             ],
+            'name' => [
+                'type'       => 'VARCHAR',
+                'constraint' => 100,
+            ],
             'username' => [
                 'type'       => 'VARCHAR',
-                'constraint' => '100',
-                'default' => 'surname, firstname',
-            ],
-            'password' => [
-                'type'       => 'VARCHAR',
-                'constraint' => '255',
+                'constraint' => 100,
+                'unique'     => true,
             ],
             'email' => [
                 'type'       => 'VARCHAR',
-                'constraint' => '100',
+                'constraint' => 100,
+                'unique'     => true,
+            ],
+            'password' => [
+                'type'       => 'VARCHAR',
+                'constraint' => 255,
+            ],
+            'position' => [
+                'type'       => 'VARCHAR',
+                'constraint' => 50,
+            ],
+            'is_verified' => [
+                'type'       => 'TINYINT',
+                'constraint' => 1,
+                'default'    => 0,
+            ],
+            'otp_code' => [
+                'type'       => 'VARCHAR',
+                'constraint' => 10,
+                'null'       => true,
+            ],
+            'otp_expire' => [
+                'type' => 'DATETIME',
+                'null' => true,
             ],
             'created_at' => [
                 'type' => 'DATETIME',
@@ -37,6 +60,7 @@ class CreateAdminTable extends Migration
                 'null' => true,
             ],
         ]);
+
         $this->forge->addKey('id', true);
         $this->forge->createTable('admin');
     }

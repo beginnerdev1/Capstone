@@ -22,11 +22,11 @@
                 <input type="text" name="username" class="form-control" placeholder="Username" required>
               </div>
               <div class="col-md-3">
-                <select name="status" class="form-select" required>
-                  <option value="">Select Status</option>
-                  <option value="Active">Active</option>
-                  <option value="Pending">Pending</option>
-                  <option value="Inactive">Inactive</option>
+                <select name="position" class="form-select" required>
+                  <option value="">President</option>
+                  <option value="Active">Vice President</option>
+                  <option value="Pending">Secretaty</option>
+                  <option value="Inactive">Treasurer</option>
                 </select>
               </div>
             </div>
@@ -76,3 +76,31 @@
     </div>
   </div>
 </div>
+
+<script>
+$(document).ready(function () {
+    $("#createUserForm").on("submit", function (e) {
+        e.preventDefault(); // stop default form submit
+
+        $.ajax({
+            url: $(this).attr("action"),
+            type: "POST",
+            data: $(this).serialize(),
+            dataType: "json",
+            success: function (response) {
+                if (response.status === "success") {
+                    alert(response.message);
+                    $("#createUserForm")[0].reset(); // clear the form
+                } else {
+                    alert(response.message);
+                }
+            },
+            error: function () {
+                alert("Something went wrong. Please try again.");
+            }
+        });
+    });
+});
+
+</script>
+

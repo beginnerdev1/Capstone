@@ -84,9 +84,12 @@ $routes->group('superadmin', ['filter' => 'superadminauth'], function($routes) {
     $routes->get('/', 'SuperAdmin::index');
     $routes->get('dashboard', 'SuperAdmin::dashboard');
     $routes->get('users', 'SuperAdmin::users');
+    $routes->post('createUser', 'SuperAdmin::createUser'); // Handle user creation
     $routes->get('settings', 'SuperAdmin::settings');
-    $routes->get('logout', 'SuperAdmin::logout');
-});
+    $routes->get('logout', 'SuperAdminAuth::logout'); // Logout route
+    
+
+}); 
 
 // You can also add more user routes here, for example:
 $routes->get('about', 'Home::about'); // About page for users
