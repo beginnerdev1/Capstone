@@ -31,11 +31,11 @@ use CodeIgniter\Router\RouteCollection;
     $routes->post('/reset-password', 'Auth::processResetPassword', ['filter' => 'guest']);
 
     // Admin login (accessible to guests only)
-    $routes->get('admin/login', 'Admin::adminLogin', ['as' => 'adminLoginForm', 'filter' => 'guest']);
-    $routes->post('admin/login', 'Admin::login', ['as' => 'adminLoginPost', 'filter' => 'guest']);
-    $routes->get('admin/loginVerify', 'Admin::showOtpForm');   // Show form
-    $routes->post('admin/loginVerify', 'Admin::loginVerify'); // Handle OTP
-    $routes->post('admin/resendOtp', 'Admin::resendOtp');     // Optional resend
+    $routes->get('admin/login', 'AdminAuth::adminLogin', ['as' => 'adminLoginForm', 'filter' => 'guest']);
+    $routes->post('admin/login', 'AdminAuth::login', ['as' => 'adminLoginPost', 'filter' => 'guest']);
+    $routes->get('admin/loginVerify', 'AdminAuth::showOtpForm');   // Show form
+    $routes->post('admin/loginVerify', 'AdminAuth::loginVerify'); // Handle OTP
+    $routes->post('admin/resendOtp', 'AdminAuth::resendOtp');     // Optional resend
 
 
    // SuperAdmin login & check-code (guest only)
@@ -66,7 +66,7 @@ $routes->group('users', ['filter' => 'userauth'], function($routes) {
 $routes->group('admin', ['filter' => 'adminauth'], function($routes) {
     $routes->get('/'                , 'Admin::index'                );           // Admin dashboard
     $routes->get('layoutstatic'     , 'Admin::layoutStatic'         );
-    $routes->get('logout'           , 'Admin::logout'               );
+    $routes->get('logout'           , 'AdminAuth::logout'               );
     $routes->get('charts'           , 'Admin::charts'               );
     $routes->get('tables'           , 'Admin::tables'               );
     $routes->get('404'              , 'Admin::page404'              );
