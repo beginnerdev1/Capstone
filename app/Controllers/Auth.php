@@ -3,6 +3,7 @@
 namespace App\Controllers;
 
 use App\Models\UserModel;
+use App\Models\UserInformationModel;
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 use App\Models\PasswordResetModel;
@@ -50,40 +51,53 @@ class Auth extends BaseController
 
     // Handle Registration
 
-    public function register()
+   public function register()
     {
-        $userModel = new UserModel();
+        $userModel = new \App\Models\UserModel();
+        $userInfoModel = new \App\Models\UserInformationModel();
 
         $otp = rand(100000, 999999);
 
-        $data = [
-            'username'    => $this->request->getPost('username'),
-            'email'       => $this->request->getPost('email'),
-            'password'    => password_hash($this->request->getPost('password'), PASSWORD_DEFAULT),
-            'is_verified' => 0,
-            'otp_code'    => $otp,
-            'otp_expires' => date('Y-m-d H:i:s', time() + 300) // 5 mins
+        // Insert into `users` table
+        $userData = [
+            'username'     => $this->request->getPost('username'),
+            'email'        => $this->request->getPost('email'),
+            'password'     => password_hash($this->request->getPost('password'), PASSWORD_DEFAULT),
+            'is_verified'  => 0,
+            'otp_code'     => $otp,
+            'otp_expires'  => date('Y-m-d H:i:s', time() + 300),
+            'created_at'   => date('Y-m-d H:i:s'),
         ];
 
-        if (! $userModel->insert($data)) {
-            // show validation/db errors if insert fails
-            dd($userModel->errors());
+        if (! $userModel->insert($userData)) {
+            dd($userModel->errors()); // debug only
         }
 
+        // Get the inserted user ID
         $userId = $userModel->getInsertID();
 
-        if ($userId) {
-            session()->set('pending_user', $userId);
+        // Insert into `user_information` table
+        $userInfoData = [
+            'user_id'      => $userId,
+            'phone' => $this->request->getPost('phone'),
+            'email'        => $this->request->getPost('email'),
+            'street'       => $this->request->getPost('street'),
+            'address'      => $this->request->getPost('address'),
+            'created_at'   => date('Y-m-d H:i:s'),
+        ];
 
-            // send OTP to email
-            $this->sendOtpEmail($data['email'], $otp);
+        $userInfoModel->insert($userInfoData);
 
-            return redirect()->to(base_url('verify'))
-                 ->with('message', 'OTP sent to your email');
-        }
+        // Store pending user for OTP
+        session()->set('pending_user', $userId);
+        $this->sendOtpEmail($userData['email'], $otp);
 
-        return redirect()->back()->with('error', 'Registration failed, try again.');
+        return redirect()->to(base_url('verify'))
+            ->with('message', 'OTP sent to your email');
     }
+
+
+   
 
 
 

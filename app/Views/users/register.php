@@ -35,18 +35,26 @@
                     <div class="input-group mb-3">
                         <input type="text" name="username" class="form-control form-control-lg bg-light fs-6" placeholder="Full Name" required>
                     </div>
-
+                    <!-- Street -->
+                    <div class="input-group mb-3">
+                        <input type="text" name="street" class="form-control form-control-lg bg-light fs-6" placeholder="Street" required>
+                    </div>
+                    <!-- Address -->
+                    <div class="input-group mb-3">
+                        <input type="text" name="address" class="form-control form-control-lg bg-light fs-6" placeholder="Address" required>
+                    </div>
+                    <!-- Phone Number -->
+                    <div class="input-group mb-3">
+                        <input type="text" name="phone" class="form-control form-control-lg bg-light fs-6" placeholder="Phone Number" required>
+                    </div>
                     <!-- Email -->
                     <div class="input-group mb-3">
                         <input type="email" name="email" class="form-control form-control-lg bg-light fs-6" placeholder="Email" required>
                     </div>
-
-
                     <!-- Password -->
                     <div class="input-group mb-3">
                         <input type="password" name="password" class="form-control form-control-lg bg-light fs-6" placeholder="Password" required>
                     </div>
-
                     <!-- Submit -->
                     <div class="input-group mb-3 mt-3">
                         <button type="submit" class="btn btn-lg btn-success w-100 fs-6">Register</button>

@@ -46,8 +46,17 @@ class Admin extends BaseController
 
         return view('admin/registeredUsers', $data);
     }
+    public function createBillingAjax(){
+        $billingModel = new BillingModel();
+        $userModel = new UserModel();
+
+
+        $data = [
+            
+        ];
+    }
     public function billings()
-    {  //para sa unpaid bills
+    {  //para sa ma-ipakita yung unpaid bills
          $billingModel = new BillingModel();
         $data['billings'] = $billingModel->getUnpaidBills();
         return view('admin/billings', $data);

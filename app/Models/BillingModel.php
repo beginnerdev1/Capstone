@@ -8,7 +8,7 @@ class BillingModel extends Model
 {
     protected $table      = 'billings';
     protected $primaryKey = 'id';
-    protected $allowedFields = ['user_id', 'amount', 'due_date', 'status', 'paid_date'];
+    protected $allowedFields = ['user_id','description', 'amount', 'due_date', 'status', 'paid_date'];
 
     // 🔹 Custom method for unpaid bills admin side
     public function getUnpaidBills()
@@ -64,6 +64,10 @@ class BillingModel extends Model
                     ->groupBy('YEAR(due_date)')
                     ->orderBy('year', 'ASC')
                     ->findAll();
+    }
+    //method for inserting new billing record
+    public function createBilling($data){
+          return $this->insert($data);
     }
 }
 ?>
