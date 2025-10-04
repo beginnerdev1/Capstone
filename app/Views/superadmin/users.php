@@ -36,48 +36,40 @@
           </form>
         </div>
 
-        <!-- ✅ User Table -->
+        <!-- User Table -->
         <div class="table-responsive px-3">
-          <table class="table table-striped table-bordered table-hover align-middle mb-0">
+        <table class="table table-striped table-bordered table-hover">
             <thead class="table-dark">
-              <tr>
-                <th>#</th>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Username</th>
-                <th>Status</th>
-              </tr>
+                <tr>
+                    <th>#</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Username</th>
+                    <th>Status</th>
+                </tr>
             </thead>
-            <tbody>
-              <tr>
-                <td>1</td>
-                <td>Quiel Santos</td>
-                <td>quiel@example.com</td>
-                <td>quiel123</td>
-                <td><span class="badge bg-success">Active</span></td>
-              </tr>
-              <!-- Add more rows dynamically -->
+            <tbody id="user-table-body">
+                <!-- Users will be injected here -->
             </tbody>
-          </table>
+        </table>
         </div>
 
-        <!-- ✅ Pagination -->
+      
+        <!-- ✅ Pagination
         <div class="card-footer py-3">
           <nav aria-label="Table pagination">
-            <ul class="pagination justify-content-end mb-0">
-              <li class="page-item disabled"><a class="page-link" href="#">Previous</a></li>
-              <li class="page-item active"><a class="page-link" href="#">1</a></li>
-              <li class="page-item"><a class="page-link" href="#">2</a></li>
-              <li class="page-item"><a class="page-link" href="#">Next</a></li>
+            <ul class="pagination justify-content-end mb-0" id="pagination-links">
             </ul>
           </nav>
-        </div>
+        </div>  -->
       </div>
     </div>
   </div>
 </div>
 
 <script>
+
+  // Handle form submission via AJAX
 $(document).ready(function () {
     $("#createUserForm").on("submit", function (e) {
         e.preventDefault(); // stop default form submit
@@ -102,5 +94,45 @@ $(document).ready(function () {
     });
 });
 
+
+// Load users via AJAX
+$(document).ready(function () {
+    function loadUsers() {
+        $.ajax({
+            url: "<?= base_url('superadmin/getUsers') ?>",
+            type: 'GET',
+            dataType: 'json',
+            success: function(users) {
+                const tbody = $('#user-table-body');
+                tbody.empty();
+
+                users.forEach((user, index) => {
+                    const statusBadge = user.is_verified == 1
+                        ? '<span class="badge bg-success">Active</span>'
+                        : '<span class="badge bg-secondary">Inactive</span>';
+
+                    tbody.append(`
+                        <tr>
+                            <td>${index + 1}</td>
+                            <td>${user.name}</td>
+                            <td>${user.email}</td>
+                            <td>${user.username}</td>
+                            <td>${statusBadge}</td>
+                        </tr>
+                    `);
+                });
+            },
+            error: function(xhr) {
+                console.log(xhr.responseText);
+                alert("Failed to load users.");
+            }
+        });
+    }
+
+    // Initial load
+    loadUsers();
+});
+
 </script>
+
 

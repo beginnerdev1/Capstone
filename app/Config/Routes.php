@@ -85,7 +85,7 @@ $routes->group('superadmin', ['filter' => 'superadminauth'], function($routes) {
     $routes->get('dashboard', 'SuperAdmin::dashboard');
     $routes->get('users', 'SuperAdmin::users');
     $routes->post('createUser', 'SuperAdmin::createUser'); // Handle user creation
-    $routes->get('settings', 'SuperAdmin::settings');
+   $routes->get('getUsers', 'SuperAdmin::getUsers'); // Fetch users with pagination
     $routes->get('logout', 'SuperAdminAuth::logout'); // Logout route
     
 

@@ -4,6 +4,8 @@ namespace App\Controllers;
 
 use CodeIgniter\Controller;
 use App\Models\AdminModel;
+use App\Models\SuperadminListAdminUserModel;
+
 
 
 class SuperAdmin extends Controller
@@ -63,7 +65,14 @@ class SuperAdmin extends Controller
         }
     }
 
+    // Fetch users with pagination AJAX
+    public function getUsers()
+    {
+        $model = new SuperadminListAdminUserModel();
+        $users = $model->orderBy('created_at', 'DESC')->findAll();
 
+        return $this->response->setJSON($users);
+    }
 
     public function settings()
     {
