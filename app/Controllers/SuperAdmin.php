@@ -4,7 +4,7 @@ namespace App\Controllers;
 
 use CodeIgniter\Controller;
 use App\Models\AdminModel;
-use App\Models\SuperadminListAdminUserModel;
+
 
 
 
@@ -39,17 +39,57 @@ class SuperAdmin extends Controller
     // Handle user creation AJAX
     public function createUser()
     {
-        helper('form');
-        $adminModel = new AdminModel();
+        $adminModel = new \App\Models\AdminModel();
 
+        $name     = trim($this->request->getPost('name') ?? '');
+        $email    = trim($this->request->getPost('email') ?? '');
+        $username = trim($this->request->getPost('username') ?? '');
+        $position = trim($this->request->getPost('position') ?? '');
+
+        // Check if all fields are filled
+        if (!$name || !$email || !$username || !$position) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'All fields are required.'
+            ]);
+        }
+
+        // Check for duplicates one by one
+        if ($adminModel->where('name', $name)->first()) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'Name is already in use.'
+            ]);
+        }
+
+        if ($adminModel->where('email', $email)->first()) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'Email is already in use.'
+            ]);
+        }
+
+        if ($adminModel->where('username', $username)->first()) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'Username is already in use.'
+            ]);
+        }
+
+        if ($adminModel->where('position', $position)->first()) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'Position is already in use.'
+            ]);
+        }
+
+        // If no duplicates, insert new user
         $data = [
-            'name'        => $this->request->getPost('name'),
-            'email'       => $this->request->getPost('email'),
-            'username'    => $this->request->getPost('username'),
-            'position'    => $this->request->getPost('position'),
+            'name'        => $name,
+            'email'       => $email,
+            'username'    => $username,
+            'position'    => $position,
             'is_verified' => 0,
-            'created_at'  => date('Y-m-d H:i:s'),
-            'updated_at'  => date('Y-m-d H:i:s'),
         ];
 
         if ($adminModel->insert($data)) {
@@ -60,15 +100,16 @@ class SuperAdmin extends Controller
         } else {
             return $this->response->setJSON([
                 'status'  => 'error',
-                'message' => 'Failed to create user account.'
+                'message' => 'Something went wrong while creating the user.'
             ]);
         }
     }
+    
 
     // Fetch users with pagination AJAX
     public function getUsers()
     {
-        $model = new SuperadminListAdminUserModel();
+        $model= new AdminModel();
         $users = $model->orderBy('created_at', 'DESC')->findAll();
 
         return $this->response->setJSON($users);

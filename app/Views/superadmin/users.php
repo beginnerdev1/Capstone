@@ -23,10 +23,10 @@
               </div>
               <div class="col-md-3">
                 <select name="position" class="form-select" required>
-                  <option value="">President</option>
-                  <option value="Active">Vice President</option>
-                  <option value="Pending">Secretaty</option>
-                  <option value="Inactive">Treasurer</option>
+                  <option value="President">President</option>
+                  <option value="Vice President">Vice President</option>
+                  <option value="Secretary">Secretary</option>
+                  <option value="Treasurer">Treasurer</option>
                 </select>
               </div>
             </div>
@@ -67,43 +67,20 @@
   </div>
 </div>
 
+
+
+
+
 <script>
-
-  // Handle form submission via AJAX
 $(document).ready(function () {
-    $("#createUserForm").on("submit", function (e) {
-        e.preventDefault(); // stop default form submit
-
-        $.ajax({
-            url: $(this).attr("action"),
-            type: "POST",
-            data: $(this).serialize(),
-            dataType: "json",
-            success: function (response) {
-                if (response.status === "success") {
-                    alert(response.message);
-                    $("#createUserForm")[0].reset(); // clear the form
-                } else {
-                    alert(response.message);
-                }
-            },
-            error: function () {
-                alert("Something went wrong. Please try again.");
-            }
-        });
-    });
-});
-
-
-// Load users via AJAX
-$(document).ready(function () {
+    // ✅ Load users from controller
     function loadUsers() {
         $.ajax({
             url: "<?= base_url('superadmin/getUsers') ?>",
-            type: 'GET',
-            dataType: 'json',
-            success: function(users) {
-                const tbody = $('#user-table-body');
+            type: "GET",
+            dataType: "json",
+            success: function (users) {
+                const tbody = $("#user-table-body");
                 tbody.empty();
 
                 users.forEach((user, index) => {
@@ -122,17 +99,70 @@ $(document).ready(function () {
                     `);
                 });
             },
-            error: function(xhr) {
+            error: function (xhr) {
                 console.log(xhr.responseText);
                 alert("Failed to load users.");
             }
         });
-    }
+    } // ✅ ← You forgot this closing bracket!
 
-    // Initial load
+    // ✅ Submit form via AJAX to SuperAdmin::createUser
+    $("#createUserForm").on("submit", function (e) {
+        e.preventDefault();
+
+        const formData = $(this).serializeArray();
+        const name = formData.find(f => f.name === "name").value.trim();
+        const email = formData.find(f => f.name === "email").value.trim();
+        const username = formData.find(f => f.name === "username").value.trim();
+        const position = formData.find(f => f.name === "position").value.trim();
+
+        // ✅ Check duplicates in table
+        let duplicate = false;
+        $("#user-table-body tr").each(function () {
+            const rowName = $(this).find("td:nth-child(2)").text().trim();
+            const rowEmail = $(this).find("td:nth-child(3)").text().trim();
+            const rowUsername = $(this).find("td:nth-child(4)").text().trim();
+            const rowPosition = $(this).find("td:nth-child(5)").text().trim();
+
+            if (
+                rowName === name &&
+                rowEmail === email &&
+                rowUsername === username &&
+                rowPosition === position
+            ) {
+                duplicate = true;
+                return false; // stop loop
+            }
+        });
+
+        if (duplicate) {
+            alert("⚠️ User with the same details already exists.");
+            return; // stop submission
+        }
+
+        // ✅ Continue AJAX if no duplicate
+        $.ajax({
+            url: "<?= base_url('superadmin/createUser') ?>",
+            type: "POST",
+            data: $(this).serialize(),
+            dataType: "json",
+            success: function (response) {
+                if (response.status === "success") {
+                    alert(response.message);
+                    $("#createUserForm")[0].reset();
+                    loadUsers(); // reload table
+                } else {
+                    alert(response.message);
+                }
+            },
+            error: function (xhr) {
+                console.log(xhr.responseText);
+                alert("Something went wrong. Please try again.");
+            }
+        });
+    });
+
+    // ✅ Initial load
     loadUsers();
 });
-
 </script>
-
-

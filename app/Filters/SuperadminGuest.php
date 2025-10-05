@@ -11,7 +11,7 @@ class SuperAdminGuest implements FilterInterface
     public function before(RequestInterface $request, $arguments = null)
     {
         if (session()->get('is_superadmin_logged_in')) {
-            return redirect()->to('/superadmin/index')->with('info', 'You are already logged in.');
+            return redirect()->to('superadmin')->with('info', 'You are already logged in.');
         }
     }
 
