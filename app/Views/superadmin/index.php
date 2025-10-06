@@ -70,6 +70,21 @@
         }
     });
 });
+    // ✅ Load dashboard on initial page load
+    $(document).ready(function() {
+    // ✅ Automatically load dashboard when superadmin logs in
+    $.ajax({
+        url: "<?= base_url('superadmin/dashboard') ?>",
+        type: "GET",
+        success: function(data) {
+            $("#content-area").html(data);
+        },
+        error: function() {
+            $("#content-area").html("<p class='text-danger p-3'>Failed to load dashboard.</p>");
+        }
+    });
+});
+
     </script>
 </body>
 </html>
