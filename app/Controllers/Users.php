@@ -144,6 +144,75 @@ class Users extends BaseController
         return $this->response->setJSON($user ?? []);
     }
 
+    public function payments()
+    {
+        return view('users/payments'); // create this view next
+    }
+
+public function createCheckout()
+{
+     $secretKey = env('STRIPE_SECRET_KEY');
+
+
+    $payload = [
+        "data" => [
+            "attributes" => [
+                "line_items" => [[
+                    "amount" => 59900,
+                    "currency" => "PHP",
+                    "name" => "Water Bill Payment",
+                    "quantity" => 1
+                ]],
+                "payment_method_types" => ["gcash", "card"],
+                "success_url" => base_url('index.php?payment=success'),
+                "cancel_url" => base_url('index.php?payment=cancel')
+            ]
+        ]
+    ];
+
+    $ch = curl_init('https://api.paymongo.com/v1/checkout_sessions');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => json_encode($payload),
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'Authorization: Basic ' . base64_encode($secretKey . ':')
+        ]
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    $result = json_decode($response, true);
+
+    if ($httpCode === 200 && isset($result['data']['attributes']['checkout_url'])) {
+        // Redirect frontend to the checkout URL
+        return redirect()->to($result['data']['attributes']['checkout_url']);
+    }
+
+    log_message('error', 'PayMongo Checkout Error: ' . print_r($result, true));
+
+    return $this->response->setJSON([
+        'error' => 'Unable to create checkout session',
+        'details' => $result
+    ]);
+}
+
+    public function paymentSuccess()
+    {
+        session()->setFlashdata('payment_status', 'success');
+        return redirect()->to(base_url('users/index'));
+    }
+
+    public function paymentFailed()
+    {
+        session()->setFlashdata('payment_status', 'failed');
+        return redirect()->to(base_url('users/index'));
+    }
+
+
 
 }
 
