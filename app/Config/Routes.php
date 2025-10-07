@@ -72,11 +72,14 @@ $routes->group('admin', ['filter' => 'adminauth'], function($routes) {
     $routes->get('404'              , 'Admin::page404'              );
     $routes->get('401'              , 'Admin::page401'              );
     $routes->get('500'              , 'Admin::page500'              );
-    $routes->get('registeredUsers'  , 'Admin::registeredUsers'      ); // Registered users
+    $routes->get('registeredUsers ', 'Admin::registeredUsers');
+    $routes->get('getUserInfo'  , 'Admin::getUserInfo'      ); // Registered users-Ajax
     $routes->get('billings'         , 'Admin::billings'             );               // Billings
+    $routes->get('getBillings', 'admin::getBillings'); //Billings Ajax
     $routes->get('paidBills'        , 'Admin::paidBills'            );             // Paid bills
     $routes->get('reports'          , 'Admin::reports'              );                 // User reports dashboard
     $routes->get('test-email'       , 'Admin::testEmail'            );           // Test email functionality yeah d pa to functional and idk when this was added...
+    $routes->post('createBilling'       , 'Admin::createBilling'           );           // Form to create a new bill Ajax
 });
 
 // SuperAdmin protected routes

@@ -39,27 +39,82 @@ class Admin extends BaseController
         return view('admin/tables');
     }
     public function registeredUsers()
-    {   //load user model (parang pag tawag ng object sa java)
-        $userModel = new \App\Models\UserModel();
-        //para sa pag kuha ng  registered users
-        $data['users'] = $userModel->getRegisteredUsers();
-
-        return view('admin/registeredUsers', $data);
+    {  
+        return view('admin/registeredUsers');
     }
-    public function createBillingAjax(){
-        $billingModel = new BillingModel();
-        $userModel = new UserModel();
+     public function getUserInfo()
+    {
+        $userId = $this->request->getGet('user_id'); 
+        $username = $this->request->getGet('username');
 
+        $userModel = new \App\Models\UserModel();
+
+        // You can search by either ID or username
+        $user = null;
+        if (!empty($userId)) {
+            $user = $userModel->where('id', $userId)->first();
+        } elseif (!empty($username)) {
+            $user = $userModel->where('username', $username)->first();
+        }
+
+        if ($user) {
+            // Join with user_information if needed
+            $userInfoModel = new \App\Models\UserInformationModel();
+            $info = $userInfoModel->where('user_id', $user['id'])->first();
+
+            return $this->response->setJSON([
+                'status' => 'success',
+                'data' => [
+                    'email' => $user['email'] ?? ($info['email'] ?? ''),
+                    'address' => $info['address'] ?? '',
+                    'username' => $user['username'],
+                    'id' => $user['id']
+                ]
+            ]);
+        }
+
+        return $this->response->setJSON(['status' => 'error', 'message' => 'User not found']);
+    }
+   public function getBillings()
+    {
+        $billingModel = new BillingModel();
+
+        $billings = $billingModel->select('billings.id, users.username, billings.amount, billings.due_date')
+            ->join('users', 'users.id = billings.user_id', 'left')
+            ->orderBy('billings.created_at', 'DESC')
+            ->findAll();
+
+        // Sample test data
+        $sample = [
+            ['id' => 1, 'username' => 'Test', 'amount' => 1500, 'due_date' => '2025-11-10']
+        ];
+
+        // Return actual or sample data
+        return $this->response->setJSON(['data' => $billings ?: $sample]);
+    }
+   public function createBilling()
+    {
+        $billingModel = new BillingModel();
 
         $data = [
-            
+            'user_id'    => $this->request->getPost('user_id'),
+            'amount'     => $this->request->getPost('amount'),
+            'description'=> $this->request->getPost('description') ?? 'N/A',
+            'created_at' => date('Y-m-d H:i:s'),
+            'due_date'   => date('Y-m-d H:i:s', strtotime('+1 month')),
         ];
+
+        if ($billingModel->insert($data)) {
+            return $this->response->setJSON(['status' => 'success', 'message' => 'Bill created successfully.']);
+        } else {
+            return $this->response->setJSON(['status' => 'error', 'message' => 'Failed to create bill.']);
+        }
     }
+
     public function billings()
     {  //para sa ma-ipakita yung unpaid bills
-         $billingModel = new BillingModel();
-        $data['billings'] = $billingModel->getUnpaidBills();
-        return view('admin/billings', $data);
+       
+        return view('admin/billings');
     }
     public function paidBills()
     {   //para sa paid bills
