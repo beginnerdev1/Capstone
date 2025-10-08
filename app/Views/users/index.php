@@ -36,6 +36,13 @@
 
 <body class="index-page">
   <?= $this->include('Users/header') ?>
+
+  <?php if (isset($_GET['payment']) && $_GET['payment'] === 'success'): ?>
+  <div class="alert alert-success text-center">
+    Payment successful! 💧
+  </div>
+<?php endif; ?>
+
   <main class="main">
 
     <!-- Hero Section -->

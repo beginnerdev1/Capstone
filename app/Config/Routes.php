@@ -59,6 +59,12 @@ $routes->group('users', ['filter' => 'userauth'], function($routes) {
     // Profile AJAX
     $routes->get('getProfileInfo', 'Users::getProfileInfo');
     $routes->post('updateProfile', 'Users::updateProfile');
+
+    // Payment AJAX
+
+    $routes->post('createCheckout', 'Users::createCheckout');
+
+
 });
 
 
@@ -90,6 +96,7 @@ $routes->group('superadmin', ['filter' => 'superadminauth'], function($routes) {
     $routes->post('createUser', 'SuperAdmin::createUser'); // Handle user creation
    $routes->get('getUsers', 'SuperAdmin::getUsers'); // Fetch users with pagination
     $routes->get('logout', 'SuperAdminAuth::logout'); // Logout route
+
     
 
 }); 
