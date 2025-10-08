@@ -38,7 +38,7 @@
           <label for="email"><i class="fa-solid fa-envelope me-2"></i>Email address</label>
         </div>
         <div class="form-floating mb-3 position-relative">
-          <input type="password" class="form-control" id="password" name="password" placeholder="Password" required>
+          <input type="password" class="form-control" id="password" name="password" placeholder="Password" >
           <label for="password"><i class="fa-solid fa-lock me-2"></i>Password</label>
           <i class="fa-solid fa-eye position-absolute top-50 end-0 translate-middle-y me-3 text-muted" id="togglePassword" style="cursor:pointer;"></i>
         </div>

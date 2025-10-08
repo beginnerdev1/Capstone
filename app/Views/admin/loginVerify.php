@@ -29,7 +29,7 @@
         <p class="text-muted text-center">We’ve sent a 6-digit code to your email.</p>
 
         <!-- OTP Form -->
-        <form action="<?= site_url('admin/loginVerify') ?>" method="post">
+        <form action="<?= site_url('admin/verify-otp') ?>" method="post">
             <?= csrf_field() ?>
             <div class="mb-3">
                 <input type="text" name="otp" maxlength="6" class="form-control text-center" placeholder="Enter OTP" required>
@@ -41,7 +41,7 @@
         <div class="text-center mt-3">
             <small id="countdownText">Resend available in <span id="timer">60</span> seconds</small>
             <button id="resendBtn" type="button" class="btn btn-link mt-2" 
-                    onclick="window.location.href='<?= site_url('admin/resendOtp') ?>'" disabled> Resend OTP
+                    onclick="window.location.href='<?= site_url('admin/resend-otp') ?>'" disabled> Resend OTP
             </button>
         </div>
     </div>

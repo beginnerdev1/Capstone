@@ -33,9 +33,9 @@ use CodeIgniter\Router\RouteCollection;
     // Admin login (accessible to guests only)
     $routes->get('admin/login', 'AdminAuth::adminLogin', ['as' => 'adminLoginForm', 'filter' => 'guest']);
     $routes->post('admin/login', 'AdminAuth::login', ['as' => 'adminLoginPost', 'filter' => 'guest']);
-    $routes->get('admin/loginVerify', 'AdminAuth::showOtpForm');   // Show form
-    $routes->post('admin/loginVerify', 'AdminAuth::loginVerify'); // Handle OTP
-    $routes->post('admin/resendOtp', 'AdminAuth::resendOtp');     // Optional resend
+    $routes->get('admin/verify-otp', 'AdminAuth::showOtpForm');   // Show form
+    $routes->post('admin/verify-otp', 'AdminAuth::verifyOtp'); // Handle OTP
+    $routes->post('admin/resend-otp', 'AdminAuth::resendOtp');     // Optional resend
 
 
    // SuperAdmin login & check-code (guest only)
@@ -72,20 +72,21 @@ $routes->group('users', ['filter' => 'userauth'], function($routes) {
 $routes->group('admin', ['filter' => 'adminauth'], function($routes) {
     $routes->get('/'                , 'Admin::index'                );           // Admin dashboard
     $routes->get('layoutstatic'     , 'Admin::layoutStatic'         );
-    $routes->get('logout'           , 'AdminAuth::logout'               );
+    $routes->get('logout'           , 'AdminAuth::logout'           );
     $routes->get('charts'           , 'Admin::charts'               );
     $routes->get('tables'           , 'Admin::tables'               );
     $routes->get('404'              , 'Admin::page404'              );
     $routes->get('401'              , 'Admin::page401'              );
     $routes->get('500'              , 'Admin::page500'              );
-    $routes->get('registeredUsers ', 'Admin::registeredUsers');
-    $routes->get('getUserInfo'  , 'Admin::getUserInfo'      ); // Registered users-Ajax
+    $routes->get('registeredUsers' , 'Admin::registeredUsers'      );
+    $routes->get('getUserInfo'      , 'Admin::getUserInfo'          ); // Registered users-Ajax
     $routes->get('billings'         , 'Admin::billings'             );               // Billings
-    $routes->get('getBillings', 'admin::getBillings'); //Billings Ajax
+    $routes->get('getBillings'      , 'admin::getBillings'          ); //Billings Ajax
     $routes->get('paidBills'        , 'Admin::paidBills'            );             // Paid bills
     $routes->get('reports'          , 'Admin::reports'              );                 // User reports dashboard
     $routes->get('test-email'       , 'Admin::testEmail'            );           // Test email functionality yeah d pa to functional and idk when this was added...
-    $routes->post('createBilling'       , 'Admin::createBilling'           );           // Form to create a new bill Ajax
+    $routes->post('createBilling'   , 'Admin::createBilling'        );           // Form to create a new bill Ajax
+    $routes->post('setPassword'     , 'AdminAuth::setPassword'      );
 });
 
 // SuperAdmin protected routes
