@@ -61,12 +61,15 @@ $routes->group('users', ['filter' => 'userauth'], function($routes) {
     $routes->post('updateProfile', 'Users::updateProfile');
 
     // Payment AJAX
-
     $routes->post('createCheckout', 'Users::createCheckout');
+    
+
 
 
 });
 
+//webhook
+    $routes->post('webhook', 'Users::webhook');
 
 // Admin routes grouped under 'admin'
 $routes->group('admin', ['filter' => 'adminauth'], function($routes) {
