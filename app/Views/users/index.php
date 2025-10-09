@@ -54,7 +54,7 @@
             <h2><span>Welcome to </span><span class="accent">Aqua Bill</span></h2>
             <p>Sed autem laudantium dolores. Voluptatem itaque ea consequatur eveniet. Eum quas beatae cumque eum quaerat.</p>
             <div class="d-flex">
-              <a href="#about" class="btn-get-started">Get Started</a>
+             <!-- <a href="#about" class="btn-get-started">Get Started</a> -->
              <!-- <a href="https://www.youtube.com/watch?v=Y7f98aduVJ8" class="glightbox btn-watch-video d-flex align-items-center"><i class="bi bi-play-circle"></i><span>Watch Video</span></a> -->
             </div>
           </div>
