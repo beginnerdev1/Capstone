@@ -146,7 +146,7 @@ class AdminAuth extends BaseController{
 
         // 3. Validate OTP and expiry
         if ($admin['otp_code'] == $otp && strtotime($admin['otp_expire']) > time()) {
-
+            session_start();
             // 4. Mark verified, clear OTP
             $adminModel->update($adminId, [
                 'is_verified' => 1,

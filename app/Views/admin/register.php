@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!-- <!DOCTYPE html>
 <html lang="en">
     <head>
         <meta charset="utf-8" />
@@ -54,7 +54,7 @@
                                                 </div>
                                             </div>
                                             <div class="mt-4 mb-0">
-                                                <div class="d-grid"><a class="btn btn-primary btn-block" href="login.html">Create Account</a></div>
+                                                <div class="d-grid"><a class="btn btn-primary btn-block" href=>Create Account</a></div>
                                             </div>
                                         </form>
                                     </div>
@@ -69,7 +69,7 @@
             </div>
             <div id="layoutAuthentication_footer">
                 <footer class="py-4 bg-light mt-auto">
-                    <div class="container-fluid px-4">
+                    <!-- <div class="container-fluid px-4">
                         <div class="d-flex align-items-center justify-content-between small">
                             <div class="text-muted">Copyright &copy; Your Website 2023</div>
                             <div>
@@ -78,11 +78,12 @@
                                 <a href="#">Terms &amp; Conditions</a>
                             </div>
                         </div>
-                    </div>
-                </footer>
+                    </div> -->
+      <!--           </footer>
             </div>
         </div>
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
         <script src="<?php echo base_url('assets/js') ?>"/scripts.js"></script>
     </body>
 </html>
+ --> -->

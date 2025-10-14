@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!-- <!DOCTYPE html>
 <html lang="en">
     <head>
         <meta charset="utf-8" />
@@ -76,3 +76,4 @@
         <script src="<?php echo base_url('assets/admin/js/scripts.js') ?>"></script>
     </body>
 </html>
+ -->
