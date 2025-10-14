@@ -4,7 +4,7 @@
       <div class="row gy-4">
         <div class="col-lg-5 col-md-12 footer-about">
           <a href="<?= site_url() ?>" class="logo d-flex align-items-center">
-            <span class="sitename">Impact</span>
+  <!--           <span class="sitename">Impact</span> -->
           </a>
           <div class="social-links d-flex mt-4">
             <a href=""><i class="bi bi-twitter-x"></i></a>
