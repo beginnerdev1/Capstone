@@ -201,25 +201,33 @@
         <div class="login-card">
          <img src="<?= base_url('assets/images/logo/Aquabill.png') ?>" alt="Aquabill Logo" class="logo-img">
 
-            <form action="<?= base_url('attemptLogin') ?>" method="post" class="pt-5">
+            <form action="<?= base_url('login') ?>" method="post" class="pt-5">
+                <?= csrf_field() ?> <!-- Protects against CSRF attacks -->
+
                 <div class="mb-3">
                     <input type="email" name="email" class="form-control" placeholder="Email" required>
                 </div>
+
                 <div class="mb-3 position-relative">
-                    <input type="password" id="password" name="password" class="form-control" placeholder="••••••••" required>
+                    <input type="password" id="password" name="password" class="form-control" placeholder="Password" required>
                     <button type="button" class="show-btn" onclick="togglePassword()">SHOW</button>
                 </div>
+
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <div class="form-check">
-                   <!-- <input class="form-check-input" type="checkbox" id="remember"> -->
+                        <!-- Remember me checkbox (optional) -->
+                        <!-- <input class="form-check-input" type="checkbox" id="remember"> -->
                     </div>
                     <a href="<?= base_url('forgot-password') ?>" class="forgot-link">Forgot Password?</a>
                 </div>
+
                 <button type="submit" class="btn btn-login w-100">Log In</button>
+
                 <div class="signup mt-3">
                     Don't have an account? <a href="<?= base_url('register') ?>">Sign Up</a>
                 </div>
             </form>
+
 
         </div>
       </div>
