@@ -173,9 +173,6 @@ class AdminAuth extends BaseController{
                 $showModal = true;
             }
 
-            // 8. Redirect to dashboard and trigger modal if needed
-            session()->setFlashdata('show_password_modal', $showModal);
-
             return redirect()->to('admin/')
                 ->with('success', 'Email verified! Welcome to the dashboard.');
         }
