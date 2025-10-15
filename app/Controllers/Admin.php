@@ -39,8 +39,24 @@ class Admin extends BaseController
         return view('admin/tables');
     }
     public function registeredUsers()
-    {  
-        return view('admin/registeredUsers');
+    {
+        $userModel = new \App\Models\UserModel();
+
+        // Predefined puroks
+        $puroks = ['1', '2', '3', '4', '5'];
+
+        $selectedPurok = $this->request->getGet('purok');
+
+        if ($selectedPurok) {
+            $data['users'] = $userModel->where('Street', $selectedPurok)->findAll();
+        } else {
+            $data['users'] = $userModel->findAll();
+        }
+
+        $data['puroks'] = $puroks;
+        $data['selectedPurok'] = $selectedPurok;
+
+        return view('admin/registeredUsers', $data);
     }
      public function getUserInfo()
     {
@@ -77,20 +93,35 @@ class Admin extends BaseController
     }
    public function getBillings()
     {
-        $billingModel = new BillingModel();
+       $userModel = new \App\Models\UserModel();
+        $billingModel = new \App\Models\BillingModel();
 
-        $billings = $billingModel->select('billings.id, users.username, billings.amount, billings.due_date')
-            ->join('users', 'users.id = billings.user_id', 'left')
-            ->orderBy('billings.created_at', 'DESC')
-            ->findAll();
+        // --- USERS FILTER ---
+        $purok = $this->request->getGet('purok');
+        if ($purok) {
+            $data['users'] = $userModel->where('Street', $purok)->findAll();
+        } else {
+            $data['users'] = $userModel->findAll();
+        }
 
-        // Sample test data
-        $sample = [
-            ['id' => 1, 'username' => 'Test', 'amount' => 1500, 'due_date' => '2025-11-10']
-        ];
+        // Predefined puroks
+        $data['puroks'] = ['1', '2', '3', '4', '5'];
+        $data['selectedPurok'] = $purok;
 
-        // Return actual or sample data
-        return $this->response->setJSON(['data' => $billings ?: $sample]);
+
+        // --- BILLINGS FILTER ---
+        $status = $this->request->getGet('status');
+        if ($status) {
+            $data['billings'] = $billingModel->where('status', $status)->findAll();
+        } else {
+            $data['billings'] = $billingModel->findAll();
+        }
+
+        // Billing status options
+        $data['statuses'] = ['Paid', 'Unpaid', 'Overdue'];
+        $data['selectedStatus'] = $status;
+
+        return view('admin/billings', $data);
     }
    public function createBilling()
     {

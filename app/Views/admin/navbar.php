@@ -43,6 +43,18 @@
                                 <div class="sb-nav-link-icon"><i class="fas fa-table"></i></div>
                                 Tables
                             </a>
+                            <a class="nav-link" href="<?= base_url('admin/registeredUsers') ?>">
+                                <div class="dashboard-icon"><i class="fas fa-users"></i></div>
+                                Registered Users
+                            </a>
+                            <a class="nav-link" href="<?= base_url('admin/billings') ?>">
+                                <div class="dashboard-icon"><i class="fas fa-file-invoice-dollar"></i></div>
+                                Create Billing
+                            </a>
+                            <a class="nav-link" href="<?= base_url('admin/paidBills') ?>">
+                                <div class="dashboard-icon"><i class="fas fa-check-circle"></i></div>
+                                Paid User Bills
+                            </a>
                         </div>
                     </div>
                    <!--  <div class="sb-sidenav-footer">

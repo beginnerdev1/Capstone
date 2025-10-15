@@ -21,8 +21,23 @@
                     <div class="card mb-4">
                          <div class="card-header">
                              <i class="fas fa-users me-1"></i>
-                                Users Table        
-                                <div>Search:</div>                                        
+                                Users Table    
+                                <form method="get" action="">
+                                    <div class="d-flex align-items-center mb-3">
+                                        <label for="purok" class="me-2 fw-bold">Filter by Purok:</label>
+                                        <select name="purok" id="purok" class="form-select w-auto me-2">
+                                            <option value="">All</option>
+                                            <?php 
+                                            $puroks = ['1', '2', '3', '4', '5']; 
+                                            foreach ($puroks as $p): ?>
+                                                <option value="<?= $p ?>" <?= isset($_GET['purok']) && $_GET['purok'] == $p ? 'selected' : '' ?>>
+                                                    Purok <?= $p ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                        <button type="submit" class="btn btn-primary">Filter</button>
+                                    </div>
+                                </form>                                     
                          </div>
                         <div class="card-body">
                             <div class="table-responsive">
@@ -33,7 +48,8 @@
                                             <th>Name</th>
                                             <th>Email</th>
                                             <th>Address</th>
-                                            <th>Phone Number</th>
+                                            <th>Created At</th>
+                                         <!--    <th>Phone Number</th> -->
                                         </tr>
                                     </thead>
                                      <tbody>
@@ -43,13 +59,12 @@
                                                     <td><?= htmlspecialchars($row['id']); ?></td>
                                                     <td><?= htmlspecialchars($row['username']); ?></td>
                                                     <td><?= htmlspecialchars($row['email']); ?></td>
-                                                    <td><?= htmlspecialchars($row['phone_number']); ?></td>
+                                                 <!--    <td>htmlspecialchars($row['phone_number']); ?></td> -->
                                                     <td><?= htmlspecialchars($row['created_at']); ?></td>
-                                                    <td><?= htmlspecialchars($row['updated_at']); ?></td>
                                                 </tr>
                                             <?php endforeach; ?>
                                         <?php else: ?>
-                                            <tr><td colspan="6">No users found.</td></tr>
+                                            <tr><td colspan="7">No users found.</td></tr>
                                         <?php endif; ?>
                                     </tbody>
                                 </table>

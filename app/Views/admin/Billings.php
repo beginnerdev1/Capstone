@@ -55,9 +55,30 @@
                 <div id="responseMsg" class="mt-3"></div> -->
                 
                 <div class="card mb-4 mt-4">
-                    <div class="card-header">
-                        <i class="fas fa-file-invoice-dollar me-1"></i>
-                        Users   <div>Search:</div> 
+                   <div class="card-header d-flex justify-content-between align-items-center">
+                        <?php
+                        // Temporary data for development
+                        $puroks = ['1', '2', '3', '4', '5'];
+                        $statuses = ['Paid', 'Unpaid', 'Overdue'];
+
+                        // Keep selected values when page reloads (GET)
+                        $selectedPurok = $_GET['purok'] ?? '';
+                        $selectedStatus = $_GET['status'] ?? '';
+                        ?>
+                        <div><i class="fas fa-file-invoice-dollar me-1"></i> Users</div>
+
+                        <form method="get" action="" class="d-flex align-items-center">
+                            <label for="purok" class="me-2 fw-bold">Purok:</label>
+                            <select name="purok" id="purok" class="form-select form-select-sm me-2">
+                                <option value="">All</option>
+                                <?php foreach ($puroks as $p): ?>
+                                    <option value="<?= $p ?>" <?= isset($selectedPurok) && $selectedPurok == $p ? 'selected' : '' ?>>
+                                        Purok <?= $p ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <button type="submit" class="btn btn-sm btn-primary">Filter</button>
+                        </form>
                     </div>
                     <div class="card-body">
                         <table id="billingsTable" class="table table-hover table-striped align-middle shadow-sm">
@@ -76,10 +97,30 @@
                     </div>
                 </div>
                 <div class="card mb-4 mt-4">
-                    <div class="card-header">
-                        <i class="fas fa-file-invoice-dollar me-1"></i>
-                        Billings
-                          <div>Search:</div> 
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <?php
+                        // Temporary data for development
+                        $puroks = ['1', '2', '3', '4', '5'];
+                        $statuses = ['Paid', 'Unpaid', 'Overdue'];
+
+                        // Keep selected values when page reloads (GET)
+                        $selectedPurok = $_GET['purok'] ?? '';
+                        $selectedStatus = $_GET['status'] ?? '';
+                        ?>
+                        <div><i class="fas fa-file-invoice-dollar me-1"></i> Bills</div>
+
+                        <form method="get" action="" class="d-flex align-items-center">
+                            <label for="purok" class="me-2 fw-bold">Purok:</label>
+                            <select name="purok" id="purok" class="form-select form-select-sm me-2">
+                                <option value="">All</option>
+                                <?php foreach ($puroks as $p): ?>
+                                    <option value="<?= $p ?>" <?= isset($selectedPurok) && $selectedPurok == $p ? 'selected' : '' ?>>
+                                        Purok <?= $p ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <button type="submit" class="btn btn-sm btn-primary">Filter</button>
+                        </form>
                     </div>
                     <div class="card-body">
                         <table id="billingsTable" class="table table-hover table-striped align-middle shadow-sm">

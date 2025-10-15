@@ -15,10 +15,38 @@ class CreateUsersTable extends Migration
                 'unsigned'       => true,
                 'auto_increment' => true,
             ],
+            'Surname'    => [
+                'type'       => 'VARCHAR',
+                'constraint' => '100',
+            ],
+            'Firstname'    => [
+                'type'       => 'VARCHAR',
+                'constraint' => '100',
+            ],
+            'Middlename'    => [
+                'type'       => 'VARCHAR',
+                'constraint' => '100',
+            ],
             'username'    => [
                 'type'       => 'VARCHAR',
                 'constraint' => '100',
                 'unique'     => true,
+            ],
+            'Street'    => [
+                'type'       => 'INT',
+                'constraint' => 11,
+            ],
+            'Barangay'    => [
+                'type'       => 'VARCHAR',
+                'constraint' => '100',
+            ],
+            'Municipality'    => [
+                'type'       => 'VARCHAR',
+                'constraint' => '100',
+            ],
+            'Province'    => [
+                'type'       => 'VARCHAR',
+                'constraint' => '100',
             ],
             'email'       => [
                 'type'       => 'VARCHAR',
