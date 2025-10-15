@@ -21,6 +21,7 @@
                     <div class="card-header">
                         <i class="fas fa-money-check-alt me-1"></i>
                         Paid Bills (Last Year to Today)
+                          <div>Search:</div> 
                     </div>
                     <div class="card-body">
                         <div class="table-responsive">
@@ -31,6 +32,7 @@
                                         <th>User</th>
                                         <th>Amount</th>
                                         <th>Date Paid</th>
+                                        <th>Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -41,11 +43,12 @@
                                                 <td><?= htmlspecialchars($bill['user']) ?></td>
                                                 <td><?= htmlspecialchars(number_format($bill['amount'], 2)) ?></td>
                                                 <td><?= htmlspecialchars($bill['date']) ?></td>
+                                                <td><button class="btn btn-primary btn-sm">Print</button></td>
                                             </tr>
                                         <?php endforeach; ?>
                                     <?php else: ?>
                                         <tr>
-                                            <td colspan="4" class="text-center">No paid bills found.</td>
+                                            <td colspan="5" class="text-center">No paid bills found.</td>
                                         </tr>
                                     <?php endif; ?>
                                 </tbody>

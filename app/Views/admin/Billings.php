@@ -18,8 +18,8 @@
     <div id="layoutSidenav_content">
         <main>
             <div class="container-fluid px-4">
-                <h1 class="mt-4">Billings</h1>
-                <form id="createBillingForm">
+                <h1 class="mt-4">Billings </h1>
+                <!-- <form id="createBillingForm">
                 <div class="mb-3">
                     <label>User ID</label>
                     <input type="number" name="user_id" id="user_id" class="form-control" required>
@@ -52,21 +52,45 @@
                 <button type="submit" class="btn btn-primary">Create Bill</button>
                 </form>
 
-                <div id="responseMsg" class="mt-3"></div>
+                <div id="responseMsg" class="mt-3"></div> -->
                 
                 <div class="card mb-4 mt-4">
                     <div class="card-header">
                         <i class="fas fa-file-invoice-dollar me-1"></i>
-                        Billings Table
+                        Users   <div>Search:</div> 
+                    </div>
+                    <div class="card-body">
+                        <table id="billingsTable" class="table table-hover table-striped align-middle shadow-sm">
+                            <thead class="table-primary">
+                                <tr class="table-primary">
+                                    <th>ID</th>
+                                    <th>Name</th>
+                                    <th>Address</th>
+                                    <th>Phone Number</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card mb-4 mt-4">
+                    <div class="card-header">
+                        <i class="fas fa-file-invoice-dollar me-1"></i>
+                        Billings
+                          <div>Search:</div> 
                     </div>
                     <div class="card-body">
                         <table id="billingsTable" class="table table-hover table-striped align-middle shadow-sm">
                             <thead class="table-primary">
                                 <tr class="table-primary">
                                     <th>Bill ID</th>
-                                    <th>User</th>
+                                    <th>Name</th>
+                                    <th>Address</th>
                                     <th>Amount</th>
                                     <th>Due Date</th>
+                                    <th>Status</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -93,157 +117,6 @@
     <script src="<?= base_url('assets/admin/js/scripts.js') ?>"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-    
-    <script>
-        // Global variable to hold the DataTable instance
-        let billingsDataTable;
-
-        /**
-         * Fetches billing data and initializes/re-initializes the DataTable.
-         * Assumes the CodeIgniter endpoint 'admin/getBillings' returns { data: [...] }
-         */
-        function fetchAndRenderBillings() {
-            fetch("<?= base_url('admin/getBillings') ?>", {
-                credentials: 'include' 
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Network response was not ok: ' + response.statusText);
-                }
-                return response.json();
-            })
-            .then(data => {
-                const billData = data.data || [];
-                const $tbody = $("#billingsTable tbody");
-                
-                // 1. Destroy old DataTable instance if it exists before manipulating the DOM
-                if ($.fn.DataTable.isDataTable('#billingsTable')) {
-                    billingsDataTable.destroy();
-                }
-                
-                // 2. Clear and populate the tbody with new data
-                $tbody.empty();
-
-                if (billData.length) {
-                    billData.forEach(bill => {
-                        $tbody.append(`
-                            <tr>
-                                <td>${bill.id}</td>
-                                <td>${bill.username}</td>
-                                <td><strong>₱${parseFloat(bill.amount).toFixed(2)}</strong></td>
-                                <td>${bill.due_date}</td>
-                            </tr>
-                        `);
-                    });
-                }
-                
-                // 3. Re-initialize the DataTable
-                billingsDataTable = $('#billingsTable').DataTable({
-                    "order": [[0, "desc"]], // Sort by Bill ID descending
-                    "paging": true,
-                    "searching": true,
-                    "info": true
-                });
-
-            })
-            .catch(error => {
-                console.error("Fetch Error:", error);
-                $('#responseMsg').html('<div class="alert alert-danger">Error loading bills: ' + error.message + '</div>');
-            });
-        }
-
-        document.addEventListener("DOMContentLoaded", function() {
-            // Load the initial data and initialize the table on page load
-            fetchAndRenderBillings();
-
-            // --- User Info Auto-fill Logic (Enhanced) ---
-            $('#user_id, #username').on('change keyup', function() {
-                let userId = $('#user_id').val();
-                let username = $('#username').val();
-                
-                // Clear fields if both inputs are empty
-                if (!userId && !username) {
-                    $('#email').val('');
-                    $('#address').val('');
-                    return;
-                }
-
-                $.ajax({
-                    url: "<?= base_url('admin/getUserInfo') ?>",
-                    method: "GET",
-                    data: { user_id: userId, username: username },
-                    dataType: "json",
-                    success: function(response) {
-                        if (response.status === 'success' && response.data) {
-                            $('#email').val(response.data.email);
-                            $('#address').val(response.data.address);
-                            $('#username').val(response.data.username);
-                            $('#user_id').val(response.data.id);
-                        } else {
-                            // Clear fields if user not found (Error handling enhanced)
-                            $('#email').val('');
-                            $('#address').val('');
-                            $('#user_id').val(userId); // Keep the ID/Name the user typed
-                            $('#username').val(username);
-                        }
-                    },
-                    error: function() {
-                        console.error("Error fetching user info");
-                        $('#email').val('');
-                        $('#address').val('');
-                    }
-                });
-            });
-
-            // --- Bill Creation Form Submission Logic (NEW) ---
-            $('#createBillingForm').on('submit', function(e) {
-                e.preventDefault(); // Stop default form submission
-
-                const formData = $(this).serialize(); // Get form data
-                const $responseMsg = $('#responseMsg');
-
-                // Basic validation check
-                if (!$('#user_id').val() || !$('input[name="amount"]').val()) {
-                    $responseMsg.html('<div class="alert alert-warning">User ID and Billing Amount are required.</div>');
-                    return;
-                }
-
-                // AJAX call to create the bill
-                $.ajax({
-                    url: "<?= base_url('admin/createBilling') ?>", // Assumed CodeIgniter endpoint
-                    method: "POST",
-                    data: formData,
-                    dataType: "json",
-                    beforeSend: function() {
-                        $responseMsg.html('<div class="alert alert-info">Creating bill...</div>');
-                        $('button[type="submit"]').prop('disabled', true); // Disable button
-                    },
-                    success: function(response) {
-                        if (response.status === 'success') {
-                            $responseMsg.html('<div class="alert alert-success">Bill created successfully! Bill ID: ' + response.bill_id + '</div>');
-                            
-                            // Reset and clear form fields
-                            $('#createBillingForm')[0].reset(); 
-                            $('#email').val(''); 
-                            $('#address').val('');
-                            
-                            fetchAndRenderBillings(); // Refresh the table
-                        } else {
-                            $responseMsg.html('<div class="alert alert-danger">Error creating bill: ' + (response.message || 'Unknown error') + '</div>');
-                        }
-                    },
-                    error: function(xhr, status, error) {
-                        console.error("AJAX Error:", error);
-                        $responseMsg.html('<div class="alert alert-danger">An error occurred during bill creation. Please check server logs.</div>');
-                    },
-                    complete: function() {
-                        $('button[type="submit"]').prop('disabled', false); // Re-enable button
-                    }
-                });
-            });
-
-        });
-    </script>
 </body>
 </html>
 

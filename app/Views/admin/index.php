@@ -18,10 +18,10 @@
                 <div class="container-fluid px-4">
                     <h1 class="mt-4">Dashboard</h1>
                     <?php require_once(APPPATH . 'Views/admin/set_password.php'); ?>
-                    <div class="row">
+                    <div class="row ">
                         <div class="col-xl-3 col-md-6">
                             <div class="card bg-primary text-white mb-4">
-                                <div class="card-body">Registered Users</div>
+                                <div class="card-body">Registered Users (NUMBER)</div>
                                 <div class="card-footer d-flex align-items-center justify-content-between">
                                     <a class="small text-white stretched-link" href="<?= base_url('admin/registeredUsers') ?>">View Details</a>
                                     <div class="small text-white"><i class="fas fa-angle-right"></i></div>
@@ -30,7 +30,7 @@
                         </div>
                         <div class="col-xl-3 col-md-6">
                             <div class="card bg-warning text-white mb-4">
-                                <div class="card-body">Ongoing Bills</div>
+                                <div class="card-body">Create Billing (NUMBER)</div>
                                 <div class="card-footer d-flex align-items-center justify-content-between">
                                     <a class="small text-white stretched-link" href="<?= base_url('admin/billings') ?>">View Details</a>
                                     <div class="small text-white"><i class="fas fa-angle-right"></i></div>
@@ -39,14 +39,14 @@
                         </div>
                         <div class="col-xl-3 col-md-6">
                             <div class="card bg-success text-white mb-4">
-                                <div class="card-body">Paid User Bills</div>
+                                <div class="card-body">Paid User Bills (NUMBER)</div>
                                 <div class="card-footer d-flex align-items-center justify-content-between">
                                     <a class="small text-white stretched-link" href="<?= base_url('admin/paidBills') ?>">View Details</a>
                                     <div class="small text-white"><i class="fas fa-angle-right"></i></div>
                                 </div>
                             </div>
                         </div>
-                        <div class="col-xl-3 col-md-6">
+                       <!--  <div class="col-xl-3 col-md-6">
                             <div class="card bg-danger text-white mb-4">
                                 <div class="card-body">Reports</div>
                                 <div class="card-footer d-flex align-items-center justify-content-between">
@@ -54,7 +54,7 @@
                                     <div class="small text-white"><i class="fas fa-angle-right"></i></div>
                                 </div>
                             </div>
-                        </div>
+                        </div> -->
                     </div>
                     
                     <div class="row">

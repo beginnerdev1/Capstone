@@ -21,7 +21,8 @@
                     <div class="card mb-4">
                          <div class="card-header">
                              <i class="fas fa-users me-1"></i>
-                                Users Table
+                                Users Table        
+                                <div>Search:</div>                                        
                          </div>
                         <div class="card-body">
                             <div class="table-responsive">
@@ -31,9 +32,8 @@
                                             <th>ID</th>
                                             <th>Name</th>
                                             <th>Email</th>
+                                            <th>Address</th>
                                             <th>Phone Number</th>
-                                            <th>Created At</th>
-                                            <th>Updated At</th>
                                         </tr>
                                     </thead>
                                      <tbody>
