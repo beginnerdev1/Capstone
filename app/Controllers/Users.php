@@ -151,12 +151,13 @@ class Users extends BaseController
         return view('users/payments'); 
     }
 
-    // Create PayMongo checkout session
+    
+// Create PayMongo checkout session
 public function createCheckout()
 {
     $secretKey = env('STRIPE_SECRET_KEY'); // Set this in .env
     $userId    = session()->get('user_id');
-    $amount    = 59900; // ₱599.00 in centavos
+    $amount    = 5900; // ₱59.00 in centavos
 
     $payload = [
         "data" => [
@@ -194,19 +195,24 @@ public function createCheckout()
     log_message('debug', 'Checkout response: ' . json_encode($result));
 
     if ($httpCode === 200 && isset($result['data']['id'])) {
-        $checkoutId  = $result['data']['id'];
         $checkoutUrl = $result['data']['attributes']['checkout_url'];
 
-        $paymentsModel = new \App\Models\PaymentsModel();
-        $paymentsModel->insert([
-            'payment_intent_id' => $checkoutId,
-            'amount'            => $amount,
-            'currency'          => 'PHP',
-            'status'            => 'awaiting_payment',
-            'user_id'           => $userId,
-            'checkout_url'      => $checkoutUrl,
-            'created_at'        => date('Y-m-d H:i:s'),
-        ]);
+        // ✅ Get the Payment Intent ID (important!)
+        $paymentIntentId = $result['data']['attributes']['payment_intent']['id'] ?? null;
+
+        if ($paymentIntentId) {
+            $paymentsModel = new \App\Models\PaymentsModel();
+            $paymentsModel->insert([
+                'payment_intent_id' => $paymentIntentId,
+                'amount'            => $amount,
+                'currency'          => 'PHP',
+                'status'            => 'awaiting_payment',
+                'user_id'           => $userId,
+                'created_at'        => date('Y-m-d H:i:s'),
+            ]);
+        } else {
+            log_message('error', '⚠️ Missing payment_intent_id in PayMongo response.');
+        }
 
         return redirect()->to($checkoutUrl);
     }
@@ -217,50 +223,10 @@ public function createCheckout()
     ]);
 }
 
-    //webhook to handle payment status updates from PayMongo (to be set in PayMongo dashboard)
-public function webhook()
-{
-    $payload = $this->request->getJSON(true);
-    log_message('debug', 'Webhook received: ' . json_encode($payload));
-
-    // PayMongo webhook structure:
-    // $payload['data']['attributes']['data']['attributes'] contains actual payment data
-    $eventType = $payload['data']['attributes']['type'] ?? null;
-    $paymentData = $payload['data']['attributes']['data']['attributes'] ?? null;
-
-    if (!$paymentData) {
-        return $this->response->setStatusCode(400, 'Invalid payload');
-    }
-
-    $intentId = $paymentData['payment_intent_id'] ?? null;
-    $status   = $paymentData['status'] ?? null;
-    $methodId = $paymentData['payment_method_id'] ?? null;
-
-    if ($intentId && $status) {
-        $paymentsModel = new PaymentsModel();
-
-        $updateData = [
-            'status'     => $status,
-            'updated_at' => date('Y-m-d H:i:s'),
-        ];
-
-        if ($status === 'paid') {
-            $updateData['paid_at'] = date('Y-m-d H:i:s');
-        }
-
-        if ($methodId) {
-            $updateData['payment_method_id'] = $methodId;
-        }
-
-        $paymentsModel->where('payment_intent_id', $intentId)->set($updateData)->update();
-        log_message('debug', 'Payment updated: ' . json_encode($updateData));
-    }
-
-    return $this->response->setStatusCode(200);
-}
 
 
 
+// Handle payment success and failure redirects
     public function paymentSuccess()
     {
         session()->setFlashdata('payment_status', 'success');

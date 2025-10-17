@@ -50,7 +50,6 @@ $routes->group('users', ['filter' => 'userauth'], function($routes) {
     $routes->get('getBillingsAjax'  , 'Users::getBillingsAjax'    );
     $routes->get('history'          , 'Users::history'            );
     $routes->get('payments'         , 'Users::payments'           );
-    $routes->get('pressure'         , 'Users::pressure'           );
     $routes->get('report'           , 'Users::report'             );
     $routes->get('profile'          , 'Users::profile'            );
     $routes->get('changepassword'   , 'Users::changePassword'     );
@@ -68,8 +67,9 @@ $routes->group('users', ['filter' => 'userauth'], function($routes) {
 
 });
 
-//webhook
-    $routes->post('webhook', 'Users::webhook');
+$routes->post('webhook', 'WebhookController::webhook');
+
+
 
 // Admin routes grouped under 'admin'
 $routes->group('admin', ['filter' => 'adminauth'], function($routes) {
