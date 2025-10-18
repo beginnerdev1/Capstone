@@ -19,18 +19,12 @@ class CreateUsersTable extends Migration
                 'type'       => 'VARCHAR',
                 'constraint' => 150,
                 'unique'     => true,
+                'null'       => false,
             ],
-<<<<<<< HEAD
             'password' => [
-=======
-            'Purok'    => [
-                'type'       => 'INT',
-                'constraint' => 11,
-            ],
-            'Barangay'    => [
->>>>>>> dab02fc1d34c6a879399c31a0108b56aa900c15e
                 'type'       => 'VARCHAR',
                 'constraint' => 255,
+                'null'       => false,
             ],
             'is_verified' => [
                 'type'       => 'TINYINT',
@@ -43,8 +37,8 @@ class CreateUsersTable extends Migration
                 'null'       => true,
             ],
             'otp_expires' => [
-                'type'       => 'DATETIME',
-                'null'       => true,
+                'type' => 'DATETIME',
+                'null' => true,
             ],
             'created_at' => [
                 'type' => 'DATETIME',
@@ -56,12 +50,16 @@ class CreateUsersTable extends Migration
             ],
         ]);
 
+        // Primary key
         $this->forge->addKey('id', true);
+
+        // Create the table
         $this->forge->createTable('users');
     }
 
     public function down()
     {
+        // Drop the table if it exists
         $this->forge->dropTable('users', true);
     }
 }

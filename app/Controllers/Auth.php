@@ -114,45 +114,64 @@ class Auth extends BaseController
 
         return view('users/verify');
     }
+    
 
     public function verifyOtp()
-    {
-        $userModel = new UserModel();
-        $userId = session()->get('pending_user');
-        $user = $userModel->find($userId);
+{
+    // Create an instance of the UserModel to interact with the users table
+    $userModel = new UserModel();
 
-        if (! $user) {
-            return redirect()->to(base_url('register'))
-                ->with('error', 'Session expired. Please register again.');
-        }
+    // Get the pending user's ID from the session
+    $userId = session()->get('pending_user');
 
-        $inputOtp = $this->request->getPost('otp');
+    // Retrieve the user record from the database using the ID
+    $user = $userModel->find($userId);
 
-        if ($user['otp_code'] == $inputOtp && strtotime($user['otp_expires']) > time()) {
-            $userModel->update($userId, [
-                'is_verified' => 1,
-                'otp_code'    => null,
-                'otp_expires' => null,
-            ]);
-
-            session()->set([
-                'isLoggedIn' => true,
-                'user_id'    => $user['id'],
-                'email'      => $user['email'],
-            ]);
-
-            session()->remove('pending_user');
-
-            return redirect()->to(base_url('users'))->with('message', 'Account verified and logged in successfully!');
-        } else {
-            $userModel->update($userId, [
-                'otp_code'    => null,
-                'otp_expires' => null,
-            ]);
-
-            return redirect()->back()->with('error', 'Invalid or expired OTP. Please request a new one.');
-        }
+    // If the user doesn't exist (e.g., session expired), redirect to register with an error message
+    if (!$user) {
+        return redirect()->to(base_url('register'))
+            ->with('error', 'Session expired. Please register again.');
     }
+
+    // Get the OTP input submitted by the user from the POST request
+    $inputOtp = $this->request->getPost('otp');
+
+    // Check if the OTP matches the one in the database and hasn't expired
+    if ($user['otp_code'] == $inputOtp && strtotime($user['otp_expires']) > time()) {
+
+        // Update the user: mark as verified and clear the OTP fields
+        $userModel->update($userId, [
+            'is_verified' => 1,   // Mark user as verified
+            'otp_code'    => null, // Clear the OTP code
+            'otp_expires' => null, // Clear OTP expiry
+        ]);
+
+        // Set session data to log the user in
+        session()->set([
+            'isLoggedIn' => true,     // User is now logged in
+            'user_id'    => $user['id'], // Store user ID in session
+            'email'      => $user['email'], // Store email in session
+        ]);
+
+        // Remove the pending_user session variable as it's no longer needed
+        session()->remove('pending_user');
+
+        // Redirect to user dashboard with a success message
+        return redirect()->to(base_url('users'))
+            ->with('message', 'Account verified and logged in successfully!');
+    } else {
+        // If OTP is invalid or expired, clear the OTP fields
+        // Use protect(false) to allow updating fields not in $allowedFields
+        $userModel->protect(false)->update($userId, [
+            'otp_code'    => null, // Clear OTP code
+            'otp_expires' => null, // Clear OTP expiry
+        ]);
+
+        // Redirect back to verification page with an error message
+        return redirect()->back()->with('error', 'Invalid or expired OTP. Please request a new one.');
+    }
+}
+
 
     // 🔹 Resend OTP
     public function resendOtp()

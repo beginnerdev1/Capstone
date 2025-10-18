@@ -5,23 +5,12 @@ use CodeIgniter\Router\RouteCollection;
 /**
  * @var RouteCollection $routes
  */
-<<<<<<< HEAD
-
-    
-    // 🔹 Login
-    $routes->get('/login', 'Auth::login', ['as' => 'login', 'filter' => 'guest']); 
-    $routes->post('/login', 'Auth::attemptLogin', ['as' => 'attemptLogin', 'filter' => 'guest']);
-        // 🔹 Register
-    $routes->get('/register', 'Auth::registerForm', ['filter' => 'guest']);  
-    $routes->post('/register', 'Auth::register', ['filter' => 'guest']);
-=======
->>>>>>> dab02fc1d34c6a879399c31a0108b56aa900c15e
-
 // ======================================================
 // 🧑 USER AUTH ROUTES (For regular users)
 // ======================================================
 $routes->get('/login', 'Auth::login', ['as' => 'login', 'filter' => 'guest']);
 $routes->post('/login', 'Auth::attemptLogin', ['as' => 'attemptLogin', 'filter' => 'guest']);
+
 
 $routes->get('/register', 'Auth::registerForm', ['filter' => 'guest']);
 $routes->post('/register', 'Auth::register', ['filter' => 'guest']);
