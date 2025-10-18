@@ -167,5 +167,8 @@ class Admin extends BaseController
 
         return view('admin/Reports', $data);
     }
-    
+    public function changePasswordView()
+    {
+        return view('admin/change_password');
+    }
 }

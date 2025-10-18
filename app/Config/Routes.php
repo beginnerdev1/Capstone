@@ -24,8 +24,7 @@ use CodeIgniter\Router\RouteCollection;
     $routes->get('/forgot-password', 'Auth::forgotPasswordForm', ['filter' => 'guest']);
     $routes->post('/forgot-password', 'Auth::sendResetLink', ['filter' => 'guest']);
 
-    //show reset form (controller natin)
-    $routes->get('/reset-password', 'Auth::resetPasswordForm', ['filter' => 'guest']);
+    
 
     //handle reset form submission(mula sa controller natin)
     $routes->post('/reset-password', 'Auth::processResetPassword', ['filter' => 'guest']);
@@ -89,7 +88,8 @@ $routes->group('admin', ['filter' => 'adminauth'], function($routes) {
     $routes->get('reports'          , 'Admin::reports'              );                 // User reports dashboard
     $routes->get('test-email'       , 'Admin::testEmail'            );           // Test email functionality yeah d pa to functional and idk when this was added...
     $routes->post('createBilling'   , 'Admin::createBilling'        );           // Form to create a new bill Ajax
-    $routes->post('setPassword'     , 'AdminAuth::setPassword'      );
+   $routes->get('admin/change-password', 'Admin::changePasswordView');
+    $routes->post('admin/setPassword', 'Admin::setPassword');
 });
 
 // SuperAdmin protected routes

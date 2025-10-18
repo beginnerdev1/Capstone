@@ -1,3 +1,11 @@
+<?php if (session()->getFlashdata('show_change_password_modal')): ?>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const modal = new bootstrap.Modal(document.getElementById('changePasswordModal'));
+            modal.show();
+        });
+    </script>
+<?php endif; ?>
 <!DOCTYPE html>
 <html lang="en">
     <head>
@@ -27,8 +35,6 @@
             <main>
                 <div class="container-fluid px-4">
                     <h1 class="mt-4">Dashboard</h1>
-                    <?php require_once(APPPATH . 'Views/admin/set_password.php'); ?>
-
                     <!-- Dashboard Cards -->
                     <div class="row">
                         <!-- Registered Users -->
@@ -132,5 +138,21 @@
         <script src="<?= base_url('assets/admin/demo/chart-pie-demo.js') ?>"></script>
         <script src="https://cdn.jsdelivr.net/npm/simple-datatables@7.1.2/dist/umd/simple-datatables.min.js" crossorigin="anonymous"></script>
         <script src="<?= base_url('assets/admin/js/datatables-simple-demo.js') ?>"></script>
+        <!-- Modal: Force Change Password -->
+        <div class="modal fade" id="changePasswordModal" tabindex="-1" aria-labelledby="changePasswordModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title text-dark" id="changePasswordModalLabel">Security Alert</h5>
+            </div>
+            <div class="modal-body">
+                <p>Your current password is the default one. Please update it to a stronger password for security.</p>
+            </div>
+            <div class="modal-footer">
+                <a href="<?= base_url('admin/change-password') ?>" class="btn btn-primary w-100">Change Password Now</a>
+            </div>
+            </div>
+        </div>
+        </div>
     </body>
 </html>

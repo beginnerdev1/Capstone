@@ -15,6 +15,12 @@ class AdminAuth extends BaseController{
             // If session is lost, tell the user to re-login
             return $this->response->setJSON(['status' => 'error', 'message' => 'Session expired. Please login again.']);
         }
+        if (!preg_match('/^(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{6,}$/', $newPassword)) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'Password must contain 6+ characters, one uppercase, one number, and one special character.'
+            ]);
+        }
 
         // 2. Get Password Data
         // FIX: Retrieve data using getPost() because the frontend uses URLSearchParams (form data).
@@ -58,7 +64,7 @@ class AdminAuth extends BaseController{
             ]);
         }
     }
-
+    
     
     public function adminLogin()
     {
@@ -109,13 +115,22 @@ class AdminAuth extends BaseController{
 
         }
 
-        if($admin['is_verified'] == 1){
-            if($password && password_verify($password, $admin['password'])){
-                session()->set(['admin_id' => $admin['id'], 'is_admin_logged_in' => true]);
+        if ($admin['is_verified'] == 1) {
+            if ($password && password_verify($password, $admin['password'])) {
+                session()->set([
+                    'admin_id' => $admin['id'],
+                    'is_admin_logged_in' => true
+                ]);
+
+                // ✅ Check if they are still using the default password
+                if (password_verify('123456', $admin['password'])) {
+                    session()->setFlashdata('force_password_change', true);
+                }
 
                 return redirect()->to('admin/')->with('success', 'Login successful.');
+            } else {
+                return redirect()->back()->with('error', 'Invalid email or password.');
             }
-            else{return redirect()->back()->with('error', 'Invalid email or password');}
         }
     }
 
