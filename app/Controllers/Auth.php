@@ -2,7 +2,7 @@
 
 namespace App\Controllers;
 
-use App\Models\UserModel;
+use App\Models\UsersModel; // ✅ Correct model
 use PHPMailer\PHPMailer\PHPMailer;
 
 class Auth extends BaseController
@@ -14,39 +14,38 @@ class Auth extends BaseController
     }
 
     // 🔹 Attempt login
- public function attemptLogin()
-{
-    $userModel = new UserModel();
-    $email     = $this->request->getPost('email');
-    $password  = $this->request->getPost('password');
+    public function attemptLogin()
+    {
+        $userModel = new UsersModel();
+        $email     = $this->request->getPost('email');
+        $password  = $this->request->getPost('password');
 
-    // 🔹 Validate inputs: Check if email or password is empty
-    if (empty($email) || empty($password)) {
-        return redirect()->back()->with('error', 'Email and password are required.')->withInput();
+        // 🔹 Validate inputs
+        if (empty($email) || empty($password)) {
+            return redirect()->back()->with('error', 'Email and password are required.')->withInput();
+        }
+
+        // 🔹 Check if email exists
+        $user = $userModel->where('email', $email)->first();
+
+        if (!$user) {
+            return redirect()->back()->with('error', 'Invalid email or password.')->withInput();
+        }
+
+        // 🔹 Check password
+        if (!password_verify($password, $user['password'])) {
+            return redirect()->back()->with('error', 'Invalid email or password.')->withInput();
+        }
+
+        // 🔹 Login
+        session()->set([
+            'isLoggedIn' => true,
+            'user_id'    => $user['id'],
+            'email'      => $user['email'],
+        ]);
+
+        return redirect()->to(base_url('users'))->with('message', 'Logged in successfully!');
     }
-
-    // 🔹 Check if email exists
-    $user = $userModel->where('email', $email)->first();
-
-    if (!$user) {
-        return redirect()->back()->with('error', 'Invalid email or password.')->withInput();
-    }
-
-    // 🔹 Check if password is correct
-    if (!password_verify($password, $user['password'])) {
-        return redirect()->back()->with('error', 'Invalid email or password.')->withInput();
-    }
-
-    // 🔹 If both are correct, log in
-    session()->set([
-        'isLoggedIn' => true,
-        'user_id'    => $user['id'],
-        'email'      => $user['email'],
-    ]);
-
-    return redirect()->to(base_url('users'))->with('message', 'Logged in successfully!');
-}
-
 
     // 🔹 Show register form
     public function registerForm()
@@ -57,23 +56,23 @@ class Auth extends BaseController
     // 🔹 Handle registration
     public function register()
     {
-        $userModel = new \App\Models\UserModel();
+        $userModel = new UsersModel(); // ✅ Correct
 
         $email = $this->request->getPost('email');
         $password = $this->request->getPost('password');
         $confirmPassword = $this->request->getPost('confirm_password');
 
-        // 🔹 Validate password requirements (at least 8 characters, 1 uppercase, 1 lowercase, 1 number)
+        // 🔹 Validate password
         if (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{8,}$/', $password)) {
             return redirect()->back()->with('error', 'Password does not meet the requirements.')->withInput();
         }
 
-        // 🔹 Check if email already exists
+        // 🔹 Check email
         if ($userModel->where('email', $email)->first()) {
             return redirect()->back()->with('error', 'Email is already registered.')->withInput();
         }
 
-        // 🔹 Check if passwords match
+        // 🔹 Passwords match
         if ($password !== $confirmPassword) {
             return redirect()->back()->with('error', 'Confirm password does not match.')->withInput();
         }
@@ -95,8 +94,6 @@ class Auth extends BaseController
 
         $userId = $userModel->getInsertID();
 
-        // Removed: $userInfoModel->insert([...]) since only email and password are required
-
         session()->set('pending_user', $userId);
         $this->sendOtpEmail($email, $otp);
 
@@ -104,8 +101,7 @@ class Auth extends BaseController
             ->with('message', 'OTP sent to your email');
     }
 
-
-    // 🔹 Verify OTP
+    // 🔹 Verify OTP view
     public function verify()
     {
         if (!session()->has('pending_user')) {
@@ -114,64 +110,48 @@ class Auth extends BaseController
 
         return view('users/verify');
     }
-    
 
+    // 🔹 Verify OTP
     public function verifyOtp()
-{
-    // Create an instance of the UserModel to interact with the users table
-    $userModel = new UserModel();
+    {
+        $userModel = new UsersModel(); // ✅ Correct
+        $userId = session()->get('pending_user');
+        $user = $userModel->find($userId);
 
-    // Get the pending user's ID from the session
-    $userId = session()->get('pending_user');
+        if (!$user) {
+            return redirect()->to(base_url('register'))
+                ->with('error', 'Session expired. Please register again.');
+        }
 
-    // Retrieve the user record from the database using the ID
-    $user = $userModel->find($userId);
+        $inputOtp = $this->request->getPost('otp');
 
-    // If the user doesn't exist (e.g., session expired), redirect to register with an error message
-    if (!$user) {
-        return redirect()->to(base_url('register'))
-            ->with('error', 'Session expired. Please register again.');
+        if ($user['otp_code'] == $inputOtp && strtotime($user['otp_expires']) > time()) {
+
+            $userModel->update($userId, [
+                'is_verified' => 1,
+                'otp_code'    => null,
+                'otp_expires' => null,
+            ]);
+
+            session()->set([
+                'isLoggedIn' => true,
+                'user_id'    => $user['id'],
+                'email'      => $user['email'],
+            ]);
+
+            session()->remove('pending_user');
+
+            return redirect()->to(base_url('users'))
+                ->with('message', 'Account verified and logged in successfully!');
+        } else {
+            $userModel->protect(false)->update($userId, [
+                'otp_code'    => null,
+                'otp_expires' => null,
+            ]);
+
+            return redirect()->back()->with('error', 'Invalid or expired OTP. Please request a new one.');
+        }
     }
-
-    // Get the OTP input submitted by the user from the POST request
-    $inputOtp = $this->request->getPost('otp');
-
-    // Check if the OTP matches the one in the database and hasn't expired
-    if ($user['otp_code'] == $inputOtp && strtotime($user['otp_expires']) > time()) {
-
-        // Update the user: mark as verified and clear the OTP fields
-        $userModel->update($userId, [
-            'is_verified' => 1,   // Mark user as verified
-            'otp_code'    => null, // Clear the OTP code
-            'otp_expires' => null, // Clear OTP expiry
-        ]);
-
-        // Set session data to log the user in
-        session()->set([
-            'isLoggedIn' => true,     // User is now logged in
-            'user_id'    => $user['id'], // Store user ID in session
-            'email'      => $user['email'], // Store email in session
-        ]);
-
-        // Remove the pending_user session variable as it's no longer needed
-        session()->remove('pending_user');
-
-        // Redirect to user dashboard with a success message
-        return redirect()->to(base_url('users'))
-            ->with('message', 'Account verified and logged in successfully!');
-    } else {
-        // If OTP is invalid or expired, clear the OTP fields
-        // Use protect(false) to allow updating fields not in $allowedFields
-        $userModel->protect(false)->update($userId, [
-            'otp_code'    => null, // Clear OTP code
-            'otp_expires' => null, // Clear OTP expiry
-        ]);
-
-        // Redirect back to verification page with an error message
-        return redirect()->back()->with('error', 'Invalid or expired OTP. Please request a new one.');
-    }
-}
-
 
     // 🔹 Resend OTP
     public function resendOtp()
@@ -180,10 +160,10 @@ class Auth extends BaseController
             return redirect()->to('/register');
         }
 
-        $userModel = new UserModel();
+        $userModel = new UsersModel(); // ✅ Correct
         $user = $userModel->find(session()->get('pending_user'));
 
-        if (! $user) {
+        if (!$user) {
             return redirect()->to('/register')->with('error', 'User not found.');
         }
 
