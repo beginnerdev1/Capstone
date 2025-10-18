@@ -9,60 +9,27 @@ class CreateUsersTable extends Migration
     public function up()
     {
         $this->forge->addField([
-            'id'          => [
+            'id' => [
                 'type'           => 'INT',
                 'constraint'     => 11,
                 'unsigned'       => true,
                 'auto_increment' => true,
             ],
-            'Surname'    => [
+            'email' => [
                 'type'       => 'VARCHAR',
-                'constraint' => '100',
-            ],
-            'Firstname'    => [
-                'type'       => 'VARCHAR',
-                'constraint' => '100',
-            ],
-            'Middlename'    => [
-                'type'       => 'VARCHAR',
-                'constraint' => '100',
-            ],
-            'username'    => [
-                'type'       => 'VARCHAR',
-                'constraint' => '100',
+                'constraint' => 150,
                 'unique'     => true,
             ],
-            'Street'    => [
-                'type'       => 'INT',
-                'constraint' => 11,
-            ],
-            'Barangay'    => [
+            'password' => [
                 'type'       => 'VARCHAR',
-                'constraint' => '100',
-            ],
-            'Municipality'    => [
-                'type'       => 'VARCHAR',
-                'constraint' => '100',
-            ],
-            'Province'    => [
-                'type'       => 'VARCHAR',
-                'constraint' => '100',
-            ],
-            'email'       => [
-                'type'       => 'VARCHAR',
-                'constraint' => '100',
-                'unique'     => true,
-            ],
-            'password'    => [
-                'type'       => 'VARCHAR',
-                'constraint' => '255',
+                'constraint' => 255,
             ],
             'is_verified' => [
                 'type'       => 'TINYINT',
                 'constraint' => 1,
                 'default'    => 0,
             ],
-            'otp_code'    => [
+            'otp_code' => [
                 'type'       => 'VARCHAR',
                 'constraint' => 6,
                 'null'       => true,
@@ -71,15 +38,16 @@ class CreateUsersTable extends Migration
                 'type'       => 'DATETIME',
                 'null'       => true,
             ],
-            'created_at'  => [
+            'created_at' => [
                 'type' => 'DATETIME',
                 'null' => true,
             ],
-            'updated_at'  => [
+            'updated_at' => [
                 'type' => 'DATETIME',
                 'null' => true,
             ],
         ]);
+
         $this->forge->addKey('id', true);
         $this->forge->createTable('users');
     }

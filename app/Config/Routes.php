@@ -5,6 +5,8 @@ use CodeIgniter\Router\RouteCollection;
 /**
  * @var RouteCollection $routes
  */
+
+    
     // 🔹 Login
     $routes->get('/login', 'Auth::login', ['as' => 'login', 'filter' => 'guest']); 
     $routes->post('/login', 'Auth::attemptLogin', ['as' => 'attemptLogin', 'filter' => 'guest']);

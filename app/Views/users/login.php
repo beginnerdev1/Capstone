@@ -212,6 +212,13 @@
                     <input type="password" id="password" name="password" class="form-control" placeholder="Password" required>
                     <button type="button" class="show-btn" onclick="togglePassword()">SHOW</button>
                 </div>
+                  <!-- Error Display -->
+              <?php if (session()->has('error')): ?>
+                  <div class="alert alert-danger" role="alert">
+                      <?= session()->getFlashdata('error') ?>
+                  </div>
+              <?php endif; ?>
+              
 
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <div class="form-check">
