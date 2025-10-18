@@ -17,28 +17,12 @@
 
   <link href="<?= base_url('assets/Users/css/main.css?v=' . time()) ?>" rel="stylesheet">
   <style>
-    html, body {
-      height: 100%;
-      margin: 0;
-      padding: 0;
-      overflow-y: hidden;
-      font-family: 'Poppins', sans-serif;
-    }
+    html, body { height: 100%; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; overflow-y: hidden; }
     .profile-pic { max-width: 150px; border-radius: 50%; }
     .error { color: red; font-size: 0.9em; }
-    section {
-      min-height: calc(100vh - 80px);
-      display: flex;
-      align-items: flex-start;
-      justify-content: center;
-      background-color: #eee;
-      padding: 80px 0 20px 0;
-    }
+    section { min-height: calc(100vh - 80px); display: flex; align-items: flex-start; justify-content: center; background-color: #eee; padding: 80px 0 20px 0; }
     .container { max-width: 1200px; }
-    @media (max-width: 991px) {
-      body { overflow-y: auto; }
-      section { min-height: auto; display: block; padding: 40px 0; }
-    }
+    @media (max-width: 991px) { body { overflow-y: auto; } section { min-height: auto; display: block; padding: 40px 0; } }
   </style>
 </head>
 <body>
@@ -67,55 +51,15 @@
       <div class="col-lg-8">
         <div class="card mb-4 bg-dark text-light">
           <div class="card-body">
-            <div class="row">
-              <div class="col-sm-3"><p class="mb-0">First Name</p></div>
-              <div class="col-sm-9"><p class="text-white mb-0 profile-first-name"></p></div>
-            </div>
-            <hr>
-            <div class="row">
-              <div class="col-sm-3"><p class="mb-0">Last Name</p></div>
-              <div class="col-sm-9"><p class="text-white mb-0 profile-last-name"></p></div>
-            </div>
-            <hr>
-            <div class="row">
-              <div class="col-sm-3"><p class="mb-0">Gender</p></div>
-              <div class="col-sm-9"><p class="text-white mb-0 profile-gender"></p></div>
-            </div>
-            <hr>
-            <div class="row">
-              <div class="col-sm-3"><p class="mb-0">Email</p></div>
-              <div class="col-sm-9"><p class="text-white mb-0 profile-email"></p></div>
-            </div>
-            <hr>
-            <div class="row">
-              <div class="col-sm-3"><p class="mb-0">Contact Number</p></div>
-              <div class="col-sm-9"><p class="text-white mb-0 profile-phone"></p></div>
-            </div>
-            <hr>
-            <div class="row">
-              <div class="col-sm-3"><p class="mb-0">Purok</p></div>
-              <div class="col-sm-9"><p class="text-white mb-0 profile-purok"></p></div>
-            </div>
-            <hr>
-            <div class="row">
-              <div class="col-sm-3"><p class="mb-0">Street</p></div>
-              <div class="col-sm-9"><p class="text-white mb-0 profile-street"></p></div>
-            </div>
-            <hr>
-            <div class="row">
-              <div class="col-sm-3"><p class="mb-0">Barangay</p></div>
-              <div class="col-sm-9"><p class="text-white mb-0 profile-barangay"></p></div>
-            </div>
-            <hr>
-            <div class="row">
-              <div class="col-sm-3"><p class="mb-0">Municipality</p></div>
-              <div class="col-sm-9"><p class="text-white mb-0 profile-municipality"></p></div>
-            </div>
-            <hr>
-            <div class="row">
-              <div class="col-sm-3"><p class="mb-0">Province</p></div>
-              <div class="col-sm-9"><p class="text-white mb-0 profile-province"></p></div>
-            </div>
+            <div class="row"><div class="col-sm-3"><p class="mb-0">First Name</p></div><div class="col-sm-9"><p class="text-white mb-0 profile-first-name"></p></div></div><hr>
+            <div class="row"><div class="col-sm-3"><p class="mb-0">Last Name</p></div><div class="col-sm-9"><p class="text-white mb-0 profile-last-name"></p></div></div><hr>
+            <div class="row"><div class="col-sm-3"><p class="mb-0">Gender</p></div><div class="col-sm-9"><p class="text-white mb-0 profile-gender"></p></div></div><hr>
+            <div class="row"><div class="col-sm-3"><p class="mb-0">Email</p></div><div class="col-sm-9"><p class="text-white mb-0 profile-email"></p></div></div><hr>
+            <div class="row"><div class="col-sm-3"><p class="mb-0">Contact Number</p></div><div class="col-sm-9"><p class="text-white mb-0 profile-phone"></p></div></div><hr>
+            <div class="row"><div class="col-sm-3"><p class="mb-0">Purok</p></div><div class="col-sm-9"><p class="text-white mb-0 profile-purok"></p></div></div><hr>
+            <div class="row"><div class="col-sm-3"><p class="mb-0">Barangay</p></div><div class="col-sm-9"><p class="text-white mb-0 profile-barangay"></p></div></div><hr>
+            <div class="row"><div class="col-sm-3"><p class="mb-0">Municipality</p></div><div class="col-sm-9"><p class="text-white mb-0 profile-municipality"></p></div></div><hr>
+            <div class="row"><div class="col-sm-3"><p class="mb-0">Province</p></div><div class="col-sm-9"><p class="text-white mb-0 profile-province"></p></div></div>
           </div>
         </div>
       </div>
@@ -146,7 +90,6 @@
           <div class="mb-3"><label class="form-label">Email</label><input type="email" class="form-control" name="email" id="email" required></div>
           <div class="mb-3"><label class="form-label">Contact Number</label><input type="text" class="form-control" name="phone" id="phone" required></div>
           <div class="mb-3"><label class="form-label">Purok</label><input type="text" class="form-control" name="purok" id="purok"></div>
-          <div class="mb-3"><label class="form-label">Street</label><input type="text" class="form-control" name="street" id="street"></div>
           <div class="mb-3"><label class="form-label">Barangay</label><input type="text" class="form-control" name="barangay" id="barangay"></div>
           <div class="mb-3"><label class="form-label">Municipality</label><input type="text" class="form-control" name="municipality" id="municipality"></div>
           <div class="mb-3"><label class="form-label">Province</label><input type="text" class="form-control" name="province" id="province"></div>
@@ -184,97 +127,95 @@
   </div>
 </div>
 
-<!-- Scripts -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
 $(document).ready(function () {
-  function loadProfile() {
-    $.ajax({
-      url: "<?= site_url('users/getProfileInfo') ?>",
-      type: "GET",
-      dataType: "json",
-      success: function (data) {
-        if (data) {
-          $(".profile-name").text(data.first_name + ' ' + data.last_name);
-          $(".profile-first-name").text(data.first_name);
-          $(".profile-last-name").text(data.last_name);
-          $(".profile-gender").text(data.gender);
-          $(".profile-email").text(data.email);
-          $(".profile-phone").text(data.phone);
-          $(".profile-purok").text(data.purok);
-          $(".profile-street").text(data.street);
-          $(".profile-barangay").text(data.barangay);
-          $(".profile-municipality").text(data.municipality);
-          $(".profile-province").text(data.province);
-          if (data.profile_picture) {
-            $("#profilePic").attr("src", "<?= base_url('uploads/') ?>" + data.profile_picture);
-          }
+    function loadProfile() {
+        $.ajax({
+            url: "<?= site_url('users/getProfileInfo') ?>",
+            type: "GET",
+            dataType: "json",
+            success: function (response) {
+                if (response.status === "success" && response.data) {
+                    const data = response.data;
 
-          // Populate modal fields
-          $("#firstName").val(data.first_name);
-          $("#lastName").val(data.last_name);
-          $("#gender").val(data.gender);
-          $("#email").val(data.email);
-          $("#phone").val(data.phone);
-          $("#purok").val(data.purok);
-          $("#street").val(data.street);
-          $("#barangay").val(data.barangay);
-          $("#municipality").val(data.municipality);
-          $("#province").val(data.province);
-        }
-      }
-    });
-  }
+                    $(".profile-name").text(data.first_name + ' ' + data.last_name);
+                    $(".profile-first-name").text(data.first_name);
+                    $(".profile-last-name").text(data.last_name);
+                    $(".profile-gender").text(data.gender || "-");
+                    $(".profile-email").text(data.email || "-");
+                    $(".profile-phone").text(data.phone || "-");
+                    $(".profile-purok").text(data.purok || "-");
+                    $(".profile-barangay").text(data.barangay || "-");
+                    $(".profile-municipality").text(data.municipality || "-");
+                    $(".profile-province").text(data.province || "-");
 
-  loadProfile();
+                    $("#profilePic").attr("src", data.profile_picture);
 
-  $("#editPersonalInfoForm").on("submit", function (e) {
-    e.preventDefault();
-    var formData = new FormData(this);
-    $.ajax({
-      url: "<?= site_url('users/updateProfile') ?>",
-      type: "POST",
-      data: formData,
-      processData: false,
-      contentType: false,
-      dataType: "json",
-      success: function (response) {
-        if (response.status === "success") {
-          loadProfile();
-          $("#editPersonalInfoModal").modal("hide");
-        }
-      }
-    });
-  });
-
-  $("#changePasswordForm").on("submit", function (e) {
-    e.preventDefault();
-    var newPass = $("#newPassword").val();
-    var confirmPass = $("#confirmPassword").val();
-    if (newPass !== confirmPass) {
-      $("#passwordError").text("Passwords do not match.");
-      return;
+                    $("#firstName").val(data.first_name);
+                    $("#lastName").val(data.last_name);
+                    $("#gender").val(data.gender);
+                    $("#email").val(data.email);
+                    $("#phone").val(data.phone);
+                    $("#purok").val(data.purok);
+                    $("#barangay").val(data.barangay);
+                    $("#municipality").val(data.municipality);
+                    $("#province").val(data.province);
+                } else {
+                    console.error("Failed to load profile info:", response.message || "No data");
+                }
+            },
+            error: function(xhr, status, error) { console.error("AJAX error:", status, error); }
+        });
     }
-    $("#passwordError").text("");
-    $.ajax({
-      url: "<?= site_url('users/changePassword') ?>",
-      type: "POST",
-      data: $(this).serialize(),
-      dataType: "json",
-      success: function (response) {
-        if (response.status === "success") {
-          $("#changePasswordModal").modal("hide");
-          alert("Password changed successfully!");
-        } else {
-          $("#passwordError").text(response.message);
-        }
-      }
+
+    loadProfile();
+
+    $("#editPersonalInfoForm").on("submit", function (e) {
+        e.preventDefault();
+        var formData = new FormData(this);
+        $.ajax({
+            url: "<?= site_url('users/updateProfile') ?>",
+            type: "POST",
+            data: formData,
+            processData: false,
+            contentType: false,
+            dataType: "json",
+            success: function (response) {
+                if (response.status === "success") {
+                    loadProfile();
+                    $("#editPersonalInfoModal").modal("hide");
+                } else {
+                    alert(response.message || "Failed to update profile");
+                }
+            }
+        });
     });
-  });
+
+    $("#changePasswordForm").on("submit", function (e) {
+        e.preventDefault();
+        var newPass = $("#newPassword").val();
+        var confirmPass = $("#confirmPassword").val();
+        if (newPass !== confirmPass) { $("#passwordError").text("Passwords do not match."); return; }
+        $("#passwordError").text("");
+        $.ajax({
+            url: "<?= site_url('users/changePassword') ?>",
+            type: "POST",
+            data: $(this).serialize(),
+            dataType: "json",
+            success: function (response) {
+                if (response.status === "success") {
+                    $("#changePasswordModal").modal("hide");
+                    alert("Password changed successfully!");
+                } else {
+                    $("#passwordError").text(response.message || "Failed to change password");
+                }
+            }
+        });
+    });
 });
 </script>
-
 </body>
 </html>

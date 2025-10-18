@@ -44,11 +44,6 @@ class CreateUserInformation extends Migration
                 'constraint' => 100,
                 'null'       => true,
             ],
-            'street'     => [
-                'type'       => 'VARCHAR',
-                'constraint' => 150,
-                'null'       => true,
-            ],
             'barangay'   => [
                 'type'       => 'VARCHAR',
                 'constraint' => 100,

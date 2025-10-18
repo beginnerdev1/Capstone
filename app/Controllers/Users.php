@@ -71,34 +71,68 @@ class Users extends BaseController
 
     // Update user profile info via AJAX
       // Update or insert profile info
-    public function updateProfile()
-    {
-        $request = $this->request;
-        $user_id = session()->get('user_id');
-        $userModel = new UserInformationModel();
+public function updateProfile()
+{
+    $request = $this->request;
+    $user_id = session()->get('user_id');
 
-        $data = [
-            'user_id' => $user_id,
-            'phone'   => $request->getPost('phone'),
-            'email'   => $request->getPost('email'),
-            'street'  => $request->getPost('street'),
-            'address' => $request->getPost('address'),
-        ];
-
-        // Check if record exists
-        $existing = $userModel->find($user_id);
-
-        if ($existing) {
-            $updated = $userModel->update($user_id, $data);
-        } else {
-            $updated = $userModel->insert($data);
-        }
-
+    if (!$user_id) {
         return $this->response->setJSON([
-            'status'  => $updated ? 'success' : 'error',
-            'message' => $updated ? 'Profile saved successfully' : 'Failed to save profile'
+            'status'  => 'error',
+            'message' => 'User not logged in'
         ]);
     }
+
+    $userModel = new \App\Models\UserInformationModel();
+
+    // Get existing record
+    $existing = $userModel->find($user_id);
+
+    // Prepare data from POST (make sure input names match DB columns)
+    $data = [
+        'first_name'   => $request->getPost('first_name') ?? null,
+        'last_name'    => $request->getPost('last_name') ?? null,
+        'gender'       => $request->getPost('gender') ?? null,
+        'phone'        => $request->getPost('phone') ?? null,
+        'email'        => $request->getPost('email') ?? null,
+        'purok'        => $request->getPost('purok') ?? null,
+        'street'       => $request->getPost('street') ?? null,
+        'barangay'     => $request->getPost('barangay') ?? null,
+        'municipality' => $request->getPost('municipality') ?? null,
+        'province'     => $request->getPost('province') ?? null,
+    ];
+
+    // Handle profile picture upload
+    $file = $request->getFile('profile_picture');
+    if ($file && $file->isValid() && !$file->hasMoved()) {
+        $uploadPath = WRITEPATH . 'uploads/';
+        if (!is_dir($uploadPath)) {
+            mkdir($uploadPath, 0777, true); // create folder if not exists
+        }
+
+        $newName = $file->getRandomName();
+        $file->move($uploadPath, $newName);
+        $data['profile_picture'] = $newName;
+
+        // Delete old picture if exists
+        if ($existing && !empty($existing['profile_picture']) && file_exists($uploadPath . $existing['profile_picture'])) {
+            unlink($uploadPath . $existing['profile_picture']);
+        }
+    }
+
+    // Insert or update record
+    if ($existing) {
+        $updated = $userModel->update($user_id, $data);
+    } else {
+        $data['user_id'] = $user_id;
+        $updated = $userModel->insert($data);
+    }
+
+    return $this->response->setJSON([
+        'status'  => $updated ? 'success' : 'error',
+        'message' => $updated ? 'Profile saved successfully' : 'Failed to save profile'
+    ]);
+}
 
 
     // Return billing data via AJAX
@@ -127,23 +161,51 @@ class Users extends BaseController
     }
 
     // Return profile info via AJAX
-    public function getProfileInfo()
+public function getProfileInfo()
+{
+    $user_id = session()->get('user_id');
+
+    if (!$user_id) {
+        return $this->response->setJSON([
+            'status' => 'error',
+            'message' => 'No session user_id'
+        ]);
+    }
+
+    $userModel = new UserInformationModel();
+
+    $user = $userModel
+        ->select('user_information.first_name, user_information.last_name, user_information.gender, user_information.phone, user_information.email, user_information.purok, user_information.barangay, user_information.municipality, user_information.province, user_information.profile_picture')
+        ->where('user_information.user_id', $user_id)
+        ->first();
+
+    if (!$user) {
+        return $this->response->setJSON([
+            'status' => 'error',
+            'message' => 'User not found'
+        ]);
+    }
+
+    return $this->response->setJSON([
+        'status' => 'success',
+        'data' => $user
+    ]);
+}
+
+//Profile controller
+  public function getProfilePicture($filename)
     {
-        $user_id = session()->get('user_id');
-        if (!$user_id) {
-            return $this->response->setJSON(['error' => 'No session user_id']);
+        $path = WRITEPATH . 'uploads/' . $filename; // C:\xampp\htdocs\Capstone\writable\uploads\filename
+
+        if (!file_exists($path)) {
+            // fallback image
+            return redirect()->to('https://mdbcdn.b-cdn.net/img/Photos/new-templates/bootstrap-chat/ava3.webp');
         }
 
-        $userModel = new UserInformationModel();
-
-        $user = $userModel
-            ->select('users.username, user_information.phone, user_information.email, user_information.street, user_information.address')
-            ->join('users', 'users.id = user_information.user_id', 'left')
-            ->where('user_information.user_id', $user_id)
-            ->first();
-
-        return $this->response->setJSON($user ?? []);
+        return $this->response->setFile($path, true);
     }
+
+
 
     // Show payments page Null pa
     public function payments()
