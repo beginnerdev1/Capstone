@@ -1,7 +1,8 @@
 <?php
 
-namespace App\Controllers;
+namespace App\Controllers\Admin;
 
+use App\Controllers\BaseController;
 use App\Models\BillingModel;
 use App\Models\AdminModel;
 
@@ -38,17 +39,16 @@ class Admin extends BaseController
     {
         return view('admin/tables');
     }
-    public function registeredUsers()
+   public function registeredUsers()
     {
         $userModel = new \App\Models\UserModel();
 
-        // Predefined puroks
+        // Example purok list
         $puroks = ['1', '2', '3', '4', '5'];
-
         $selectedPurok = $this->request->getGet('purok');
 
         if ($selectedPurok) {
-            $data['users'] = $userModel->where('Street', $selectedPurok)->findAll();
+            $data['users'] = $userModel->where('Purok', $selectedPurok)->findAll();
         } else {
             $data['users'] = $userModel->findAll();
         }
@@ -91,68 +91,10 @@ class Admin extends BaseController
 
         return $this->response->setJSON(['status' => 'error', 'message' => 'User not found']);
     }
-   public function getBillings()
-    {
-       $userModel = new \App\Models\UserModel();
-        $billingModel = new \App\Models\BillingModel();
-
-        // --- USERS FILTER ---
-        $purok = $this->request->getGet('purok');
-        if ($purok) {
-            $data['users'] = $userModel->where('Street', $purok)->findAll();
-        } else {
-            $data['users'] = $userModel->findAll();
-        }
-
-        // Predefined puroks
-        $data['puroks'] = ['1', '2', '3', '4', '5'];
-        $data['selectedPurok'] = $purok;
-
-
-        // --- BILLINGS FILTER ---
-        $status = $this->request->getGet('status');
-        if ($status) {
-            $data['billings'] = $billingModel->where('status', $status)->findAll();
-        } else {
-            $data['billings'] = $billingModel->findAll();
-        }
-
-        // Billing status options
-        $data['statuses'] = ['Paid', 'Unpaid', 'Overdue'];
-        $data['selectedStatus'] = $status;
-
-        return view('admin/billings', $data);
-    }
-   public function createBilling()
-    {
-        $billingModel = new BillingModel();
-
-        $data = [
-            'user_id'    => $this->request->getPost('user_id'),
-            'amount'     => $this->request->getPost('amount'),
-            'description'=> $this->request->getPost('description') ?? 'N/A',
-            'created_at' => date('Y-m-d H:i:s'),
-            'due_date'   => date('Y-m-d H:i:s', strtotime('+1 month')),
-        ];
-
-        if ($billingModel->insert($data)) {
-            return $this->response->setJSON(['status' => 'success', 'message' => 'Bill created successfully.']);
-        } else {
-            return $this->response->setJSON(['status' => 'error', 'message' => 'Failed to create bill.']);
-        }
-    }
-
-    public function billings()
-    {  //para sa ma-ipakita yung unpaid bills
-       
-        return view('admin/billings');
-    }
-    public function paidBills()
-    {   //para sa paid bills
-        $billingModel = new BillingModel();
-        $data['billings'] = $billingModel->getPaidBills();
-        return view('admin/paidBills', $data);
-    }
+ 
+   
+  
+   
     public function reports()
     {
         $db = \Config\Database::connect();
@@ -167,5 +109,8 @@ class Admin extends BaseController
 
         return view('admin/Reports', $data);
     }
-    
+    public function changePasswordView()
+    {
+        return view('admin/change_password');
+    }
 }

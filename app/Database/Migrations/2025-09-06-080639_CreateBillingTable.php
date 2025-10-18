@@ -11,45 +11,52 @@ class CreateBillingTable extends Migration
         $this->forge->addField([
             'id' => [
                 'type'           => 'INT',
+                'constraint'     => 11,
                 'unsigned'       => true,
                 'auto_increment' => true,
             ],
             'user_id' => [
-                'type'     => 'INT',
-                'unsigned' => true,
+                'type'           => 'INT',
+                'constraint'     => 11,
+                'unsigned'       => true,
             ],
-            'amount' => [
-                'type'       => 'DECIMAL',
-                'constraint' => '10,2', // supports 99999999.99
+            'bill_no' => [
+                'type'           => 'VARCHAR',
+                'constraint'     => '50',
+                'unique'         => true,
             ],
-            'billing_date' => [
-                'type' => 'DATE',
-                'null' => false,
-            ],
-            'due_date' => [
-                'type' => 'DATE',
-                'null' => false,
+            'amount_due' => [
+                'type'           => 'DECIMAL',
+                'constraint'     => '10,2',
+                'default'        => 60.00,
             ],
             'status' => [
-                'type'       => 'ENUM',
-                'constraint' => ['paid', 'unpaid'],
-                'default'    => 'unpaid',
+                'type'           => 'ENUM',
+                'constraint'     => ['Pending', 'Paid', 'Rejected', 'Over the Counter'],
+                'default'        => 'Pending',
             ],
-            'created_at' => [
-                'type' => 'DATETIME',
-                'null' => true,
+            'billing_month' => [
+                'type'           => 'VARCHAR',
+                'constraint'     => '20',
             ],
-            'updated_at' => [
-                'type' => 'DATETIME',
-                'null' => true,
+            'due_date' => [
+                'type'           => 'DATE',
+                'null'           => true,
             ],
+            'proof_of_payment' => [
+                'type'           => 'VARCHAR',
+                'constraint'     => '255',
+                'null'           => true,
+            ],
+            'remarks' => [
+                'type'           => 'TEXT',
+                'null'           => true,
+            ],
+            'created_at DATETIME DEFAULT CURRENT_TIMESTAMP',
+            'updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
         ]);
 
         $this->forge->addKey('id', true);
-
-        // Foreign key: restrict delete/update if user still has billings
-        $this->forge->addForeignKey('user_id', 'users', 'id', 'RESTRICT', 'RESTRICT');
-
         $this->forge->createTable('billings');
     }
 

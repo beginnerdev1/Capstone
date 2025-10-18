@@ -20,7 +20,15 @@ class CreateUsersTable extends Migration
                 'constraint' => 150,
                 'unique'     => true,
             ],
+<<<<<<< HEAD
             'password' => [
+=======
+            'Purok'    => [
+                'type'       => 'INT',
+                'constraint' => 11,
+            ],
+            'Barangay'    => [
+>>>>>>> dab02fc1d34c6a879399c31a0108b56aa900c15e
                 'type'       => 'VARCHAR',
                 'constraint' => 255,
             ],
