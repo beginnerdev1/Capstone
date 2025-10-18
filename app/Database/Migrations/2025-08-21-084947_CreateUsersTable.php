@@ -32,7 +32,7 @@ class CreateUsersTable extends Migration
                 'constraint' => '100',
                 'unique'     => true,
             ],
-            'Street'    => [
+            'Purok'    => [
                 'type'       => 'INT',
                 'constraint' => 11,
             ],

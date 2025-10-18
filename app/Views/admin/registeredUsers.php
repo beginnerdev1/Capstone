@@ -1,94 +1,55 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
-    <meta name="description" content="" />
-    <meta name="author" content="" />
-    <title>Registered Users - SB Admin</title>
-    <link href="https://cdn.jsdelivr.net/npm/simple-datatables@7.1.2/dist/style.min.css" rel="stylesheet" />
-     <link href="<?php echo base_url('assets/admin/css/styles.css') ?>" rel="stylesheet" />
-    <script src="https://use.fontawesome.com/releases/v6.3.0/js/all.js" crossorigin="anonymous"></script>
-</head>
-<body class="sb-nav-fixed">
-    <?php require_once(APPPATH . 'Views/admin/navbar.php'); ?>
-    <div id="layoutSidenav_content">
-        <main>
-            <!--updated table-->
-            <div class="container-fluid px-4">
-                <h1 class="mt-4">Registered Users</h1>
-                    <div class="card mb-4">
-                         <div class="card-header">
-                             <i class="fas fa-users me-1"></i>
-                                Users Table    
-                                <form method="get" action="">
-                                    <div class="d-flex align-items-center mb-3">
-                                        <label for="purok" class="me-2 fw-bold">Filter by Purok:</label>
-                                        <select name="purok" id="purok" class="form-select w-auto me-2">
-                                            <option value="">All</option>
-                                            <?php 
-                                            $puroks = ['1', '2', '3', '4', '5']; 
-                                            foreach ($puroks as $p): ?>
-                                                <option value="<?= $p ?>" <?= isset($_GET['purok']) && $_GET['purok'] == $p ? 'selected' : '' ?>>
-                                                    Purok <?= $p ?>
-                                                </option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                        <button type="submit" class="btn btn-primary">Filter</button>
-                                    </div>
-                                </form>                                     
-                         </div>
-                        <div class="card-body">
-                            <div class="table-responsive">
-                                <table class="datatable-table table table-striped table-bordered">
-                                    <thead>
-                                        <tr>
-                                            <th>ID</th>
-                                            <th>Name</th>
-                                            <th>Email</th>
-                                            <th>Address</th>
-                                            <th>Created At</th>
-                                         <!--    <th>Phone Number</th> -->
-                                        </tr>
-                                    </thead>
-                                     <tbody>
-                                        <?php if (!empty($users)): ?>
-                                            <?php foreach ($users as $row): ?>
-                                                <tr>
-                                                    <td><?= htmlspecialchars($row['id']); ?></td>
-                                                    <td><?= htmlspecialchars($row['username']); ?></td>
-                                                    <td><?= htmlspecialchars($row['email']); ?></td>
-                                                 <!--    <td>htmlspecialchars($row['phone_number']); ?></td> -->
-                                                    <td><?= htmlspecialchars($row['created_at']); ?></td>
-                                                </tr>
-                                            <?php endforeach; ?>
-                                        <?php else: ?>
-                                            <tr><td colspan="7">No users found.</td></tr>
-                                        <?php endif; ?>
-                                    </tbody>
-                                </table>
-                             </div>
-                        </div>
-                    </div>
-            </div>
-        </main>
-        <footer class="py-4 bg-light mt-auto">
-           <!--  <div class="container-fluid px-4">
-                <div class="d-flex align-items-center justify-content-between small">
-                    <div class="text-muted">Copyright &copy; Your Website 2023</div>
-                    <div>
-                        <a href="#">Privacy Policy</a>
-                        &middot;
-                        <a href="#">Terms &amp; Conditions</a>
-                    </div>
-                </div>
-            </div> -->
-        </footer>
+<?= $this->extend('admin/layouts/main') ?>
+
+<?= $this->section('content') ?>
+<h1 class="mt-4">Registered Users</h1>
+<ol class="breadcrumb mb-4">
+    <li class="breadcrumb-item active">User Management</li>
+</ol>
+
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="fas fa-users me-1"></i> Registered Users</span>
+        <form method="get" action="<?= site_url('admin/registeredUsers') ?>" class="d-flex">
+            <select name="purok" class="form-select form-select-sm" onchange="this.form.submit()">
+                <option value="">All Puroks</option>
+                <?php foreach ($puroks as $p): ?>
+                    <option value="<?= $p ?>" <?= ($selectedPurok == $p) ? 'selected' : '' ?>>
+                        Purok <?= esc($p) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </form>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
-    <script src="<?= base_url('assets/admin/js/scripts.js') ?>"></script>
-    <script src="https://cdn.jsdelivr.net/npm/simple-datatables@7.1.2/dist/umd/simple-datatables.min.js" crossorigin="anonymous"></script>
-    <script src="<?= base_url('assets/admin/js/datatables-simple-demo.js') ?>"></script>
-</body>
-</html>
+
+    <div class="card-body">
+        <table class="table table-bordered table-hover text-center align-middle">
+            <thead class="table-primary">
+                <tr>
+                    <th>ID</th>
+                    <th>Full Name</th>
+                    <th>Username</th>
+                    <th>Purok</th>
+                    <th>Barangay</th>
+                    <th>Email</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (!empty($users)): ?>
+                    <?php foreach ($users as $user): ?>
+                        <tr>
+                            <td><?= esc($user['id']) ?></td>
+                            <td><?= esc($user['Firstname'] . ' ' . $user['Surname']) ?></td>
+                            <td><?= esc($user['username']) ?></td>
+                            <td><?= esc($user['Purok']) ?></td>
+                            <td><?= esc($user['Barangay']) ?></td>
+                            <td><?= esc($user['email']) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <tr><td colspan="6">No users found.</td></tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+<?= $this->endSection() ?>

@@ -1,165 +1,94 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
-    <meta name="description" content="" />
-    <meta name="author" content="" />
-    <title>Billings - SB Admin</title>
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
-    <link href="https://cdn.jsdelivr.net/npm/simple-datatables@7.1.2/dist/style.min.css" rel="stylesheet" />
-     <link href="<?php echo base_url('assets/admin/css/styles.css') ?>" rel="stylesheet" />
-    <script src="https://use.fontawesome.com/releases/v6.3.0/js/all.js" crossorigin="anonymous"></script>
-</head>
-<body class="sb-nav-fixed">
-    <?php require_once(APPPATH . 'Views/admin/navbar.php'); ?>
-    <div id="layoutSidenav_content">
-        <main>
-            <div class="container-fluid px-4">
-                <h1 class="mt-4">Billings </h1>
-                <!-- <form id="createBillingForm">
-                <div class="mb-3">
-                    <label>User ID</label>
-                    <input type="number" name="user_id" id="user_id" class="form-control" required>
-                </div>
+<?= $this->extend('admin/layouts/main') ?>
 
-                <div class="mb-3">
-                    <label>Name</label>
-                    <input type="text" id="username" class="form-control" placeholder="Enter username (optional)">
-                </div>
+<?= $this->section('content') ?>
+<div class="container-fluid">
+    <h1 class="mt-4">Billing Management</h1>
 
-                <div class="mb-3">
-                    <label>Email</label>
-                    <input type="email" id="email" class="form-control" readonly>
-                </div>
-
-                <div class="mb-3">
-                    <label>Address</label>
-                    <input type="text" id="address" class="form-control" readonly>
-                </div>
-
-                <div class="mb-3">
-                    <label>Billing Amount (₱)</label>
-                    <input type="number" name="amount" class="form-control" required step="0.01">
-                </div>
-
-                <div class="mb-3"> <label>Description</label>
-                    <input type="text" name="description" class="form-control">
-                </div>
-
-                <button type="submit" class="btn btn-primary">Create Bill</button>
-                </form>
-
-                <div id="responseMsg" class="mt-3"></div> -->
-                
-                <div class="card mb-4 mt-4">
-                   <div class="card-header d-flex justify-content-between align-items-center">
-                        <?php
-                        // Temporary data for development
-                        $puroks = ['1', '2', '3', '4', '5'];
-                        $statuses = ['Paid', 'Unpaid', 'Overdue'];
-
-                        // Keep selected values when page reloads (GET)
-                        $selectedPurok = $_GET['purok'] ?? '';
-                        $selectedStatus = $_GET['status'] ?? '';
-                        ?>
-                        <div><i class="fas fa-file-invoice-dollar me-1"></i> Users</div>
-
-                        <form method="get" action="" class="d-flex align-items-center">
-                            <label for="purok" class="me-2 fw-bold">Purok:</label>
-                            <select name="purok" id="purok" class="form-select form-select-sm me-2">
-                                <option value="">All</option>
-                                <?php foreach ($puroks as $p): ?>
-                                    <option value="<?= $p ?>" <?= isset($selectedPurok) && $selectedPurok == $p ? 'selected' : '' ?>>
-                                        Purok <?= $p ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                            <button type="submit" class="btn btn-sm btn-primary">Filter</button>
-                        </form>
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="fas fa-file-invoice"></i> Create Billing</span>
+        </div>
+        <div class="card-body">
+            <form id="createBillForm" method="post" action="<?= site_url('admin/billings/create') ?>">
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <label>User</label>
+                        <select name="user_id" class="form-select" required>
+                            <option value="">-- Select User --</option>
+                            <?php foreach ($users as $u): ?>
+                                <option value="<?= esc($u['id']) ?>">
+                                    <?= esc($u['Firstname'] . ' ' . $u['Surname']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
-                    <div class="card-body">
-                        <table id="billingsTable" class="table table-hover table-striped align-middle shadow-sm">
-                            <thead class="table-primary">
-                                <tr class="table-primary">
-                                    <th>ID</th>
-                                    <th>Name</th>
-                                    <th>Address</th>
-                                    <th>Phone Number</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                </tbody>
-                        </table>
+
+                    <div class="col-md-3">
+                        <label>Billing Month</label>
+                        <input type="month" name="billing_month" class="form-control" required>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label>Amount</label>
+                        <input type="number" name="amount" step="0.01" class="form-control" required>
+                    </div>
+
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">Create</button>
                     </div>
                 </div>
-                <div class="card mb-4 mt-4">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <?php
-                        // Temporary data for development
-                        $puroks = ['1', '2', '3', '4', '5'];
-                        $statuses = ['Paid', 'Unpaid', 'Overdue'];
-
-                        // Keep selected values when page reloads (GET)
-                        $selectedPurok = $_GET['purok'] ?? '';
-                        $selectedStatus = $_GET['status'] ?? '';
-                        ?>
-                        <div><i class="fas fa-file-invoice-dollar me-1"></i> Bills</div>
-
-                        <form method="get" action="" class="d-flex align-items-center">
-                            <label for="purok" class="me-2 fw-bold">Purok:</label>
-                            <select name="purok" id="purok" class="form-select form-select-sm me-2">
-                                <option value="">All</option>
-                                <?php foreach ($puroks as $p): ?>
-                                    <option value="<?= $p ?>" <?= isset($selectedPurok) && $selectedPurok == $p ? 'selected' : '' ?>>
-                                        Purok <?= $p ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                            <button type="submit" class="btn btn-sm btn-primary">Filter</button>
-                        </form>
-                    </div>
-                    <div class="card-body">
-                        <table id="billingsTable" class="table table-hover table-striped align-middle shadow-sm">
-                            <thead class="table-primary">
-                                <tr class="table-primary">
-                                    <th>Bill ID</th>
-                                    <th>Name</th>
-                                    <th>Address</th>
-                                    <th>Amount</th>
-                                    <th>Due Date</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                </tbody>
-                        </table>
-                    </div>
-                </div>
-                </div>
-        </main>
-        <footer class="py-4 bg-light mt-auto">
-            <div class="container-fluid px-4">
-                <div class="d-flex align-items-center justify-content-between small">
-                    <div class="text-muted">Copyright &copy; Your Website 2023</div>
-                    <div>
-                        <a href="#">Privacy Policy</a>
-                        &middot;
-                        <a href="#">Terms &amp; Conditions</a>
-                    </div>
-                </div>
-            </div>
-        </footer>
+            </form>
+        </div>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
-    <script src="<?= base_url('assets/admin/js/scripts.js') ?>"></script>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-</body>
-</html>
 
+    <!-- Status Filter -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="fas fa-filter"></i> Filter by Status</span>
+            <form method="get" class="d-flex">
+                <select name="status" class="form-select me-2">
+                    <?php foreach ($statuses as $status): ?>
+                        <option value="<?= esc($status) ?>" <?= ($selectedStatus == $status) ? 'selected' : '' ?>>
+                            <?= esc($status) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <button type="submit" class="btn btn-outline-primary">Filter</button>
+            </form>
+        </div>
 
-
+        <div class="card-body">
+            <table class="table table-bordered table-striped">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>User</th>
+                        <th>Email</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                        <th>Month</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (!empty($bills)): ?>
+                        <?php foreach ($bills as $i => $bill): ?>
+                            <tr>
+                                <td><?= $i + 1 ?></td>
+                                <td><?= esc($bill['user_name']) ?></td>
+                                <td><?= esc($bill['email']) ?></td>
+                                <td>₱<?= number_format($bill['amount'], 2) ?></td>
+                                <td><?= esc($bill['status']) ?></td>
+                                <td><?= esc($bill['billing_month']) ?></td>
+                                <td><?= esc($bill['created_at']) ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <tr><td colspan="7" class="text-center">No records found.</td></tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<?= $this->endSection() ?>
