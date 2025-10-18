@@ -1,47 +1,37 @@
 <header id="header" class="header fixed-top">
+  <div class="branding d-flex align-items-center">
+    <div class="container position-relative d-flex align-items-center justify-content-between">
+      
+      <a href="<?= site_url() ?>" class="logo d-flex align-items-center">
+        <!-- Use an SVG logo instead of sitename -->
+        <img src="<?= site_url('assets/images/logo/navbar.png') ?>" alt="AquaBill Logo" style="height:100px;">
+        <!-- Optional: keep the sitename text next to logo -->
+        <!-- <span class="ms-2">AquaBill</span> -->
+      </a>
 
-
-    <div class="branding d-flex align-items-cente">
-
-      <div class="container position-relative d-flex align-items-center justify-content-between">
-        <a href="<?= site_url() ?>" class="logo d-flex align-items-center">
-          <!-- Uncomment the line below if you also wish to use an image logo -->
-          <!-- <img src="<?= base_url('assets/img/logo.png') ?>" alt=""> -->
-          <h1 class="sitename">AquaBill</h1>
-          <span>.</span>
-        </a>
-
-        <nav id="navmenu" class="navmenu">
-          <ul>
-            <li><a href="<?= base_url('users') ?>" class="active">Home<br></a></li>
-            <li><a href="#about">About</a></li>
-            <li><a href="#services">Services</a></li>
-             <li><a href="#contact">Contact</a></li>
-            <li class="dropdown"><a href="#"><span>Dropdown</span> <i class="bi bi-chevron-down toggle-dropdown"></i></a>
-              <ul>
-                <li><form action="<?= site_url('logout') ?>" method="post"><button type="submit" class ="dropdown-item"><i class="bi bi-box-arrow-right"></i>Logout</button></form></li>
-                <li class="dropdown"><a href="#"><span>Deep Dropdown</span> <i class="bi bi-chevron-down toggle-dropdown"></i></a>
-                  <ul>
-                    <li><a href="#">Deep Dropdown 1</a></li>
-                    <li><a href="#">Deep Dropdown 2</a></li>
-                    <li><a href="#">Deep Dropdown 3</a></li>
-                    <li><a href="#">Deep Dropdown 4</a></li>
-                    <li><a href="#">Deep Dropdown 5</a></li>
-                  </ul>
-                </li>
-                <li><a href="#">Dropdown 2</a></li>
-                <li><a href="#">Dropdown 3</a></li>
-                <li><a href="#">Dropdown 4</a></li>
-              </ul>
-            </li>
-           
-            <li><a  href="<?= base_url('users/profile') ?>"><i class="bi bi-person-circle"></i>Profile</a></li>
-          </ul>
-          <i class="mobile-nav-toggle d-xl-none bi bi-list"></i>
-        </nav>
-
-      </div>
+      <nav id="navmenu" class="navmenu">
+        <ul>
+          <li><a href="<?= base_url('users') ?>" class="active">Home</a></li>
+          <li><a href="#about">About</a></li>
+          <li><a href="#services">Services</a></li>
+          <li><a href="#contact">Contact</a></li>
+          <li class="dropdown">
+            <a href="#"><span>Account</span> <i class="bi bi-chevron-down toggle-dropdown"></i></a>
+            <ul>
+              <li>
+                <form action="<?= site_url('logout') ?>" method="post">
+                  <button type="submit" class="dropdown-item">
+                    <i class="bi bi-box-arrow-right"></i> Logout
+                  </button>
+                </form>
+              </li>
+              <li><a href="#">Dropdown 2</a></li>
+            </ul>
+          </li>
+        </ul>
+        <i class="mobile-nav-toggle d-xl-none bi bi-list"></i>
+      </nav>
 
     </div>
-
-  </header><!-- End Header -->
+  </div>
+</header>

@@ -14,6 +14,21 @@ class CreateUserInformation extends Migration
                 'constraint' => 11,
                 'unsigned'   => true,
             ],
+            'first_name' => [
+                'type'       => 'VARCHAR',
+                'constraint' => 100,
+                'null'       => true,
+            ],
+            'last_name' => [
+                'type'       => 'VARCHAR',
+                'constraint' => 100,
+                'null'       => true,
+            ],
+            'gender'      => [
+                'type'       => 'VARCHAR',
+                'constraint' => 20,
+                'null'       => true,
+            ],
             'phone'      => [
                 'type'       => 'VARCHAR',
                 'constraint' => 20,
@@ -24,14 +39,35 @@ class CreateUserInformation extends Migration
                 'constraint' => 100,
                 'null'       => true,
             ],
+            'purok'      => [
+                'type'       => 'VARCHAR',
+                'constraint' => 100,
+                'null'       => true,
+            ],
             'street'     => [
                 'type'       => 'VARCHAR',
                 'constraint' => 150,
                 'null'       => true,
             ],
-            'address'    => [
-                'type' => 'TEXT',
-                'null' => true,
+            'barangay'   => [
+                'type'       => 'VARCHAR',
+                'constraint' => 100,
+                'null'       => true,
+            ],
+            'municipality' => [
+                'type'       => 'VARCHAR',
+                'constraint' => 100,
+                'null'       => true,
+            ],
+            'province'   => [
+                'type'       => 'VARCHAR',
+                'constraint' => 100,
+                'null'       => true,
+            ],
+            'profile_picture' => [
+                'type'       => 'VARCHAR',
+                'constraint' => 255,
+                'null'       => true,
             ],
             'created_at' => [
                 'type' => 'DATETIME',
