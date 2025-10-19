@@ -64,9 +64,42 @@ class Users extends BaseController
     }
 
     // Show change password page
-    public function changePassword()
+        public function changePassword()
     {
-        return view('users/changepassword');
+        $session = session();
+        $userId = $session->get('user_id');
+
+        if (!$userId) {
+            return $this->response->setJSON(['status' => 'error', 'message' => 'User not logged in']);
+        }
+
+        $userModel = new UserModel();
+        $user = $userModel->find($userId);
+
+        if (!$user) {
+            return $this->response->setJSON(['status' => 'error', 'message' => 'User not found']);
+        }
+
+        $currentPassword = $this->request->getPost('current_password');
+        $newPassword     = $this->request->getPost('new_password');
+        $confirmPassword = $this->request->getPost('confirm_password');
+
+        // Verify current password (using password_verify)
+        if (!password_verify($currentPassword, $user['password'])) {
+            return $this->response->setJSON(['status' => 'error', 'message' => 'Incorrect Current Password']);
+        }
+
+        // Confirm password match
+        if ($newPassword !== $confirmPassword) {
+            return $this->response->setJSON(['status' => 'error', 'message' => 'Incorrect Confirm Password']);
+        }
+
+        // Hash the new password before updating
+        $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
+
+        $userModel->update($userId, ['password' => $hashedPassword]);
+
+        return $this->response->setJSON(['status' => 'success', 'message' => 'Password changed successfully']);
     }
 
     // Update user profile info via AJAX

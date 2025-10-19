@@ -84,6 +84,19 @@
     font-size: 0.9em;
   }
 
+  .password-hint {
+    font-size: 0.9em;
+    color: #555;
+  }
+
+  .password-hint .invalid {
+    color: red;
+  }
+
+  .password-hint .valid {
+    color: green;
+  }
+
   @media (max-width: 991px) {
     body { overflow-y: auto; }
     section { min-height: auto; display: block; padding: 40px 0; }
@@ -178,12 +191,54 @@
         <h5 class="modal-title" id="changePasswordLabel">Change Password</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
+
       <form id="changePasswordForm" method="post">
         <div class="modal-body">
-          <div class="mb-3"><label class="form-label">Current Password</label><input type="password" class="form-control" name="current_password" id="currentPassword" required></div>
-          <div class="mb-3"><label class="form-label">New Password</label><input type="password" class="form-control" name="new_password" id="newPassword" required></div>
-          <div class="mb-3"><label class="form-label">Confirm New Password</label><input type="password" class="form-control" name="confirm_password" id="confirmPassword" required><div class="error" id="passwordError"></div></div>
+
+          <!-- Current Password -->
+          <div class="mb-3">
+            <label class="form-label">Current Password</label>
+            <div class="input-group">
+              <input type="password" class="form-control" name="current_password" id="currentPassword" required>
+              <span class="input-group-text bg-transparent border-start-0 toggle-password" data-target="currentPassword">
+                <i class="bi bi-eye-slash"></i>
+              </span>
+            </div>
+          </div>
+
+          <!-- New Password -->
+          <div class="mb-3">
+            <label class="form-label">New Password</label>
+            <div class="input-group">
+              <input type="password" class="form-control" name="new_password" id="newPassword" required>
+              <span class="input-group-text bg-transparent border-start-0 toggle-password" data-target="newPassword">
+                <i class="bi bi-eye-slash"></i>
+              </span>
+            </div>
+
+            <div id="passwordHint" class="password-hint mt-2">
+              <strong>Password must include:</strong><br>
+              <span id="length" class="invalid">• 8+ characters</span><br>
+              <span id="upper" class="invalid">• 1 uppercase letter</span><br>
+              <span id="lower" class="invalid">• 1 lowercase letter</span><br>
+              <span id="number" class="invalid">• 1 number</span>
+            </div>
+          </div>
+
+          <!-- Confirm Password -->
+          <div class="mb-3">
+            <label class="form-label">Confirm New Password</label>
+            <div class="input-group">
+              <input type="password" class="form-control" name="confirm_password" id="confirmPassword" required>
+              <span class="input-group-text bg-transparent border-start-0 toggle-password" data-target="confirmPassword">
+                <i class="bi bi-eye-slash"></i>
+              </span>
+            </div>
+            <div class="error" id="passwordError"></div>
+          </div>
+
         </div>
+
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
           <button type="submit" class="btn btn-primary">Change Password</button>
@@ -192,6 +247,8 @@
     </div>
   </div>
 </div>
+
+
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -296,6 +353,70 @@ $(document).ready(function () {
             }
         });
     });
+
+    // Toggle eye icon visibility
+  document.querySelectorAll('.toggle-password').forEach(icon => {
+    icon.addEventListener('click', function () {
+      const target = document.getElementById(this.dataset.target);
+      const iconElement = this.querySelector('i');
+
+      if (target.type === 'password') {
+        target.type = 'text';
+        iconElement.classList.replace('bi-eye-slash', 'bi-eye');
+      } else {
+        target.type = 'password';
+        iconElement.classList.replace('bi-eye', 'bi-eye-slash');
+      }
+    });
+  });
+    //pasword validation 
+
+  const newPassword = document.getElementById("newPassword");
+  const confirmPassword = document.getElementById("confirmPassword");
+  const passwordError = document.getElementById("passwordError");
+
+  const lengthReq = document.getElementById("length");
+  const upperReq = document.getElementById("upper");
+  const lowerReq = document.getElementById("lower");
+  const numberReq = document.getElementById("number");
+
+  // Real-time password validation
+  newPassword.addEventListener("input", function () {
+    const value = newPassword.value;
+
+    // Check requirements
+    const hasLength = value.length >= 8;
+    const hasUpper = /[A-Z]/.test(value);
+    const hasLower = /[a-z]/.test(value);
+    const hasNumber = /[0-9]/.test(value);
+
+    // Toggle class
+    toggleRequirement(lengthReq, hasLength);
+    toggleRequirement(upperReq, hasUpper);
+    toggleRequirement(lowerReq, hasLower);
+    toggleRequirement(numberReq, hasNumber);
+  });
+
+  // Confirm password validation
+  confirmPassword.addEventListener("input", function () {
+    if (confirmPassword.value !== newPassword.value) {
+      passwordError.textContent = "Passwords do not match.";
+      passwordError.style.color = "red";
+    } else {
+      passwordError.textContent = "";
+    }
+  });
+
+  // Function to toggle valid/invalid
+  function toggleRequirement(element, condition) {
+    if (condition) {
+      element.classList.remove("invalid");
+      element.classList.add("valid");
+    } else {
+      element.classList.remove("valid");
+      element.classList.add("invalid");
+    }
+  }
 });
 </script>
 
