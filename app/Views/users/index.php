@@ -76,8 +76,8 @@
 
             <div class="col-xl-3 col-md-6">
               <div class="icon-box">
-                <div class="icon"><i class="bi bi-gem"></i></div>
-                <h4 class="title"><a href="" class="stretched-link">Sed ut perspiciatis</a></h4>
+                <div class="icon"><i class="bi bi-bell"></i></div>
+                <h4 class="title"><a href="" class="stretched-link">Notification</a></h4>
               </div>
             </div><!--End Icon Box -->
 

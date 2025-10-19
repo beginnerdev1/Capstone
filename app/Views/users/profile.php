@@ -255,6 +255,8 @@
 
 <script>
 $(document).ready(function () {
+
+  //
     function loadProfile() {
         $.ajax({
             url: "<?= site_url('users/getProfileInfo') ?>",
