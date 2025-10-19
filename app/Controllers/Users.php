@@ -64,7 +64,7 @@ class Users extends BaseController
     }
 
     // Show change password page
-        public function changePassword()
+    public function changePassword()
     {
         $session = session();
         $userId = $session->get('user_id');
@@ -80,27 +80,37 @@ class Users extends BaseController
             return $this->response->setJSON(['status' => 'error', 'message' => 'User not found']);
         }
 
-        $currentPassword = $this->request->getPost('current_password');
-        $newPassword     = $this->request->getPost('new_password');
-        $confirmPassword = $this->request->getPost('confirm_password');
+        $currentPassword = trim($this->request->getPost('current_password'));
+        $newPassword     = trim($this->request->getPost('new_password'));
+        $confirmPassword = trim($this->request->getPost('confirm_password'));
 
-        // Verify current password (using password_verify)
+        // 🔒 Verify current password
         if (!password_verify($currentPassword, $user['password'])) {
             return $this->response->setJSON(['status' => 'error', 'message' => 'Incorrect Current Password']);
         }
 
-        // Confirm password match
+        // 🔒 Confirm password match
         if ($newPassword !== $confirmPassword) {
             return $this->response->setJSON(['status' => 'error', 'message' => 'Incorrect Confirm Password']);
         }
 
-        // Hash the new password before updating
-        $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
+        // 🔒 Password strength validation
+        if (
+            strlen($newPassword) < 8 ||
+            !preg_match('/[A-Z]/', $newPassword) ||
+            !preg_match('/[a-z]/', $newPassword) ||
+            !preg_match('/[0-9]/', $newPassword)
+        ) {
+            return $this->response->setJSON(['status' => 'error', 'message' => 'Password must include at least 8 characters, 1 uppercase, 1 lowercase, and 1 number.']);
+        }
 
+        // ✅ Hash new password and update
+        $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
         $userModel->update($userId, ['password' => $hashedPassword]);
 
         return $this->response->setJSON(['status' => 'success', 'message' => 'Password changed successfully']);
     }
+
 
     // Update user profile info via AJAX
       // Update or insert profile info
