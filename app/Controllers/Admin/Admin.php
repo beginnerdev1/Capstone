@@ -6,15 +6,51 @@ use App\Controllers\BaseController;
 use App\Models\BillingModel;
 use App\Models\AdminModel;
 use App\Models\UsersModel;
+use App\Models\UserInformationModel;
 
 class Admin extends BaseController
 {
+    protected $usersModel;
+    protected $userInfoModel;
+    protected $billingModel;
+
+    public function __construct()
+    {
+        $this->usersModel = new UsersModel();
+        $this->userInfoModel = new UserInformationModel();
+        $this->billingModel = new BillingModel();
+    }
+
     public function index()
     {
-        if(!session()->get('is_admin_logged_in')){
-            return redirect()->to('admin/login');
+        $billingModel = new \App\Models\BillingModel();
+
+        // Get monthly totals
+        $query = $billingModel->select("
+                DATE_FORMAT(updated_at, '%b') AS month,
+                SUM(amount_due) AS total
+            ")
+            ->where('status', 'Paid')
+            ->groupBy('month')
+            ->orderBy('updated_at', 'ASC')
+            ->get();
+
+        $months = [];
+        $incomeData = [];
+
+        foreach ($query->getResultArray() as $row) {
+            $months[] = $row['month'];
+            $incomeData[] = (float) $row['total'];
         }
-        return view('admin/index');
+
+        $data = [
+            'title' => 'Dashboard',
+            'months' => $months,
+            'incomeData' => $incomeData,
+        ];
+
+        // ✅ Render the page (which extends the layout)
+        return view('admin/index', $data);
     }
     public function layoutStatic()
     {
@@ -40,25 +76,32 @@ class Admin extends BaseController
     {
         return view('admin/tables');
     }
-   public function registeredUsers()
+  public function registeredUsers()
     {
-        $userModel = new \App\Models\UsersModel();
+        $usersModel = new \App\Models\UsersModel();
+        $userInfoModel = new \App\Models\UserInformationModel();
 
-        // Example purok list
         $puroks = ['1', '2', '3', '4', '5'];
         $selectedPurok = $this->request->getGet('purok');
 
+        $builder = $usersModel
+            ->select('users.id, user_information.first_name, user_information.last_name, user_information.email, user_information.barangay, user_information.municipality, user_information.purok')
+            ->join('user_information', 'user_information.user_id = users.id', 'left');
+
         if ($selectedPurok) {
-            $data['users'] = $userModel->where('Purok', $selectedPurok)->findAll();
-        } else {
-            $data['users'] = $userModel->findAll();
+            $builder->where('user_information.purok', $selectedPurok);
         }
 
-        $data['puroks'] = $puroks;
-        $data['selectedPurok'] = $selectedPurok;
+        $data = [
+            'title' => 'Registered Users',
+            'users' => $builder->findAll(),
+            'puroks' => $puroks,
+            'selectedPurok' => $selectedPurok
+        ];
 
         return view('admin/registeredUsers', $data);
     }
+
      public function getUserInfo()
     {
         $userId = $this->request->getGet('user_id'); 
@@ -92,23 +135,42 @@ class Admin extends BaseController
 
         return $this->response->setJSON(['status' => 'error', 'message' => 'User not found']);
     }
+
+     public function manageAccounts()
+    {
+        $usersModel = new \App\Models\UsersModel();
+        $userInfoModel = new \App\Models\UserInformationModel();
+
+        $builder = $usersModel
+        ->select('users.id, users.is_verified, user_information.first_name, user_information.last_name, user_information.email, user_information.phone, user_information.barangay, user_information.purok')
+        ->join('user_information', 'user_information.user_id = users.id', 'left')
+        ->orderBy('user_information.last_name', 'ASC');
+
+
+        $data = [
+            'title' => 'Manage Accounts',
+            'users' => $builder->findAll(),
+        ];
+
+        return view('admin/ManageAccounts', $data);
+    }
  
-   
+   public function announcements()
+    {
+        $data['title'] = 'Announcements';
+        return view('admin/announcements', $data);
+    }
   
-   
     public function reports()
     {
-        $db = \Config\Database::connect();
+        $data = [
+            'title' => 'Reports',
+        ];
 
-        // Build query with JOIN to users table
-        $builder = $db->table('service_reports sr')
-            ->select('sr.id, sr.issue_type, sr.description, sr.status, sr.address, sr.latitude, sr.longitude, sr.created_at, u.username as user')
-            ->join('users u', 'u.id = sr.user_id', 'left') // left join in case user is missing
-            ->orderBy('sr.created_at', 'DESC');
-
-        $data['reports'] = $builder->get()->getResultArray();
-
-        return view('admin/Reports', $data);
+        return view('admin/layouts/main', [
+            'title' => 'Reports',
+            'content' => view('admin/Reports', $data)
+        ]);
     }
     public function changePasswordView()
     {

@@ -3,7 +3,6 @@
 namespace App\Database\Seeds;
 
 use CodeIgniter\Database\Seeder;
-use CodeIgniter\I18n\Time;
 
 class UsersSeeder extends Seeder
 {
@@ -11,53 +10,22 @@ class UsersSeeder extends Seeder
     {
         $data = [
             [
-                'Surname'      => 'Cruz',
-                'Firstname'    => 'Juan',
-                'Middlename'   => 'D',
-                'username'     => 'juancruz',
-                'Purok'        => 1,
-                'Barangay'     => 'San Isidro',
-                'Municipality' => 'Baliwag',
-                'Province'     => 'Bulacan',
-                'email'        => 'juan@example.com',
-                'password'     => password_hash('Password@123', PASSWORD_DEFAULT),
-                'is_verified'  => 1,
-                'created_at'   => Time::now(),
-                'updated_at'   => Time::now(),
+                'email' => 'admin@example.com',
+                'password' => password_hash('admin123', PASSWORD_DEFAULT),
+                'is_verified' => 1,
             ],
             [
-                'Surname'      => 'Reyes',
-                'Firstname'    => 'Maria',
-                'Middlename'   => 'L',
-                'username'     => 'mariareyes',
-                'Purok'        => 2,
-                'Barangay'     => 'San Jose',
-                'Municipality' => 'Baliwag',
-                'Province'     => 'Bulacan',
-                'email'        => 'maria@example.com',
-                'password'     => password_hash('Password@123', PASSWORD_DEFAULT),
-                'is_verified'  => 1,
-                'created_at'   => Time::now(),
-                'updated_at'   => Time::now(),
+                'email' => 'johndoe@example.com',
+                'password' => password_hash('password123', PASSWORD_DEFAULT),
+                'is_verified' => 1,
             ],
             [
-                'Surname'      => 'Santos',
-                'Firstname'    => 'Pedro',
-                'Middlename'   => 'A',
-                'username'     => 'pedrosantos',
-                'Purok'        => 3,
-                'Barangay'     => 'Sta. Maria',
-                'Municipality' => 'Baliwag',
-                'Province'     => 'Bulacan',
-                'email'        => 'pedro@example.com',
-                'password'     => password_hash('Password@123', PASSWORD_DEFAULT),
-                'is_verified'  => 0,
-                'created_at'   => Time::now(),
-                'updated_at'   => Time::now(),
+                'email' => 'janesmith@example.com',
+                'password' => password_hash('mypassword', PASSWORD_DEFAULT),
+                'is_verified' => 0,
             ],
         ];
 
-        // Insert all data
         $this->db->table('users')->insertBatch($data);
     }
 }
