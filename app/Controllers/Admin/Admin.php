@@ -5,6 +5,7 @@ namespace App\Controllers\Admin;
 use App\Controllers\BaseController;
 use App\Models\BillingModel;
 use App\Models\AdminModel;
+use App\Models\UsersModel;
 
 class Admin extends BaseController
 {
@@ -41,7 +42,7 @@ class Admin extends BaseController
     }
    public function registeredUsers()
     {
-        $userModel = new \App\Models\UserModel();
+        $userModel = new \App\Models\UsersModel();
 
         // Example purok list
         $puroks = ['1', '2', '3', '4', '5'];

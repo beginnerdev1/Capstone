@@ -4,7 +4,7 @@ namespace App\Controllers\Admin;
 
 use App\Controllers\BaseController;
 use App\Models\BillingModel;
-use App\Models\UserModel;
+use App\Models\UsersModel;
 
 class Billing extends BaseController
 {
@@ -14,7 +14,7 @@ class Billing extends BaseController
     public function index()
     {
         $billingModel = new BillingModel();
-        $userModel    = new UserModel();
+        $userModel    = new UsersModel();
 
         // Users for the "create bill" dropdown
         $users = $userModel->select('id, Firstname, Surname')->orderBy('Surname', 'ASC')->findAll();
