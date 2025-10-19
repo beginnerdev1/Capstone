@@ -6,8 +6,8 @@ use CodeIgniter\Model;
 
 class UserInformationModel extends Model
 {
-    protected $table      = 'user_information'; // matches migration
-    protected $primaryKey = 'user_id';          // primary key
+    protected $table      = 'user_information';
+    protected $primaryKey = 'user_id';
 
     protected $allowedFields = [
         'user_id',
@@ -25,6 +25,26 @@ class UserInformationModel extends Model
         'updated_at'
     ];
 
-    protected $useTimestamps = true;  // automatically handle created_at and updated_at
-    protected $returnType     = 'array'; // optional: return results as arrays
+    protected $useTimestamps = true;
+    protected $returnType = 'array';
+
+    /**
+     * ✅ Get full name for a specific user
+     */
+    public function getFullName($userId)
+    {
+        $info = $this->where('user_id', $userId)->first();
+        return $info ? "{$info['first_name']} {$info['last_name']}" : 'Unknown User';
+    }
+
+    /**
+     * 📋 Get all user profiles (for admin)
+     */
+    public function getAllProfiles()
+    {
+        return $this->select('user_information.*, users.email')
+                    ->join('users', 'users.id = user_information.user_id', 'left')
+                    ->orderBy('user_information.last_name', 'ASC')
+                    ->findAll();
+    }
 }

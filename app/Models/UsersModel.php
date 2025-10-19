@@ -9,7 +9,6 @@ class UsersModel extends Model
     protected $table = 'users';
     protected $primaryKey = 'id';
 
-    // Only include the fields that exist in the table
     protected $allowedFields = [
         'email',
         'password',
@@ -21,22 +20,35 @@ class UsersModel extends Model
     ];
 
     protected $useTimestamps = true;
+    protected $returnType = 'array';
 
-    // 🔍 Get all verified users
-    public function getUsers()
+    /**
+     * ✅ Get all verified users (with optional info join)
+     */
+    public function getVerifiedUsers($withInfo = false)
     {
-        return $this->where('is_verified', 1)
-                    ->orderBy('email', 'ASC')
-                    ->findAll();
+        $builder = $this->where('is_verified', 1);
+
+        if ($withInfo) {
+            $builder = $builder
+                ->select('users.*, user_information.first_name, user_information.last_name, user_information.purok, user_information.barangay')
+                ->join('user_information', 'user_information.user_id = users.id', 'left');
+        }
+
+        return $builder->orderBy('email', 'ASC')->findAll();
     }
 
-    // 🧭 Find user by email
+    /**
+     * 🧭 Find user by email
+     */
     public function findByEmail($email)
     {
         return $this->where('email', $email)->first();
     }
 
-    // 🔐 Verify user login
+    /**
+     * 🔐 Verify user login credentials
+     */
     public function verifyLogin($email, $password)
     {
         $user = $this->where('email', $email)->first();
@@ -44,5 +56,16 @@ class UsersModel extends Model
             return $user;
         }
         return null;
+    }
+
+    /**
+     * 👤 Get user with information (joined)
+     */
+    public function getUserWithInfo($userId)
+    {
+        return $this->select('users.*, user_information.*')
+                    ->join('user_information', 'user_information.user_id = users.id', 'left')
+                    ->where('users.id', $userId)
+                    ->first();
     }
 }

@@ -57,8 +57,10 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
         $routes->get('logout', 'AdminAuth::logout');
         $routes->get('change-password', 'Admin::changePasswordView');
         $routes->post('set-password', 'AdminAuth::setPassword'); // Moved setPassword logic to AdminAuth
-        $routes->get('registered-users', 'Admin::registeredUsers');
-        $routes->get('user-info', 'Admin::getUserInfo');
+        $routes->get('registeredUsers', 'Admin::registeredUsers');
+        $routes->get('announcements', 'Admin::announcements');
+          $routes->get('manageAccounts', 'Admin::manageAccounts');
+        $routes->get('userInfo', 'Admin::getUserInfo');
         $routes->get('reports', 'Admin::reports');
         $routes->get('charts', 'Admin::charts');
         $routes->get('tables', 'Admin::tables');
@@ -67,13 +69,13 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
         $routes->get('500', 'Admin::page500');
 
         // ✅ Billing Controller Routes
-        $routes->get('billings', 'Billing::index');
-        $routes->get('billing/view/(:num)', 'Billing::view/$1');
-        $routes->post('billing/create', 'Billing::create');
-        $routes->get('billings/paid', 'Billing::paidBills');
-        $routes->get('billings/(:segment)', 'Billing::show/$1');
-        $routes->post('billing/update-status/(:num)', 'Billing::updateStatus/$1');
-        $routes->get('billing/delete/(:num)', 'Billing::delete/$1');
+      
+        $routes->get('view/(:num)', 'Billing::view/$1');
+        $routes->post('create', 'Billing::create');
+        $routes->get('paidBills', 'Billing::paidBills');
+        $routes->get('(:segment)', 'Billing::show/$1');
+        $routes->post('update-status/(:num)', 'Billing::updateStatus/$1');
+        $routes->get('delete/(:num)', 'Billing::delete/$1');
     });
 });
 

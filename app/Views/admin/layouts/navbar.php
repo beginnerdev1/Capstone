@@ -49,7 +49,7 @@
                             </a>
                             <a class="nav-link" href="<?= base_url('admin/billings') ?>">
                                 <div class="dashboard-icon"><i class="fas fa-file-invoice-dollar"></i></div>
-                                Create Billing
+                                Manage Accounts
                             </a>
                             <a class="nav-link" href="<?= base_url('admin/paidBills') ?>">
                                 <div class="dashboard-icon"><i class="fas fa-check-circle"></i></div>

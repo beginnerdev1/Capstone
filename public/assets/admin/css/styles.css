@@ -6,7 +6,13 @@
   overflow: hidden;
   position: relative;
 }
-
+.card {
+    border-radius: 12px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+.table th, .table td {
+    vertical-align: middle;
+}
 .dashboard-card:hover {
   transform: translateY(-5px);
   box-shadow: 0 8px 16px rgba(0,0,0,0.15);
