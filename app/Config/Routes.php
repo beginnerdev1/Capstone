@@ -29,12 +29,32 @@ $routes->post('/logout', 'Auth::logout', ['as' => 'logout', 'filter' => 'useraut
 // =====================================================
 // 👥 USER DASHBOARD & PROFILE (Protected by userauth)
 // =====================================================
-$routes->group('/', ['filter' => 'userauth'], function ($routes) {
-    $routes->get('dashboard', 'Dashboard::index');
-    $routes->get('profile', 'Profile::index');
-    $routes->post('profile/update', 'Profile::update');
-    // ... other user routes
+
+$routes->group('users', ['filter' => 'userauth'], function ($routes) {
+    // Page routes
+    $routes->get('/', 'Users::index');
+    $routes->get('history', 'Users::history');
+    $routes->get('payments', 'Users::payments');
+    $routes->get('profile', 'Users::profile');
+    $routes->get('edit-profile', 'Users::editProfile');
+
+    // AJAX routes
+    $routes->get('getBillingsAjax', 'Users::getBillingsAjax');
+    $routes->get('getProfileInfo', 'Users::getProfileInfo');
+    $routes->post('updateProfile', 'Users::updateProfile');
+    $routes->get('getProfilePicture/(:any)', 'Users::getProfilePicture/$1');
+    $routes->post('createCheckout', 'Users::createCheckout');
+
+    // Payment results
+    $routes->get('payment-success', 'Users::paymentSuccess');
+    $routes->get('payment-failed', 'Users::paymentFailed');
 });
+
+
+// ======================================================
+// 💳 PAYMENT WEBHOOKS
+// ======================================================
+$routes->post('webhook', 'WebhookController::webhook');
 
 
 // =====================================================

@@ -16,14 +16,80 @@
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 
   <link href="<?= base_url('assets/Users/css/main.css?v=' . time()) ?>" rel="stylesheet">
-  <style>
-    html, body { height: 100%; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; overflow-y: hidden; }
-    .profile-pic { max-width: 150px; border-radius: 50%; }
-    .error { color: red; font-size: 0.9em; }
-    section { min-height: calc(100vh - 80px); display: flex; align-items: flex-start; justify-content: center; background-color: #eee; padding: 80px 0 20px 0; }
-    .container { max-width: 1200px; }
-    @media (max-width: 991px) { body { overflow-y: auto; } section { min-height: auto; display: block; padding: 40px 0; } }
-  </style>
+<style>
+  html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    font-family: 'Poppins', sans-serif;
+    overflow-y: hidden;
+    background-color: #eee;
+  }
+
+  section {
+    min-height: calc(100vh - 80px);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 80px 0 20px 0;
+  }
+
+  .container {
+    max-width: 1200px;
+  }
+
+  .card.bg-dark {
+    background-color: #1e1e1e !important;
+    border-radius: 15px;
+  }
+
+  .profile-pic {
+    width: 150px;
+    height: 150px;
+    object-fit: cover;
+    border-radius: 50%;
+    border: 3px solid #fff;
+    box-shadow: 0 0 10px rgba(0,0,0,0.3);
+    margin-bottom: 10px;
+  }
+
+  .profile-name {
+    color: #fff !important;
+    font-weight: 600;
+  }
+
+  .text-muted {
+    color: #aaa !important;
+  }
+
+  .btn-warning {
+    background-color: #ffc107;
+    color: #000;
+    font-weight: 600;
+    border: none;
+  }
+
+  .btn-danger {
+    background-color: #dc3545;
+    font-weight: 600;
+    border: none;
+  }
+
+  .btn:hover {
+    opacity: 0.9;
+  }
+
+  .error {
+    color: red;
+    font-size: 0.9em;
+  }
+
+  @media (max-width: 991px) {
+    body { overflow-y: auto; }
+    section { min-height: auto; display: block; padding: 40px 0; }
+  }
+</style>
+
 </head>
 <body>
   
@@ -141,6 +207,7 @@ $(document).ready(function () {
                 if (response.status === "success" && response.data) {
                     const data = response.data;
 
+                    // Text data
                     $(".profile-name").text(data.first_name + ' ' + data.last_name);
                     $(".profile-first-name").text(data.first_name);
                     $(".profile-last-name").text(data.last_name);
@@ -152,8 +219,14 @@ $(document).ready(function () {
                     $(".profile-municipality").text(data.municipality || "-");
                     $(".profile-province").text(data.province || "-");
 
-                    $("#profilePic").attr("src", data.profile_picture);
+                    // ✅ Load profile picture via controller
+                    if (data.profile_picture) {
+                        $("#profilePic").attr("src", "<?= site_url('users/getProfilePicture/') ?>" + data.profile_picture);
+                    } else {
+                        $("#profilePic").attr("src", "https://mdbcdn.b-cdn.net/img/Photos/new-templates/bootstrap-chat/ava3.webp");
+                    }
 
+                    // Form values for edit modal
                     $("#firstName").val(data.first_name);
                     $("#lastName").val(data.last_name);
                     $("#gender").val(data.gender);
@@ -167,12 +240,16 @@ $(document).ready(function () {
                     console.error("Failed to load profile info:", response.message || "No data");
                 }
             },
-            error: function(xhr, status, error) { console.error("AJAX error:", status, error); }
+            error: function(xhr, status, error) {
+                console.error("AJAX error:", status, error);
+            }
         });
     }
 
+    // Load profile data
     loadProfile();
 
+    // ✅ Update profile info
     $("#editPersonalInfoForm").on("submit", function (e) {
         e.preventDefault();
         var formData = new FormData(this);
@@ -194,11 +271,15 @@ $(document).ready(function () {
         });
     });
 
+    // ✅ Change password
     $("#changePasswordForm").on("submit", function (e) {
         e.preventDefault();
         var newPass = $("#newPassword").val();
         var confirmPass = $("#confirmPassword").val();
-        if (newPass !== confirmPass) { $("#passwordError").text("Passwords do not match."); return; }
+        if (newPass !== confirmPass) {
+            $("#passwordError").text("Passwords do not match.");
+            return;
+        }
         $("#passwordError").text("");
         $.ajax({
             url: "<?= site_url('users/changePassword') ?>",
@@ -217,5 +298,6 @@ $(document).ready(function () {
     });
 });
 </script>
+
 </body>
 </html>
