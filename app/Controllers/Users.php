@@ -193,17 +193,17 @@ public function getProfileInfo()
 }
 
 //Profile controller
-  public function getProfilePicture($filename)
+    public function getProfilePicture($filename)
     {
-        $path = WRITEPATH . 'uploads/' . $filename; // C:\xampp\htdocs\Capstone\writable\uploads\filename
+        $path = WRITEPATH . 'uploads/' . $filename;
 
         if (!file_exists($path)) {
-            // fallback image
             return redirect()->to('https://mdbcdn.b-cdn.net/img/Photos/new-templates/bootstrap-chat/ava3.webp');
         }
 
-        return $this->response->setFile($path, true);
+        return $this->response->setFile($path);
     }
+
 
 
 
