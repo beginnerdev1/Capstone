@@ -42,7 +42,7 @@ $routes->group('users', ['filter' => 'userauth'], function ($routes) {
     $routes->get('getBillingsAjax', 'Users::getBillingsAjax');
     $routes->get('getProfileInfo', 'Users::getProfileInfo');
     $routes->post('updateProfile', 'Users::updateProfile');
-    $routes->get('getProfilePicture/(:segment)', 'Users::getProfilePicture/$1');
+    $routes->get('getProfilePicture/(:any)', 'Users::getProfilePicture/$1');
     $routes->post('createCheckout', 'Users::createCheckout');
 
     // Payment results

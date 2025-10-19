@@ -84,11 +84,8 @@ public function updateProfile()
     }
 
     $userModel = new \App\Models\UserInformationModel();
+    $existing  = $userModel->find($user_id);
 
-    // Get existing record
-    $existing = $userModel->find($user_id);
-
-    // Prepare data from POST (make sure input names match DB columns)
     $data = [
         'first_name'   => $request->getPost('first_name') ?? null,
         'last_name'    => $request->getPost('last_name') ?? null,
@@ -102,25 +99,25 @@ public function updateProfile()
         'province'     => $request->getPost('province') ?? null,
     ];
 
-    // Handle profile picture upload
+    // ✅ Save profile picture to /public/uploads/
     $file = $request->getFile('profile_picture');
     if ($file && $file->isValid() && !$file->hasMoved()) {
-        $uploadPath = WRITEPATH . 'uploads/';
+        $uploadPath = FCPATH . 'uploads/'; // <--- changed from WRITEPATH
         if (!is_dir($uploadPath)) {
-            mkdir($uploadPath, 0777, true); // create folder if not exists
+            mkdir($uploadPath, 0777, true);
         }
 
         $newName = $file->getRandomName();
         $file->move($uploadPath, $newName);
         $data['profile_picture'] = $newName;
 
-        // Delete old picture if exists
+        // Delete old file if it exists
         if ($existing && !empty($existing['profile_picture']) && file_exists($uploadPath . $existing['profile_picture'])) {
             unlink($uploadPath . $existing['profile_picture']);
         }
     }
 
-    // Insert or update record
+    // Save to database
     if ($existing) {
         $updated = $userModel->update($user_id, $data);
     } else {
@@ -133,6 +130,7 @@ public function updateProfile()
         'message' => $updated ? 'Profile saved successfully' : 'Failed to save profile'
     ]);
 }
+
 
 
     // Return billing data via AJAX
@@ -195,14 +193,15 @@ public function getProfileInfo()
 //Profile controller
     public function getProfilePicture($filename)
     {
-        $path = WRITEPATH . 'uploads/' . $filename;
+        $filePath = FCPATH . 'uploads/' . $filename;
 
-        if (!file_exists($path)) {
-            return redirect()->to('https://mdbcdn.b-cdn.net/img/Photos/new-templates/bootstrap-chat/ava3.webp');
+        if (file_exists($filePath)) {
+            return $this->response->download($filePath, null, true); // ✅ display inline
+        } else {
+            return $this->response->setStatusCode(404)->setBody('File not found');
         }
-
-        return $this->response->setFile($path);
     }
+
 
 
 
