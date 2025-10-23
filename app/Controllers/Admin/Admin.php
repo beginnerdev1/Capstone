@@ -138,23 +138,70 @@ class Admin extends BaseController
 
      public function manageAccounts()
     {
-        $usersModel = new \App\Models\UsersModel();
-        $userInfoModel = new \App\Models\UserInformationModel();
+        $statusFilter = $this->request->getGet('status'); // from ?status=...
+        $search = $this->request->getGet('search'); // from ?search=...
 
-        $builder = $usersModel
-        ->select('users.id, users.is_verified, user_information.first_name, user_information.last_name, user_information.email, user_information.phone, user_information.barangay, user_information.purok')
-        ->join('user_information', 'user_information.user_id = users.id', 'left')
-        ->orderBy('user_information.last_name', 'ASC');
+        // 🔹 Fetch all users with user_information
+        $users = $this->usersModel
+            ->select('users.id, users.is_verified, user_information.first_name, user_information.last_name,
+                    user_information.email, user_information.phone, user_information.barangay, user_information.purok')
+            ->join('user_information', 'user_information.user_id = users.id', 'left')
+            ->orderBy('user_information.last_name', 'ASC')
+            ->findAll();
 
+        // 🔹 Filter users by search (name)
+        if (!empty($search)) {
+            $users = array_filter($users, function ($user) use ($search) {
+                $fullName = strtolower(trim($user['first_name'] . ' ' . $user['last_name']));
+                return str_contains($fullName, strtolower($search));
+            });
+        }
 
+        // 🔹 Attach bills (depending on filter)
+        foreach ($users as &$user) {
+            $billQuery = $this->billingModel
+                ->where('user_id', $user['id'])
+                ->orderBy('due_date', 'ASC');
+
+            // ✅ Apply the status filter if set
+            if (!empty($statusFilter) && strtolower($statusFilter) !== 'all') {
+                $billQuery->where('status', $statusFilter);
+            }
+
+            $user['bills'] = $billQuery->findAll();
+        }
+        unset($user);
+
+        // 🔹 Pass data to view
         $data = [
             'title' => 'Manage Accounts',
-            'users' => $builder->findAll(),
+            'users' => $users,
+            'selectedStatus' => $statusFilter,
+            'search' => $search,
         ];
 
         return view('admin/ManageAccounts', $data);
     }
  
+    public function markAsPaid($billId)
+    {
+        // Find the bill
+        $bill = $this->billingModel->find($billId);
+
+        if (!$bill) {
+            return redirect()->back()->with('error', 'Bill not found.');
+        }
+
+        // Update status to Paid
+        $this->billingModel->update($billId, [
+            'status' => 'Paid',
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        return redirect()->back()->with('success', 'Bill has been marked as Paid.');
+    }
+
+
    public function announcements()
     {
         $data['title'] = 'Announcements';
@@ -175,5 +222,39 @@ class Admin extends BaseController
     public function changePasswordView()
     {
         return view('admin/change_password');
+    }
+    public function paymentSettings()
+    {
+        $paymentModel = new PaymentSettingsModel();
+
+        $data = [
+            'title' => 'Payment Settings',
+            'payment' => $paymentModel->first(), // get the only record (we’ll keep just 1 row)
+        ];
+
+        return view('admin/paymentSettings', $data);
+    }
+
+    public function updateQR()
+    {
+        $paymentModel = new PaymentSettingsModel();
+
+        $file = $this->request->getFile('qr_image');
+        if ($file && $file->isValid() && !$file->hasMoved()) {
+            $newName = $file->getRandomName();
+            $file->move('uploads/qr/', $newName);
+
+            $data = [
+                'payment_method' => $this->request->getPost('payment_method'),
+                'account_name' => $this->request->getPost('account_name'),
+                'account_number' => $this->request->getPost('account_number'),
+                'qr_image' => 'uploads/qr/' . $newName,
+            ];
+
+            $paymentModel->update(1, $data); // assuming only one record
+            return redirect()->to('admin/manageAccounts')->with('success', 'QR updated successfully!');
+        }
+
+        return redirect()->back()->with('error', 'QR upload failed!');
     }
 }
