@@ -80,7 +80,7 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
         $routes->get('registeredUsers', 'Admin::registeredUsers');
         $routes->get('announcements', 'Admin::announcements');
         $routes->get('manageAccounts', 'Admin::manageAccounts');
-     
+        $routes->post('markAsPaid/(:num)', 'Admin::markAsPaid/$1');
         $routes->get('userInfo', 'Admin::getUserInfo');
         $routes->get('reports', 'Admin::reports');
         $routes->get('charts', 'Admin::charts');
