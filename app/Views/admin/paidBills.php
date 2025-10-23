@@ -18,12 +18,12 @@
                 </tr>
             </thead>
             <tbody>
-                <?php if (!empty($billings)): ?>
-                    <?php foreach ($billings as $bill): ?>
+                <?php if (!empty($bills)): ?>
+                    <?php foreach ($bills as $bill): ?>
                         <tr>
                             <td><?= esc($bill['id']) ?></td>
                             <td><?= esc($bill['user_name'] ?? 'Unknown') ?></td>
-                            <td>₱<?= esc($bill['amount']) ?></td>
+                            <td>₱<?= esc($bill['amount_due']) ?></td>
                             <td><?= esc($bill['updated_at'] ?? '—') ?></td>
                         </tr>
                     <?php endforeach; ?>

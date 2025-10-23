@@ -23,42 +23,6 @@
                 </li>
             </ul>
         </nav>
-        <div id="layoutSidenav">
-            <div id="layoutSidenav_nav">
-                <nav class="sb-sidenav accordion sb-sidenav-dark" id="sidenavAccordion">
-                    <div class="sb-sidenav-menu">
-                        <div class="nav">
-                            <div class="sb-sidenav-menu-heading">Core</div>
-                            <a class="nav-link" href="<?= base_url('admin') ?>">
-                                <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
-                                Dashboard
-                            </a>
-                          
-                            <div class="sb-sidenav-menu-heading">Addons</div>
-                            <a class="nav-link" href="<?= base_url('admin/charts') ?>">
-                                <div class="sb-nav-link-icon"><i class="fas fa-chart-area"></i></div>
-                                Charts
-                            </a>
-                            <a class="nav-link" href="<?= base_url('admin/tables') ?>">
-                                <div class="sb-nav-link-icon"><i class="fas fa-table"></i></div>
-                                Tables
-                            </a>
-                            <a class="nav-link" href="<?= base_url('admin/registeredUsers') ?>">
-                                <div class="dashboard-icon"><i class="fas fa-users"></i></div>
-                                Registered Users
-                            </a>
-                            <a class="nav-link" href="<?= base_url('admin/billings') ?>">
-                                <div class="dashboard-icon"><i class="fas fa-file-invoice-dollar"></i></div>
-                                Manage Accounts
-                            </a>
-                            <a class="nav-link" href="<?= base_url('admin/paidBills') ?>">
-                                <div class="dashboard-icon"><i class="fas fa-check-circle"></i></div>
-                                Paid User Bills
-                            </a>
-                        </div>
-                    </div>
-                   <!--  <div class="sb-sidenav-footer">
-                        <div class="small">Logged in as: </div>
-                    </div> -->
-                </nav>
-            </div>
+    <!--     <div id="layoutSidenav">
+            
+            </div> -->
