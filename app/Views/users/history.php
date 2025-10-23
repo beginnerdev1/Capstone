@@ -1,203 +1,164 @@
-
 <!DOCTYPE html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta content="width=device-width, initial-scale=1.0" name="viewport">
-
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bill History</title>
 
-  <!-- Vendor CSS -->
+  <!-- Google Fonts: Poppins -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Bootstrap CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/swiper@9/swiper-bundle.min.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/@srexi/purecounterjs/dist/purecounter_vanilla.js"></script>
 
-  <!-- Main CSS File -->
+  <!-- Custom CSS -->
   <link href="<?= base_url('assets/Users/css/main.css?v=' . time()) ?>" rel="stylesheet">
-    <link href="<?= base_url('assets/Users/css/navbar.css?v=' . time()) ?>" rel="stylesheet">
+  <link href="<?= base_url('assets/Users/css/navbar.css?v=' . time()) ?>" rel="stylesheet">
+
+  <style>
+    body, h1, h2, h3, h4, h5, h6, p, table, th, td, button {
+      font-family: 'Poppins', sans-serif;
+    }
+
+    /* Make buttons smaller on mobile */
+    @media (max-width: 576px) {
+      .btn-sm {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+      }
+    }
+
+    /* Make modal full screen on small devices */
+    @media (max-width: 576px) {
+      .modal-dialog {
+        max-width: 95%;
+        margin: 1rem;
+      }
+    }
+  </style>
 </head>
-
 <body>
-
-  <!-- ======= Header ======= -->
   <?= $this->include('Users/header') ?>
-  <!-- End Header -->
 
   <main id="main">
-
-    <!-- Page Title -->
     <div class="page-title">
       <div class="heading text-center">
         <h1>Bill History</h1>
         <p class="mb-0">Check your past bills and payment records</p>
       </div>
-    </div><!-- End Page Title -->
+    </div>
 
-    <!-- Bill History Section -->
-    <section id="bill-history" class="section">
-      <div class="container" data-aos="fade-up">
-
-        <div class="section-title">
-          <h2>Your Bills</h2>
-          <p>Overview of your water bills</p>
-        </div>
-        <!-- Limit records form -->
-     <label for="limit">Show:</label>
-    <select id="limit" class="form-select" style="width:120px; display:inline-block;">
-        <option value="5">5</option>
-        <option value="10" selected>10</option>
-        <option value="15">15</option>
-        <option value="20">20</option>
-    </select> bills
-    <!-- End Limit records form --> 
-        <div class="table-responsive">
-          <table class="table table-striped table-hover align-middle">
-            <thead class="table-primary">
-              <tr>
-                <th>Invoice ID</th>
-                <th scope="col">Billing Month</th>
-                <th scope="col">Amount</th>
-                <th scope="col">Status</th>
-                <th scope="col">Date Paid</th>
-                <th scope="col">Action</th>
-              </tr>
-            </thead>
-           <tbody id = "billingTableBody">
-               
-            </tbody>
-          </table>
-        </div>
-                <!--Script for limit show js-->
-        <script>
-            function loadBillings(limit = 10) {
-                fetch(`<?= base_url('users/getBillingsAjax') ?>?limit=${limit}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        console.log(data); // Debugging
-
-                        let rows = '';
-                        if (data.length > 0) {
-                            data.forEach(bill => {
-                                rows += `
-                                    <tr>
-                                        <td>${bill.id}</td>
-                                        <td>${new Date(bill.due_date).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</td>
-                                        <td>₱${parseFloat(bill.amount).toFixed(2)}</td>
-                                        <td>
-                                            ${bill.status === 'paid' 
-                                                ? '<span class="badge bg-success">Paid</span>' 
-                                                : '<span class="badge bg-danger">Unpaid</span>'}
-                                        </td>
-                                        <td>${bill.date_paid ? new Date(bill.date_paid).toLocaleDateString('en-US') : '-'}</td>
-                                        <td>
-                                            <a href="#" class="btn btn-sm btn-outline-primary">
-                                                <i class="bi bi-receipt"></i> View
-                                            </a>
-                                        </td>
-                                    </tr>
-                                `;
-                            });
-                        } else {
-                            rows = `
-                                <tr>
-                                    <td colspan="7" class="text-center">No bills found.</td>
-                                </tr>
-                            `;
-                        }
-                        document.getElementById('billingTableBody').innerHTML = rows;
-                    });
-            }
-        
-            document.addEventListener("DOMContentLoaded", function(){
-                loadBillings(); // Initial load with default limit
-
-                document.getElementById('limit').addEventListener('change',function(){
-                    loadBillings(this.value);//load with user input limit
-                });
-            });
-
-        </script>
-        <!-- End Table -->
-        <div class="section-title my-5">
-          <h2>Expenses Overview</h2>
-          <p>Summary of your monthly and yearly expenses</p>
-        </div>
-        <div class="alert alert-info" role="alert">
-            <?php if (isset($monthlyExpensesWithChange)): ?>
-                <?php $lastChange = end($monthlyExpensesWithChange)['percent_change']; ?>
-                <?php if ($lastChange > 0): ?>
-                    <strong>Increase:</strong> Your expenses increased by <?= $lastChange ?>% compared to the previous month.
-                <?php elseif ($lastChange < 0): ?>
-                    <strong>Decrease:</strong> Your expenses decreased by <?= abs($lastChange) ?>% compared to the previous month.
-                <?php else: ?>
-                    <strong>No Change:</strong> Your expenses remained the same as the previous month.
-                <?php endif; ?>
-            <?php else: ?>
-                <strong>Info:</strong> Not enough data to calculate monthly change.
-            <?php endif; ?>
-        </div>
-        <div class="row">
-            <div class="col-md-6">
-                <canvas id="monthlyExpensesChart"></canvas>
-            </div>
-            <div class="col-md-6">
-                <canvas id="yearlyExpensesChart"></canvas>
-            </div>
-        </div>
-
-        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-        <script>
-            const monthlyCtx = document.getElementById('monthlyExpensesChart').getContext('2d');
-            const yearlyCtx = document.getElementById('yearlyExpensesChart').getContext('2d');
-                    
-            const monthlyChart = new Chart(monthlyCtx, {
-                type: 'bar',
-                data: {
-                    labels: <?= json_encode(array_column($monthlyExpenses, 'month')) ?>,
-                    datasets: [{
-                        label: 'Monthly Expenses(₱)',
-                        data: <?= json_encode(array_column($monthlyExpenses, 'total')) ?>,
-                        borderColor: 'rgba(75, 192, 192, 1)',
-                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                    }]
-                }
-            });
-
-            const yearlyChart = new Chart(yearlyCtx, {
-                type: 'line',
-                data: {
-                    labels: <?= json_encode(array_column($yearlyExpenses, 'year')) ?>,
-                    datasets: [{
-                        label: 'Yearly Expenses (₱)',
-                        data: <?= json_encode(array_column($yearlyExpenses, 'total')) ?>,
-                        backgroundColor: 'rgba(153, 102, 255, 0.2)',
-                        borderColor: 'rgba(153, 102, 255, 1)',
-                        borderWidth: 1
-                    }]
-                }
-            });
-        </script>
+    <div class="container my-4 text-center">
+      <!-- Filter Buttons -->
+      <div class="d-flex flex-wrap justify-content-center gap-2">
+        <button class="btn btn-success btn-sm" onclick="filterStatus('successful')">Successful</button>
+        <button class="btn btn-warning btn-sm" onclick="filterStatus('unsuccessful')">Unsuccessful</button>
+        <button class="btn btn-danger btn-sm" onclick="filterStatus('failed')">Failed</button>
+        <button class="btn btn-secondary btn-sm" onclick="filterStatus('all')">Show All</button>
       </div>
-    </section><!-- End Bill History Section -->
+    </div>
 
+    <div class="container my-3">
+      <div class="table-responsive">
+        <table class="table table-striped table-bordered align-middle">
+          <thead class="table-dark">
+            <tr>
+              <th scope="col">#</th>
+              <th scope="col">Bill ID</th>
+              <th scope="col">Billing Date</th>
+              <th scope="col">Amount</th>
+              <th scope="col">Status</th>
+              <th scope="col">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php foreach($payments as $payment): 
+              $status = strtolower($payment['status']);
+              $modalId = 'modalReceipt' . $payment['id'];
+            ?>
+            <tr data-status="<?= $status ?>">
+              <th scope="row"><?= $payment['id'] ?></th>
+              <td><?= $payment['payment_intent_id'] ?></td>
+              <td><?= date('F d, Y', strtotime($payment['paid_at'] ?? $payment['created_at'])) ?></td>
+              <td>₱<?= number_format($payment['amount'], 2) ?></td>
+              <td>
+                <?php
+                switch($status) {
+                  case 'successful':
+                    echo '<span class="badge bg-success">Successful</span>';
+                    break;
+                  case 'unsuccessful':
+                    echo '<span class="badge bg-warning text-dark" title="Payment not completed. Please retry.">Unsuccessful</span>';
+                    break;
+                  case 'failed':
+                    echo '<span class="badge bg-danger" title="Payment failed due to an error or cancellation.">Failed</span>';
+                    break;
+                  default:
+                    echo '<span class="badge bg-secondary">Pending</span>';
+                }
+                ?>
+              </td>
+              <td>
+                <!-- Trigger modal -->
+                <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#<?= $modalId ?>">View</button>
+                <?php if(in_array($status, ['unsuccessful','failed'])): ?>
+                  <button class="btn btn-success btn-sm">Retry Payment</button>
+                <?php endif; ?>
+              </td>
+            </tr>
+
+            <!-- Modal -->
+            <div class="modal fade" id="<?= $modalId ?>" tabindex="-1" aria-labelledby="<?= $modalId ?>Label" aria-hidden="true">
+              <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content">
+                  <div class="modal-header">
+                    <h5 class="modal-title" id="<?= $modalId ?>Label">Receipt #<?= $payment['payment_intent_id'] ?></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                  </div>
+                  <div class="modal-body">
+                    <p><strong>Bill ID:</strong> <?= $payment['payment_intent_id'] ?></p>
+                    <p><strong>Date:</strong> <?= date('F d, Y H:i', strtotime($payment['paid_at'] ?? $payment['created_at'])) ?></p>
+                    <p><strong>Amount:</strong> ₱<?= number_format($payment['amount'], 2) ?></p>
+                    <p><strong>Status:</strong> <?= ucfirst($status) ?></p>
+                    <!-- Additional details can go here -->
+                  </div>
+                  <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <?php if($status === 'successful'): ?>
+                      <a href="<?= base_url('users/payments/download/' . $payment['id']) ?>" class="btn btn-primary">Download Receipt</a>
+                    <?php endif; ?>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </main>
 
-  <!-- ======= Footer ======= -->
   <?= $this->include('Users/footer') ?>
-  <!-- End Footer -->
-
   <a href="#" id="scrollTop" class="scroll-top">↑</a>
 
-  <!-- Vendor JS -->
+  <!-- Bootstrap JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/swiper@9/swiper-bundle.min.js"></script>
 
-  <!-- Main JS File -->
-  <script src="<?= base_url('assets/Users/js/main.js') ?>"></script>
+  <!-- Filter Script -->
+  <script>
+    function filterStatus(status) {
+      const rows = document.querySelectorAll('table tbody tr');
+      rows.forEach(row => {
+        row.style.display = (status === 'all' || row.dataset.status === status) ? '' : 'none';
+      });
+    }
+
+    // Initialize Bootstrap tooltips
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[title]'))
+    tooltipTriggerList.map(function (el) {
+      return new bootstrap.Tooltip(el)
+    })
+  </script>
 </body>
-
 </html>

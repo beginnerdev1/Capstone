@@ -15,47 +15,27 @@ class Users extends BaseController
     }
 
     // Show billing history page with sample data
-    public function history()
-    {
-        // Static monthly expenses
-        $data['monthlyExpenses'] = [
-            ['month' => 'January', 'total' => 1200.50],
-            ['month' => 'February', 'total' => 950.00],
-            ['month' => 'March', 'total' => 1100.75],
-            ['month' => 'April', 'total' => 1300.00],
-            ['month' => 'May', 'total' => 1250.25],
-            ['month' => 'June', 'total' => 1400.00],
-            ['month' => 'July', 'total' => 1150.80],
-            ['month' => 'August', 'total' => 1600.00],
-            ['month' => 'September', 'total' => 1700.60],
-            ['month' => 'October', 'total' => 1800.90],
-            ['month' => 'November', 'total' => 1900.00],
-            ['month' => 'December', 'total' => 2000.75],
-        ];
+public function history()
+{
+    $session = session();
+    $userId = $session->get('user_id'); // Get logged-in user's ID
 
-        // Calculate percentage change per month
-        $monthlyExpensesWithChange = [];
-        $prevTotal = null;
-        foreach ($data['monthlyExpenses'] as $expense) {
-            $change = 0;
-            if ($prevTotal !== null && $prevTotal != 0) {
-                $change = round((($expense['total'] - $prevTotal) / $prevTotal) * 100, 2);
-            }
-            $monthlyExpensesWithChange[] = array_merge($expense, ['percent_change' => $change]);
-            $prevTotal = $expense['total'];
-        }
-
-        $data['monthlyExpensesWithChange'] = $monthlyExpensesWithChange;
-
-        // Static yearly expenses
-        $data['yearlyExpenses'] = [
-            ['year' => 2022, 'total' => 15000.00],
-            ['year' => 2023, 'total' => 18000.50],
-            ['year' => 2024, 'total' => 20000.75],
-        ];
-
-        return view('users/history', $data);
+    if (!$userId) {
+        // Redirect to login if user is not logged in
+        return redirect()->to('/login');
     }
+
+    $paymentsModel = new PaymentsModel();
+
+    // Fetch all payments for this user, latest first
+    $data['payments'] = $paymentsModel
+                            ->where('user_id', $userId)
+                            ->orderBy('created_at', 'DESC')
+                            ->findAll();
+
+    // Load the history view (file: app/Views/Users/history.php)
+    return view('Users/history', $data);
+}
 
     // Show profile page
     public function profile()

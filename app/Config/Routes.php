@@ -5,12 +5,12 @@ use CodeIgniter\Router\RouteCollection;
 /**
  * @var RouteCollection $routes
  */
+
 // =====================================================
 // 🧑 USER AUTH ROUTES (For regular users)
 // =====================================================
-$routes->get('/login', 'Auth::login', ['as' => 'login', 'filter' => 'guest']);
-$routes->post('/login', 'Auth::attemptLogin', ['as' => 'attemptLogin', 'filter' => 'guest']);
-
+$routes->get('/login', 'Auth::login', ['filter' => 'guest']);
+$routes->post('/login', 'Auth::attemptLogin', ['filter' => 'guest']);
 
 $routes->get('/register', 'Auth::registerForm', ['filter' => 'guest']);
 $routes->post('/register', 'Auth::register', ['filter' => 'guest']);
@@ -23,17 +23,16 @@ $routes->get('/forgot-password', 'Auth::forgotPasswordForm', ['filter' => 'guest
 $routes->post('/forgot-password', 'Auth::sendResetLink', ['filter' => 'guest']);
 $routes->post('/reset-password', 'Auth::processResetPassword', ['filter' => 'guest']);
 
-$routes->post('/logout', 'Auth::logout', ['as' => 'logout', 'filter' => 'userauth']);
+$routes->post('/logout', 'Auth::logout', ['filter' => 'userauth']);
 
 
 // =====================================================
 // 👥 USER DASHBOARD & PROFILE (Protected by userauth)
 // =====================================================
-
 $routes->group('users', ['filter' => 'userauth'], function ($routes) {
     // Page routes
     $routes->get('/', 'Users::index');
-    $routes->get('history', 'Users::history');
+    $routes->get('history', 'Users::history');  // Bill History page
     $routes->get('payments', 'Users::payments');
     $routes->get('profile', 'Users::profile');
     $routes->get('edit-profile', 'Users::editProfile');
@@ -63,8 +62,8 @@ $routes->post('webhook', 'WebhookController::webhook');
 $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($routes) {
 
     // Auth routes (Controller: AdminAuth)
-    $routes->get('login', 'AdminAuth::adminLogin', ['as' => 'adminLoginForm', 'filter' => 'guest']);
-    $routes->post('login', 'AdminAuth::login', ['as' => 'adminLoginPost', 'filter' => 'guest']);
+    $routes->get('login', 'AdminAuth::adminLogin', ['filter' => 'guest']);
+    $routes->post('login', 'AdminAuth::login', ['filter' => 'guest']);
     $routes->get('verify-otp', 'AdminAuth::showOtpForm', ['filter' => 'guest']);
     $routes->post('verify-otp', 'AdminAuth::verifyOtp', ['filter' => 'guest']);
     $routes->post('resend-otp', 'AdminAuth::resendOtp', ['filter' => 'guest']);
@@ -76,10 +75,10 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
         $routes->get('/', 'Admin::index');
         $routes->get('logout', 'AdminAuth::logout');
         $routes->get('change-password', 'Admin::changePasswordView');
-        $routes->post('set-password', 'AdminAuth::setPassword'); // Moved setPassword logic to AdminAuth
+        $routes->post('set-password', 'AdminAuth::setPassword');
         $routes->get('registeredUsers', 'Admin::registeredUsers');
         $routes->get('announcements', 'Admin::announcements');
-          $routes->get('manageAccounts', 'Admin::manageAccounts');
+        $routes->get('manageAccounts', 'Admin::manageAccounts');
         $routes->get('userInfo', 'Admin::getUserInfo');
         $routes->get('reports', 'Admin::reports');
         $routes->get('charts', 'Admin::charts');
@@ -89,7 +88,6 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
         $routes->get('500', 'Admin::page500');
 
         // ✅ Billing Controller Routes
-      
         $routes->get('view/(:num)', 'Billing::view/$1');
         $routes->post('create', 'Billing::create');
         $routes->get('paidBills', 'Billing::paidBills');
