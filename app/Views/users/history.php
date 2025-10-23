@@ -16,6 +16,7 @@
 
   <!-- Main CSS File -->
   <link href="<?= base_url('assets/Users/css/main.css?v=' . time()) ?>" rel="stylesheet">
+    <link href="<?= base_url('assets/Users/css/navbar.css?v=' . time()) ?>" rel="stylesheet">
 </head>
 
 <body>
