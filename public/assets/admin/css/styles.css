@@ -46,3 +46,18 @@
   transform: scale(1.1);
   transition: all 0.2s ease;
 }
+.table td, .table th {
+  font-size: 0.9rem;
+   white-space: nowrap;
+}
+
+.nav-tabs {
+  flex-wrap: wrap;
+}
+
+.nav-tabs .nav-link {
+  flex: 1 1 auto;
+  text-align: center;
+  margin-bottom: 5px;
+}
+

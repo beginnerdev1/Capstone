@@ -138,51 +138,61 @@ class Admin extends BaseController
 
      public function manageAccounts()
     {
-        $statusFilter = $this->request->getGet('status'); // from ?status=...
-        $search = $this->request->getGet('search'); // from ?search=...
+        $statusFilters = $this->request->getGet('status');
+        $search = $this->request->getGet('search');
 
-        // 🔹 Fetch all users with user_information
-        $users = $this->usersModel
+        // Base user query
+        $builder = $this->usersModel
             ->select('users.id, users.is_verified, user_information.first_name, user_information.last_name,
                     user_information.email, user_information.phone, user_information.barangay, user_information.purok')
-            ->join('user_information', 'user_information.user_id = users.id', 'left')
-            ->orderBy('user_information.last_name', 'ASC')
-            ->findAll();
+            ->join('user_information', 'user_information.user_id = users.id', 'left');
 
-        // 🔹 Filter users by search (name)
+        // Search filter
         if (!empty($search)) {
-            $users = array_filter($users, function ($user) use ($search) {
-                $fullName = strtolower(trim($user['first_name'] . ' ' . $user['last_name']));
-                return str_contains($fullName, strtolower($search));
-            });
+            $builder->groupStart()
+                ->like('LOWER(user_information.first_name)', strtolower($search))
+                ->orLike('LOWER(user_information.last_name)', strtolower($search))
+            ->groupEnd();
         }
 
-        // 🔹 Attach bills (depending on filter)
-        foreach ($users as &$user) {
-            $billQuery = $this->billingModel
-                ->where('user_id', $user['id'])
-                ->orderBy('due_date', 'ASC');
+        // Fetch all filtered users
+        $users = $builder->orderBy('user_information.last_name', 'ASC')->findAll();
 
-            // ✅ Apply the status filter if set
-            if (!empty($statusFilter) && strtolower($statusFilter) !== 'all') {
-                $billQuery->where('status', $statusFilter);
+       $filteredUsers = [];
+
+        foreach ($users as $user) {
+            // Get unpaid bills for each user
+            $billQuery = $this->billingModel->where('user_id', $user['id']) ->where('status', 'Pending');;
+
+            // Apply status filter if not 'All'
+            if (!empty($statusFilters) && strtolower($statusFilters) !== 'all') {
+                $billQuery->like('LOWER(TRIM(status))', strtolower($statusFilters));
             }
 
-            $user['bills'] = $billQuery->findAll();
-        }
-        unset($user);
+            $bills = $billQuery->orderBy('created_at', 'DESC')->findAll();
 
-        // 🔹 Pass data to view
+            // Only keep users that actually have bills (or if no status filter, keep all)
+            if (!empty($bills) || empty($statusFilters) || strtolower($statusFilters) === 'all') {
+                $user['unpaid_bills'] = $bills;
+                $filteredUsers[] = $user;
+            }
+        }
+
+        $users = $filteredUsers;
+
+        // For showing “No results found”
+        $noResults = empty($users);
+
         $data = [
             'title' => 'Manage Accounts',
             'users' => $users,
-            'selectedStatus' => $statusFilter,
             'search' => $search,
+            'selectedStatus' => $statusFilters,
+            'noResults' => $noResults,
         ];
 
         return view('admin/ManageAccounts', $data);
     }
- 
     public function markAsPaid($billId)
     {
         // Find the bill

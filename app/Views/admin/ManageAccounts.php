@@ -1,6 +1,10 @@
 <?= $this->extend('admin/layouts/main') ?>
 <?= $this->section('content') ?>
-
+<pre>
+<?php // TEMP DEBUG
+// print_r($users);
+?>
+</pre>
 <h1 class="mb-4">Manage Accounts</h1>
 
 <!-- Flash messages -->
@@ -91,10 +95,10 @@
     <button class="btn btn-primary">Search</button>
 </form>
 
-<!-- No users found message -->
 <?php if (empty($users)): ?>
+    <!-- No results -->
     <div class="alert alert-warning text-center mt-4">
-        No users found 
+        No users found
         <?php if (!empty($search)): ?>
             matching "<strong><?= esc($search) ?></strong>"
         <?php endif; ?>
@@ -103,63 +107,72 @@
         <?php endif; ?>.
     </div>
 <?php else: ?>
-
-    <!-- ✅ User Cards with Bills -->
+    <!-- User list -->
     <?php foreach ($users as $user): ?>
-    <div class="card mb-3 shadow-sm">
-        <div class="card-header bg-primary text-white">
-            <strong><?= esc($user['last_name'] . ', ' . $user['first_name']) ?></strong>
-            <span class="float-end">
-                <?= $user['is_verified'] ? '<span class="badge bg-success">Verified</span>' : '<span class="badge bg-secondary">Unverified</span>' ?>
-            </span>
-        </div>
-        <div class="card-body">
-            <p><b>Email:</b> <?= esc($user['email']) ?></p>
-            <p><b>Contact:</b> <?= esc($user['phone']) ?></p>
-            <p><b>Address:</b> <?= esc($user['barangay']) ?>, Purok <?= esc($user['purok']) ?></p>
+        <div class="card mb-3 shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <strong><?= esc($user['last_name'] . ', ' . $user['first_name']) ?></strong>
+                <span class="float-end">
+                    <?= $user['is_verified'] ? '<span class="badge bg-success">Verified</span>' : '<span class="badge bg-secondary">Unverified</span>' ?>
+                </span>
+            </div>
 
-            <h6 class="mt-3">Unpaid Bills:</h6>
-            <?php if (!empty($user['unpaid_bills'])): ?>
-                <table class="table table-sm table-bordered">
-                    <thead class="table-light">
-                        <tr>
-                            <th>ID</th>
-                            <th>Amount</th>
-                            <th>Due Date</th>
-                            <th>Proof</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    <?php foreach ($user['unpaid_bills'] as $bill): ?>
-                        <tr>
-                            <td><?= esc($bill['id']) ?></td>
-                            <td>₱<?= number_format($bill['amount_due'], 2) ?></td>
-                            <td><?= esc($bill['due_date']) ?></td>
-                            <td>
-                                <?php if (!empty($bill['payment_proof'])): ?>
-                                    <a href="<?= base_url($bill['payment_proof']) ?>" target="_blank">View Proof</a>
-                                <?php else: ?>
-                                    <span class="text-muted">None</span>
-                                <?php endif; ?>
-                            </td>
-                            <td>
-                                <a href="<?= base_url('admin/markAsPaid/' . $bill['id']) ?>" 
-                                   class="btn btn-success btn-sm"
-                                   onclick="return confirm('Mark this bill as paid?');">
-                                    Mark as Paid
-                                </a>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                    </tbody>
-                </table>
-            <?php else: ?>
-                <p class="text-muted">No unpaid bills.</p>
-            <?php endif; ?>
+            <div class="card-body table-responsive">
+                <p><b>Email:</b> <?= esc($user['email']) ?></p>
+                <p><b>Contact:</b> <?= esc($user['phone']) ?></p>
+                <p><b>Address:</b> <?= esc($user['barangay']) ?>, Purok <?= esc($user['purok']) ?></p>
+
+                <h6 class="mt-3">Bills:</h6>
+                <?php if (!empty($user['unpaid_bills'])): ?>
+                    <table class="table table-sm table-bordered table-striped align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>ID</th>
+                                <th>Amount</th>
+                                <th>Due Date</th>
+                                <th>Status</th>
+                                <th>Created At</th>
+                                <th>Proof</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        <?php foreach ($user['unpaid_bills'] as $bill): ?>
+                            <tr>
+                                <td><?= esc($bill['id']) ?></td>
+                                <td>₱<?= number_format($bill['amount_due'], 2) ?></td>
+                                <td><?= esc($bill['due_date']) ?></td>
+                                <td><?= esc(ucwords($bill['status'])) ?></td>
+                                <td><?= date('Y-m-d', strtotime($bill['created_at'])) ?></td>
+                                <td>
+                                    <?php if (!empty($bill['payment_proof'])): ?>
+                                        <a href="<?= base_url($bill['payment_proof']) ?>" target="_blank">View Proof</a>
+                                    <?php else: ?>
+                                        <span class="text-muted">None</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php if (strtolower(trim($bill['status'])) !== 'paid'): ?>
+                                        <a href="<?= base_url('admin/markAsPaid/' . $bill['id']) ?>" 
+                                           class="btn btn-success btn-sm"
+                                           onclick="return confirm('Mark this bill as paid?');">
+                                           Mark as Paid
+                                        </a>
+                                    <?php else: ?>
+                                        <span class="badge bg-success">Paid</span>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php else: ?>
+                    <p class="text-muted">No bills found.</p>
+                <?php endif; ?>
+            </div>
         </div>
-    </div>
     <?php endforeach; ?>
 <?php endif; ?>
+
 
 <?= $this->endSection() ?>
