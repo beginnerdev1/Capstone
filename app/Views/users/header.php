@@ -10,7 +10,7 @@
         </div>
         <div class="offcanvas-body">
           <ul class="navbar-nav justify-content-center flex-grow-1 pe-3">
-            <li class="nav-item"><a class="nav-link mx-lg-2 active" href="#">Home</a></li>
+            <li class="nav-item"><a class="nav-link mx-lg-2 active" href="<?= base_url('users') ?>">Home</a></li>
             <li class="nav-item"><a class="nav-link mx-lg-2" href="#">About</a></li>
             <li class="nav-item"><a class="nav-link mx-lg-2" href="#">Services</a></li>
             <li class="nav-item"><a class="nav-link mx-lg-2" href="#">Contact</a></li>
@@ -20,7 +20,7 @@
 
       <!-- Logout button (POST form) -->
       <form action="<?= base_url('logout') ?>" method="post" style="margin: 0;">
-        <button type="submit" class="login-button btn btn-outline-danger">Logout</button>
+        <button type="submit" class="logout-button btn btn-outline-danger">Logout</button>
       </form>
 
       <button class="navbar-toggler pe-0" type="button" data-bs-toggle="offcanvas"
