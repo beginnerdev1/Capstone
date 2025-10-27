@@ -51,6 +51,14 @@
       color: #fff;
     }
 
+    .transaction-list {
+      background-color: #ffffff;
+      border-radius: 0 0 12px 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      max-height: 70vh;
+      overflow-y: auto;
+    }
+
     .history-subheader {
       padding: 0.75rem 1.5rem;
       font-size: 1.05rem;
@@ -59,16 +67,8 @@
       color: #2d3748;
       border-bottom: 1px solid #e2e8f0;
       position: sticky;
-      top: 70px; /* stays below navbar */
-      z-index: 10;
-    }
-
-    .transaction-list {
-      background-color: #ffffff;
-      border-radius: 0 0 12px 12px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-      max-height: 70vh;
-      overflow-y: auto;
+      top: 0;
+      z-index: 5;
     }
 
     .transaction-item {
@@ -150,10 +150,11 @@
         </div>
       </div>
 
-      <!-- Sticky "Today" -->
-      <div class="history-subheader">Today</div>
-
+      <!-- Scrollable List -->
       <div class="transaction-list">
+
+        <!-- Sticky "Today" -->
+        <div class="history-subheader">Today</div>
         <?php
         $payments = [
           ['id' => 1, 'time' => '9:20 AM', 'name' => 'Cash-in', 'amount' => 300.00, 'is_credit' => true, 'ref_id' => 'CSH-920-A'],
@@ -161,8 +162,11 @@
           ['id' => 3, 'time' => '7:15 AM', 'name' => 'Send Money', 'amount' => 100.00, 'is_credit' => false, 'ref_id' => 'SND-715-C'],
           ['id' => 4, 'time' => '7:06 AM', 'name' => 'Send Money', 'amount' => 1666.00, 'is_credit' => false, 'ref_id' => 'SND-706-D'],
           ['id' => 5, 'time' => '7:05 AM', 'name' => 'Cashin from Security Bank Co...', 'amount' => 500.00, 'is_credit' => true, 'ref_id' => 'CSH-705-E'],
-          ['id' => 6, 'time' => '7:01 AM', 'name' => 'Online Payment - Web Pay', 'amount' => 2248.92, 'is_credit' => false, 'ref_id' => 'PAY-701-F'],
-          ['id' => 7, 'time' => '6:59 AM', 'name' => 'Cashin from Security Bank ...', 'amount' => 3400.00, 'is_credit' => true, 'ref_id' => 'CSH-659-G'],
+          ['id' => 8, 'time' => '6:30 AM', 'name' => 'Online Payment - Web Pay', 'amount' => 875.00, 'is_credit' => false, 'ref_id' => 'PAY-630-G'],
+          ['id' => 9, 'time' => '6:15 AM', 'name' => 'Cashin from Metrobank', 'amount' => 1500.00, 'is_credit' => true, 'ref_id' => 'CSH-615-H'],
+          ['id' => 10, 'time' => '5:50 AM', 'name' => 'Send Money', 'amount' => 200.00, 'is_credit' => false, 'ref_id' => 'SND-550-I'],
+          ['id' => 11, 'time' => '5:30 AM', 'name' => 'Online Refund', 'amount' => 300.00, 'is_credit' => true, 'ref_id' => 'REF-530-J'],
+          ['id' => 12, 'time' => '5:15 AM', 'name' => 'Purchase Load', 'amount' => 100.00, 'is_credit' => false, 'ref_id' => 'LD-515-K'],
         ];
 
         foreach ($payments as $payment):
@@ -180,11 +184,46 @@
             </div>
           </div>
         <?php endforeach; ?>
+
+        <!-- Sticky "October 26, 2025" -->
+        <div class="history-subheader">October 26, 2025</div>
+        <?php
+        $past_payments = [
+          ['id' => 6, 'time' => '5:30 PM', 'name' => 'Send Money', 'amount' => 750.00, 'is_credit' => false, 'ref_id' => 'SND-530-H'],
+          ['id' => 7, 'time' => '4:12 PM', 'name' => 'Cashin from Security Bank Co...', 'amount' => 1200.00, 'is_credit' => true, 'ref_id' => 'CSH-412-I'],
+          ['id' => 13, 'time' => '3:45 PM', 'name' => 'Online Purchase', 'amount' => 599.00, 'is_credit' => false, 'ref_id' => 'BUY-345-L'],
+          ['id' => 14, 'time' => '3:20 PM', 'name' => 'Send Money', 'amount' => 120.00, 'is_credit' => false, 'ref_id' => 'SND-320-M'],
+          ['id' => 15, 'time' => '2:45 PM', 'name' => 'Refund Received', 'amount' => 350.00, 'is_credit' => true, 'ref_id' => 'REF-245-N'],
+          ['id' => 16, 'time' => '1:55 PM', 'name' => 'Cashin from Metrobank', 'amount' => 700.00, 'is_credit' => true, 'ref_id' => 'CSH-155-O'],
+          ['id' => 17, 'time' => '1:20 PM', 'name' => 'Utility Payment', 'amount' => 400.00, 'is_credit' => false, 'ref_id' => 'UTL-120-P'],
+          ['id' => 18, 'time' => '12:30 PM', 'name' => 'Send Money', 'amount' => 250.00, 'is_credit' => false, 'ref_id' => 'SND-123-Q'],
+          ['id' => 19, 'time' => '11:50 AM', 'name' => 'Online Refund', 'amount' => 550.00, 'is_credit' => true, 'ref_id' => 'REF-115-R'],
+          ['id' => 20, 'time' => '10:40 AM', 'name' => 'Purchase Load', 'amount' => 100.00, 'is_credit' => false, 'ref_id' => 'LD-104-S'],
+        ];
+
+        foreach ($past_payments as $payment):
+          $amount_prefix = $payment['is_credit'] ? '+' : '-';
+          $amount_class = $payment['is_credit'] ? 'amount-credit' : 'amount-debit';
+          $modalId = 'modalT' . $payment['id'];
+        ?>
+          <div class="transaction-item" data-bs-toggle="modal" data-bs-target="#<?= $modalId ?>">
+            <div class="transaction-details">
+              <div class="transaction-time"><?= esc($payment['time']) ?></div>
+              <div class="transaction-name"><?= esc($payment['name']) ?></div>
+            </div>
+            <div class="transaction-amount <?= $amount_class ?>">
+              ₱<?= $amount_prefix . number_format($payment['amount'], 2) ?>
+            </div>
+          </div>
+        <?php endforeach; ?>
+
       </div>
     </div>
   </main>
 
-  <?php foreach ($payments as $payment):
+  <?php 
+  $all_payments = array_merge($payments, $past_payments);
+  foreach ($all_payments as $payment):
     $amount_prefix = $payment['is_credit'] ? '+' : '-';
     $modalId = 'modalT' . $payment['id'];
   ?>
