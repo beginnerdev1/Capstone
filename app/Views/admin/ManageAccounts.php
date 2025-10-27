@@ -1,10 +1,6 @@
 <?= $this->extend('admin/layouts/main') ?>
 <?= $this->section('content') ?>
-<pre>
-<?php // TEMP DEBUG
-// print_r($users);
-?>
-</pre>
+
 <h1 class="mb-4">Manage Accounts</h1>
 
 <!-- Flash messages -->
@@ -110,6 +106,20 @@
     <!-- User list -->
     <?php foreach ($users as $user): ?>
         <div class="card mb-3 shadow-sm">
+
+            <!--Flash Message Ng pag add ng bill-->
+            <?php if (session()->getFlashdata('success')): ?>
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    <?= session()->getFlashdata('success') ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            <?php elseif (session()->getFlashdata('error')): ?>
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <?= session()->getFlashdata('error') ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            <?php endif; ?>
+
             <div class="card-header bg-primary text-white">
                 <strong><?= esc($user['last_name'] . ', ' . $user['first_name']) ?></strong>
                 <span class="float-end">
@@ -169,6 +179,40 @@
                 <?php else: ?>
                     <p class="text-muted">No bills found.</p>
                 <?php endif; ?>
+
+                <!--Button para sa pag add ng bill-->
+                <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addBillModal<?= $user['id'] ?>">
+                     + Add Bill
+                </button>
+
+                <!-- Add Bill Modal -->
+                <div class="modal fade" id="addBillModal<?= $user['id'] ?>" tabindex="-1" aria-labelledby="addBillLabel<?= $user['id'] ?>" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <form action="<?= base_url('admin/addBill/' . $user['id']) ?>" method="post">
+                                <div class="modal-header">
+                                <h5 class="modal-title" id="addBillLabel<?= $user['id'] ?>">Add New Bill for <?= esc($user['first_name'] . ' ' . $user['last_name']) ?></h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                <div class="mb-3">
+                                    <label for="amount<?= $user['id'] ?>" class="form-label">Amount</label>
+                                    <input type="number" step="0.01" class="form-control" name="amount" id="amount<?= $user['id'] ?>" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="due_date<?= $user['id'] ?>" class="form-label">Due Date</label>
+                                    <input type="date" class="form-control" name="due_date" id="due_date<?= $user['id'] ?>" required>
+                                </div>
+                                </div>
+                                <div class="modal-footer">
+                                <button type="submit" class="btn btn-success">Add Bill</button>
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
     <?php endforeach; ?>

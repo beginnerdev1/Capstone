@@ -5,12 +5,27 @@ namespace App\Controllers\Admin;
 use App\Controllers\BaseController;
 use App\Models\BillingModel;
 use App\Models\UsersModel;
+use App\Models\UserInformationModel;
 
 class Billing extends BaseController
 {
-    /**
-     * Show a single billing record
-     */
+    /**  para hindi an mag: $NameNgModel = new NameNgModel(); sa bawat function
+     *  pero ganto nalang this->NameNgModel
+     * Mula dito
+    */
+    protected $usersModel;
+    protected $userInfoModel;
+    protected $billingModel;
+
+    public function __construct()
+    {
+        $this->usersModel = new UsersModel();
+        $this->userInfoModel = new UserInformationModel();
+        $this->billingModel = new BillingModel();
+    }
+    // hanggang dito
+
+      //Show a single billing record
     public function view($id)
     {
         $billingModel = new BillingModel();
@@ -34,9 +49,7 @@ class Billing extends BaseController
         ]);
     }
 
-    /**
-     * Show only paid bills
-     */
+    //Show only paid bills
     public function paidBills()
     {
         $billingModel = new BillingModel();
@@ -57,30 +70,29 @@ class Billing extends BaseController
         ]);
     }
 
-    /**
-     * Create a new billing record
-     */
-   public function create()
+    //Create a new billing record
+   public function addBill($userId)
     {
-        $billingModel = new BillingModel();
+        $amount = $this->request->getPost('amount');
+        $due_date = $this->request->getPost('due_date');
 
-        // ✅ Generate unique bill number
-        $billNo = 'BILL-' . strtoupper(uniqid());
+        //  Generate unique bill number (timestamp + random)
+        $bill_no = 'BILL-' . date('YmdHis') . '-' . rand(100, 999);
 
         $data = [
-            'bill_no'    => $billNo, // ✅ Add this line
-            'user_id'    => $this->request->getPost('user_id'),
-            'amount'     => $this->request->getPost('amount') ?? 60,
-            'due_date'   => $this->request->getPost('due_date'),
-            'status'     => 'Unpaid',
+            'user_id' => $userId,
+            'bill_no' => $bill_no,
+            'amount_due' => $amount,
+            'due_date' => $due_date,
+            'status' => 'Pending',
             'created_at' => date('Y-m-d H:i:s')
         ];
 
-        if ($billingModel->insert($data)) {
-            return redirect()->to('/admin/billings')->with('success', 'Billing added successfully.');
+        if ($this->billingModel->insert($data)) {
+            return redirect()->back()->with('success', 'New bill added successfully!');
+        } else {
+            return redirect()->back()->with('error', 'Failed to add bill. Please try again.');
         }
-
-        return redirect()->back()->with('error', 'Failed to create billing.');
     }
 
     /**

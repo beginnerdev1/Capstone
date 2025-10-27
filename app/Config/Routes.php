@@ -75,7 +75,7 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
         $routes->get('/', 'Admin::index');
         $routes->get('logout', 'AdminAuth::logout');
         $routes->get('change-password', 'Admin::changePasswordView');
-        $routes->post('set-password', 'AdminAuth::setPassword');
+        $routes->post('setPassword', 'AdminAuth::setPassword');
         $routes->get('registeredUsers', 'Admin::registeredUsers');
         $routes->get('announcements', 'Admin::announcements');
         $routes->get('manageAccounts', 'Admin::manageAccounts');
@@ -89,7 +89,7 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
 
         // ✅ Billing Controller Routes
         $routes->get('view/(:num)', 'Billing::view/$1');
-        $routes->post('create', 'Billing::create');
+        $routes->post('addBill/(:num)', 'Billing::addBill/$1');
         $routes->get('paidBills', 'Billing::paidBills');
         $routes->get('(:segment)', 'Billing::show/$1');
         $routes->post('update-status/(:num)', 'Billing::updateStatus/$1');
