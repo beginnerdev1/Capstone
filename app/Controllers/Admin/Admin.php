@@ -76,30 +76,140 @@ class Admin extends BaseController
     {
         return view('admin/tables');
     }
-  public function registeredUsers()
+
+    public function registeredUsers()
     {
         $usersModel = new \App\Models\UsersModel();
         $userInfoModel = new \App\Models\UserInformationModel();
 
         $puroks = ['1', '2', '3', '4', '5'];
         $selectedPurok = $this->request->getGet('purok');
+        $search = $this->request->getGet('search');
 
+        // Build query with STATUS included
         $builder = $usersModel
-            ->select('users.id, user_information.first_name, user_information.last_name, user_information.email, user_information.barangay, user_information.municipality, user_information.purok')
+            ->select('
+                users.id,
+                users.status,
+                user_information.first_name,
+                user_information.last_name,
+                user_information.email,
+                user_information.barangay,
+                user_information.municipality,
+                user_information.purok,
+                users.active
+            ')
             ->join('user_information', 'user_information.user_id = users.id', 'left');
 
+        // Filter by Purok
         if ($selectedPurok) {
             $builder->where('user_information.purok', $selectedPurok);
         }
 
+        // Search by name or email
+        if ($search) {
+            $builder->groupStart()
+                    ->like('user_information.first_name', $search)
+                    ->orLike('user_information.last_name', $search)
+                    ->orLike('user_information.email', $search)
+                ->groupEnd();
+        }
+
+        // Pagination: 10 users per page
+        $users = $builder->paginate(10);
+        $pager = $usersModel->pager;
+
         $data = [
             'title' => 'Registered Users',
-            'users' => $builder->findAll(),
+            'users' => $users,
+            'pager' => $pager,
             'puroks' => $puroks,
-            'selectedPurok' => $selectedPurok
+            'selectedPurok' => $selectedPurok,
+            'search' => $search
         ];
 
         return view('admin/registeredUsers', $data);
+    }
+
+    public function pendingAccounts()
+    {
+        // Fetch users whose status is "Pending"
+        $users = $this->usersModel
+            ->select('users.id, users.email, users.status, user_information.first_name, user_information.last_name, user_information.purok, user_information.barangay')
+            ->join('user_information', 'user_information.user_id = users.id', 'left')
+            ->where('users.status', 'Pending')
+            ->findAll();
+
+        return view('admin/pendingAccounts', ['users' => $users]);
+    }
+
+   public function approve($id)
+    {
+        if (!$id) {
+            return redirect()->back()->with('error', 'No user ID provided.');
+        }
+
+        $updateData = ['status' => 'approved'];
+
+        if ($this->usersModel->update($id, $updateData)) {
+            return redirect()->back()->with('success', 'User approved successfully.');
+        }
+
+        return redirect()->back()->with('error', 'Failed to approve user.');
+    }
+
+    public function reject($id)
+    {
+        if (!$id) {
+            return redirect()->back()->with('error', 'No user ID provided.');
+        }
+
+        $updateData = ['status' => 'rejected'];
+
+        if ($this->usersModel->update($id, $updateData)) {
+            return redirect()->back()->with('success', 'User rejected successfully.');
+        }
+
+        return redirect()->back()->with('error', 'Failed to reject user.');
+    }
+
+   public function viewUser($id)
+    {
+        $usersModel = new \App\Models\UsersModel();
+        $userInfoModel = new \App\Models\UserInformationModel();
+
+        $user = $usersModel
+            ->select('users.*, user_information.*')
+            ->join('user_information', 'user_information.user_id = users.id', 'left')
+            ->where('users.id', $id)
+            ->first();
+
+        if (!$user) {
+            return redirect()->to('/admin/registeredUsers')->with('error', 'User not found');
+        }
+
+        $data = [
+            'title' => 'View User Details',
+            'user'  => $user
+        ];
+
+        return view('admin/viewUser', $data);
+    }
+
+    // Toggle active/inactive
+   public function toggleUserStatus($id)
+    {
+        $usersModel = new \App\Models\UsersModel();
+        $user = $usersModel->find($id);
+
+        if (!$user) {
+            return redirect()->back()->with('error', 'User not found.');
+        }
+
+        $newStatus = $user['active'] ? 0 : 1;
+        $usersModel->update($id, ['active' => $newStatus]);
+
+        return redirect()->back()->with('success', 'User status updated.');
     }
 
      public function getUserInfo()

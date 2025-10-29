@@ -26,10 +26,20 @@ class CreateUsersTable extends Migration
                 'constraint' => 255,
                 'null'       => false,
             ],
+            'active' => [
+                'type'       => 'TINYINT',
+                'constraint' => 1,
+                'default'    => 1, // 1 = active, 0 = deactivated
+            ],
+            'status' => [
+                'type'       => 'ENUM',
+                'constraint' => ['pending', 'approved', 'rejected'],
+                'default'    => 'pending',
+            ],
             'is_verified' => [
                 'type'       => 'TINYINT',
                 'constraint' => 1,
-                'default'    => 0,
+                'default'    => 0, // 0 = not verified, 1 = verified
             ],
             'otp_code' => [
                 'type'       => 'VARCHAR',

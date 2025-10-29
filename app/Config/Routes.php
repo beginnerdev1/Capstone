@@ -83,8 +83,8 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
         $routes->get('manageAccounts', 'Admin::manageAccounts');
         $routes->get('userInfo', 'Admin::getUserInfo');
         $routes->get('pendingAccounts', 'Admin::pendingAccounts');
-        $routes->post('approve/(:num)', 'Admin::approveUser/$1');
-        $routes->post('reject/(:num)', 'Admin::rejectUser/$1');;
+        $routes->post('approve/(:num)', 'Admin::approve/$1');
+        $routes->post('reject/(:num)', 'Admin::reject/$1');;
         $routes->get('reports', 'Admin::reports');
         $routes->get('charts', 'Admin::charts');
         $routes->get('tables', 'Admin::tables');

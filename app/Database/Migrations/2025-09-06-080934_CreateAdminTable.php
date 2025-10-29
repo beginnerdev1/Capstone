@@ -15,9 +15,20 @@ class CreateAdminTable extends Migration
                 'unsigned'       => true,
                 'auto_increment' => true,
             ],
-            'name' => [
+            'first_name' => [
                 'type'       => 'VARCHAR',
-                'constraint' => 100,
+                'constraint' => 50,
+                'null'       => false,
+            ],
+            'middle_name' => [
+                'type'       => 'VARCHAR',
+                'constraint' => 50,
+                'null'       => false,
+            ],
+            'last_name' => [
+                'type'       => 'VARCHAR',
+                'constraint' => 50,
+                'null'       => false,
             ],
             'username' => [
                 'type'       => 'VARCHAR',

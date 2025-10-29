@@ -18,7 +18,7 @@ class ForcePasswordChange implements FilterInterface
             $excluded = ['admin/change-password', 'admin/setPassword', 'admin/logout'];
 
             if (!in_array($currentPath, $excluded)) {
-                log_message('debug', '🧩 ForcePasswordChange triggered for ' . $currentPath);
+                log_message('info', '🧩 ForcePasswordChange triggered for ' . $currentPath);
 
                 return redirect()->to(base_url('admin/change-password'))
                                  ->with('info', 'Please change your default password first.');
@@ -26,7 +26,7 @@ class ForcePasswordChange implements FilterInterface
         }
 
         // Optional: always log current session state
-        log_message('debug', '🧩 ForcePasswordChange session: ' . json_encode($session->get()));
+        log_message('info', '🧩 ForcePasswordChange session: ' . json_encode($session->get()));
     }
 
     public function after(RequestInterface $request, ResponseInterface $response, $arguments = null)
