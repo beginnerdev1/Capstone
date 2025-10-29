@@ -38,6 +38,8 @@ $routes->group('users', ['filter' => 'userauth'], function ($routes) {
     $routes->get('edit-profile', 'Users::editProfile');
     $routes->get('paymentProof', 'Users::paymentProof');
     $routes->post('uploadProof', 'Users::uploadProof');
+    $routes->post('checkReference', 'Users::checkReference');
+
 
     // AJAX routes
     $routes->get('getBillingsAjax', 'Users::getBillingsAjax');
