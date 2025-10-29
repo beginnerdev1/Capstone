@@ -87,6 +87,13 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
         $routes->get('401', 'Admin::page401');
         $routes->get('500', 'Admin::page500');
 
+         // Edit user
+        $routes->get('editUser/(:num)', 'Admin::editUser/$1');
+        $routes->post('updateUser/(:num)', 'Admin::updateUser/$1');
+
+        // Deactivate / activate user
+        $routes->get('toggleUserStatus/(:num)', 'Admin::toggleUserStatus/$1');
+
         // Billing Controller Routes
         $routes->get('view/(:num)', 'Billing::view/$1');
         $routes->post('addBill/(:num)', 'Billing::addBill/$1');
