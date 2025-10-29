@@ -39,7 +39,6 @@
   <div class="card box2 shadow-sm flex-fill">
     <div class="d-flex align-items-center justify-content-between p-md-5 p-4">
       <h5 class="fw-bold m-0">Payment methods</h5>
-     
     </div>
 
     <!-- NAV TABS -->
@@ -50,8 +49,8 @@
       <li class="nav-item">
         <a class="nav-link px-2" href="#" id="mobileTab">Manual Payment</a>
       </li>
-    </ul> 
-    <br>
+    </ul>
+    <br />
 
     <!-- CREDIT CARD FORM -->
     <div id="creditContent">
@@ -130,21 +129,50 @@
           <button type="button" class="btn btn-success w-100" id="createTransaction">Pay It</button>
         </div>
 
-        <!-- Upload Proof -->
+        <!-- Upload Proof (Improved Design) -->
         <div id="uploadSection" style="display: none;">
-          <form id="proofForm" method="post" enctype="multipart/form-data" action="<?= site_url('users/uploadProof') ?>">
-            <div class="mb-3">
-              <label for="referenceNumber" class="form-label">Transaction Reference Number</label>
-              <input type="text" name="referenceNumber" id="referenceNumber" class="form-control" placeholder="Enter GCash reference number" required />
-            </div>
+          <div class="card shadow-sm border-0 rounded-4 p-4">
+            <h5 class="fw-bold text-center mb-4">
+              <i class="bi bi-receipt-cutoff text-primary me-2"></i>Upload Payment Proof
+            </h5>
+            <form id="proofForm" method="post" enctype="multipart/form-data" action="<?= site_url('users/uploadProof') ?>">
+              <div class="mb-3">
+                <label for="referenceNumber" class="form-label fw-semibold">Transaction Reference Number</label>
+                <input
+                  type="text"
+                  name="referenceNumber"
+                  id="referenceNumber"
+                  class="form-control border-2 rounded-3 py-2"
+                  placeholder="Enter GCash reference number"
+                  required
+                />
+              </div>
 
-            <div class="mb-3">
-              <label for="screenshot" class="form-label">Upload Screenshot</label>
-              <input type="file" name="screenshot" id="screenshot" class="form-control" accept="image/*" required />
-            </div>
+              <div class="mb-4">
+                <label for="screenshot" class="form-label fw-semibold">Upload Screenshot</label>
+                <div class="border border-2 border-dashed rounded-3 p-4 text-center bg-light" id="uploadBox">
+                  <i class="bi bi-cloud-arrow-up fs-1 text-primary mb-3"></i>
+                  <p class="mb-2 text-muted">Drag & drop or click to upload</p>
+                  <input
+                    type="file"
+                    name="screenshot"
+                    id="screenshot"
+                    class="form-control d-none"
+                    accept="image/*"
+                    required
+                  />
+                  <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="uploadTrigger">
+                    Choose File
+                  </button>
+                  <div id="previewContainer" class="mt-3"></div>
+                </div>
+              </div>
 
-            <button type="submit" class="btn btn-primary w-100">Submit Proof</button>
-          </form>
+              <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">
+                <i class="bi bi-send-fill me-2"></i>Submit Proof
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     </div>
@@ -178,16 +206,33 @@
     creditTab.classList.remove('active');
   });
 
-  // Copy number
   copyNumber.addEventListener('click', () => {
     navigator.clipboard.writeText(gcashNumber.textContent);
     alert('GCash number copied!');
   });
 
-  // Show upload section after clicking Pay It
   createTransaction.addEventListener('click', () => {
     alert('Transaction created! Please upload your payment proof.');
     uploadSection.style.display = 'block';
     createTransaction.disabled = true;
+  });
+
+  // Upload trigger
+  document.getElementById('uploadTrigger').addEventListener('click', function () {
+    document.getElementById('screenshot').click();
+  });
+
+  // Preview uploaded image
+  document.getElementById('screenshot').addEventListener('change', function (event) {
+    const file = event.target.files[0];
+    const previewContainer = document.getElementById('previewContainer');
+    previewContainer.innerHTML = '';
+    if (file) {
+      const img = document.createElement('img');
+      img.src = URL.createObjectURL(file);
+      img.className = 'img-fluid rounded mt-2 shadow-sm';
+      img.style.maxHeight = '200px';
+      previewContainer.appendChild(img);
+    }
   });
 </script>

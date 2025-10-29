@@ -221,39 +221,33 @@
     </div>
   </main>
 
-  <?php 
-  $all_payments = array_merge($payments, $past_payments);
-  foreach ($all_payments as $payment):
-    $amount_prefix = $payment['is_credit'] ? '+' : '-';
-    $modalId = 'modalT' . $payment['id'];
-  ?>
-    <div class="modal fade" id="<?= $modalId ?>" tabindex="-1" aria-labelledby="<?= $modalId ?>Label" aria-hidden="true">
-      <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="<?= $modalId ?>Label"><?= esc($payment['name']) ?> Details</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body">
-            <p><strong>Transaction:</strong> <?= esc($payment['name']) ?></p>
-            <p><strong>Time:</strong> <?= esc($payment['time']) ?></p>
-            <p><strong>Amount:</strong> ₱<?= $amount_prefix . number_format($payment['amount'], 2) ?></p>
-            <p><strong>Reference ID:</strong> <?= esc($payment['ref_id']) ?></p>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-            <?php if ($payment['is_credit']): ?>
-              <a href="<?= base_url('users/payments/download/' . $payment['id']) ?>" class="btn btn-primary">Download Receipt</a>
-            <?php endif; ?>
-          </div>
-        </div>
-      </div>
-    </div>
-  <?php endforeach; ?>
-
   <?= $this->include('Users/footer') ?>
   <a href="#" id="scrollTop" class="scroll-top">↑</a>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+  <script>
+  document.querySelectorAll('.status-dropdown .dropdown-item').forEach(item => {
+    item.addEventListener('click', function (e) {
+      e.preventDefault();
+
+      const selected = this.textContent.trim();
+      document.getElementById('statusDropdown').textContent = selected;
+
+      // Reset visibility
+      document.querySelectorAll('.transaction-item').forEach(el => el.style.display = 'flex');
+
+      // Filtering logic
+      if (selected === 'Successful') {
+        document.querySelectorAll('.amount-debit').forEach(el => el.closest('.transaction-item').style.display = 'none');
+      } else if (selected === 'Unsuccessful') {
+        document.querySelectorAll('.amount-credit').forEach(el => el.closest('.transaction-item').style.display = 'none');
+      } else if (selected === 'Waiting for Payment') {
+        document.querySelectorAll('.transaction-item').forEach(el => el.style.display = 'none');
+      }
+    });
+  });
+  </script>
+
 </body>
 </html>
