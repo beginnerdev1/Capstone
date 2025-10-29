@@ -229,10 +229,7 @@ class Admin extends BaseController
             'content' => view('admin/Reports', $data)
         ]);
     }
-    public function changePasswordView()
-    {
-        return view('admin/change_password');
-    }
+    
     public function paymentSettings()
     {
         $paymentModel = new PaymentSettingsModel();

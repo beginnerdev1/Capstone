@@ -7,7 +7,7 @@ use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
 class AdminAuth extends BaseController{
-    
+    //shows login view
     public function adminLogin()
     {
         // log_message('debug', 'AdminAuth controller loaded'); // Removing unnecessary log
@@ -15,91 +15,83 @@ class AdminAuth extends BaseController{
         
     }
 
-    public function login()
-{
-    $email = $this->request->getPost('email');
-    $password = $this->request->getPost('password');
+    //handles login, including OTP verification, default password check, and session management
+   public function login()
+    {
+        $email = $this->request->getPost('email');
+        $password = $this->request->getPost('password');
 
-    $adminModel = new \App\Models\AdminModel();
-    $admin = $adminModel->where('email', $email)->first();
+        $adminModel = new \App\Models\AdminModel();
+        $admin = $adminModel->where('email', $email)->first();
 
-    if (!$admin) {
-        return redirect()->back()->with('error', 'Invalid Email or Password.');
-    }
-
-    // Check if not yet verified by OTP
-    if ($admin['is_verified'] == 0) {
-        $otp = rand(100000, 999999);
-        $adminModel->update($admin['id'], [
-            'otp_code' => $otp,
-            'otp_expire' => date('Y-m-d H:i:s', strtotime('+5 minutes'))
-        ]);
-
-        session()->set(['otp_admin_id' => $admin['id'], 'otp_email' => $email]);
-
-        // Send OTP via PHPMailer
-        require ROOTPATH . 'vendor/autoload.php';
-        $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
-        try {
-            $mail->isSMTP();
-            $mail->Host = getenv('SMTP_HOST');
-            $mail->SMTPAuth = true;
-            $mail->Username = getenv('SMTP_USER');
-            $mail->Password = getenv('SMTP_PASS');
-            $mail->SMTPSecure = 'tls';
-            $mail->Port = getenv('SMTP_PORT');
-            $mail->setFrom(getenv('SMTP_FROM'), 'Admin Verification');
-            $mail->addAddress($email);
-            $mail->isHTML(true);
-            $mail->Subject = "Your Admin OTP Code";
-            $mail->Body = "<p>Your OTP is <b>$otp</b>. It will expire in 5 minutes.</p>";
-            $mail->send();
-        } catch (\PHPMailer\PHPMailer\Exception $e) {
-            log_message('error', "Mailer Error: {$mail->ErrorInfo}");
+        // 1️⃣ If email not found
+        if (!$admin) {
+            return redirect()->back()->with('error', 'Invalid Email or Password.');
         }
-        return redirect()->to('admin/verify-otp')->with('success', 'OTP sent to your email');
-    }
 
-            
-    // Verified users
-    if ($admin['is_verified'] == 1) {
-        if ($password && password_verify($password, $admin['password'])) {
-
-            // Check if admin uses the default password
-            $defaultPassword = '123456';
-
-            // Debugging
-            log_message('debug', '=== Password check for default password started ===');
-            log_message('debug', 'Stored hash in DB: ' . $admin['password']);
-            log_message('debug', 'password_verify() result: ' . (password_verify($defaultPassword, $admin['password']) ? 'TRUE' : 'FALSE'));
-
-            if (password_verify($defaultPassword, $admin['password'])) {
-                session()->setFlashdata('force_password_change', true);
-                log_message('debug', '✅ Default password detected. Force change flag set.');
-            } else {
-                log_message('debug', '❌ Not using default password.');
-            }
+        // 2️⃣ If not verified, just send OTP — no password needed yet
+        if ($admin['is_verified'] == 0) {
+            $otp = rand(100000, 999999);
+            $adminModel->update($admin['id'], [
+                'otp_code'   => $otp,
+                'otp_expire' => date('Y-m-d H:i:s', strtotime('+5 minutes'))
+            ]);
 
             session()->set([
-                'admin_id' => $admin['id'],
-                'is_admin_logged_in' => true
+                'otp_admin_id' => $admin['id'],
+                'otp_email'    => $email
             ]);
-            //debug for session
-            log_message('debug', 'Session set: ' . json_encode(session()->get()));
-            // ✅ Check if they still use default password
-            $defaultPassword = '123456';
-           if (password_verify($defaultPassword, $admin['password'])) {
-                session()->set('force_password_change', true);
-                log_message('debug', 'FORCE PASSWORD CHANGE TRIGGERED for user: '.$admin['email']);
+
+            // Send OTP email
+            require ROOTPATH . 'vendor/autoload.php';
+            $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
+
+            try {
+                $mail->isSMTP();
+                $mail->Host       = getenv('SMTP_HOST');
+                $mail->SMTPAuth   = true;
+                $mail->Username   = getenv('SMTP_USER');
+                $mail->Password   = getenv('SMTP_PASS');
+                $mail->SMTPSecure = 'tls';
+                $mail->Port       = getenv('SMTP_PORT');
+                $mail->setFrom(getenv('SMTP_FROM'), 'Admin Verification');
+                $mail->addAddress($email);
+                $mail->isHTML(true);
+                $mail->Subject = "Your Admin OTP Code";
+                $mail->Body    = "<p>Your OTP is <b>$otp</b>. It will expire in 5 minutes.</p>";
+                $mail->send();
+            } catch (\PHPMailer\PHPMailer\Exception $e) {
+                log_message('error', "Mailer Error: {$mail->ErrorInfo}");
             }
 
-            return redirect()->to('admin/')->with('success', 'Login successful.');
-        } else {
-            return redirect()->back()->with('error', 'Invalid email or password.');
+            return redirect()->to('admin/verify-otp')->with('success', 'OTP sent to your email.');
         }
-    }
-}
 
+        // 3️⃣ If verified, then require password
+        if (!password_verify($password, $admin['password'])) {
+            return redirect()->back()->with('error', 'Invalid Email or Password.');
+        }
+
+        // 4️⃣ Check if still using the default password
+        $defaultPassword = '123456';
+        $forceChange = password_verify($defaultPassword, $admin['password']);
+
+        // 5️⃣ Set session values once
+        session()->set([
+            'admin_id'              => $admin['id'],
+            'is_admin_logged_in'    => true,
+            'force_password_change' => $forceChange
+        ]);
+
+        log_message('debug', '✅ Login successful — session: ' . json_encode(session()->get()));
+
+        // 6️⃣ Redirect based on password status
+        if ($forceChange) {
+            return redirect()->to('admin/')->with('warning', 'Please change your default password.');
+        }
+
+        return redirect()->to('admin/')->with('success', 'Login successful.');
+    }
 
     //Show OTP
     public function showOtpForm()
@@ -107,6 +99,7 @@ class AdminAuth extends BaseController{
         return view('admin/loginVerify');
     }
 
+    //Verify OTP
     public function verifyOtp()
     {
         $otp = $this->request->getPost('otp');
@@ -158,6 +151,7 @@ class AdminAuth extends BaseController{
         return redirect()->to('admin/verify-otp')->with('error', 'Invalid or expired OTP.');
     }
 
+    //Resend OTP
     public function resendOtp()
     {
         $adminId = session()->get('otp_admin_id');
@@ -202,22 +196,42 @@ class AdminAuth extends BaseController{
         
     }
 
+    //Opens change password view
+    public function changePassword()
+    {
+        // optional: prevent access if not logged in
+        if (!session()->get('is_admin_logged_in')) {
+            return redirect()->to('admin/login');
+        }
+
+        return view('admin/changePassword');
+    }
+
     //Sets password
     public function setPassword()
     {
-        $userId = session()->get('user_id');
+        $adminModel = new \App\Models\AdminModel();
+        $adminId = session()->get('admin_id');
         $newPassword = $this->request->getPost('password');
 
-        if (!$userId || !$newPassword) {
-            return $this->response->setJSON(['status' => 'error', 'message' => 'Invalid request']);
+        if (!$adminId || !$newPassword) {
+            return redirect()->back()->with('error', 'Invalid request.');
         }
 
-        $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
-        $this->userModel->update($userId, ['password' => $hashedPassword]);
+        $hashed = password_hash($newPassword, PASSWORD_DEFAULT);
+        $adminModel->update($adminId, ['password' => $hashed]);
 
-        return $this->response->setJSON(['status' => 'success', 'message' => 'Password updated successfully']);
+        $session = session();
+        $session->set('force_password_change', false);
+        $session->setFlashdata('success', 'Password changed successfully.');
+        
+        // Force session write before redirect
+        $session->close();
+
+        return redirect()->to('admin/');
     }
 
+    //Logs out admin
     public function logout()
     {
         session()->destroy();

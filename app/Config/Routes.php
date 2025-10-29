@@ -61,21 +61,21 @@ $routes->post('webhook', 'WebhookController::webhook');
 // =====================================================
 $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($routes) {
 
-    // Auth routes (Controller: AdminAuth)
+    // 🧩 AUTH
     $routes->get('login', 'AdminAuth::adminLogin', ['filter' => 'guest']);
     $routes->post('login', 'AdminAuth::login', ['filter' => 'guest']);
     $routes->get('verify-otp', 'AdminAuth::showOtpForm', ['filter' => 'guest']);
     $routes->post('verify-otp', 'AdminAuth::verifyOtp', ['filter' => 'guest']);
     $routes->post('resend-otp', 'AdminAuth::resendOtp', ['filter' => 'guest']);
 
-    // Protected admin routes (Controller: Admin, Billing)
-    $routes->group('', ['filter' => 'adminauth'], function ($routes) {
-        
-        // 🔹 Admin Controller Routes
+    // 🧠 CHANGE PASSWORD (accessible even when forcePasswordChange = true)
+    $routes->get('change-password', 'AdminAuth::changePassword', ['filter' => 'adminauth']);
+    $routes->post('setPassword', 'AdminAuth::setPassword', ['filter' => 'adminauth']);
+
+    // ✅ Protected admin routes (requires both adminauth + no force password change)
+    $routes->group('', ['filter' => ['adminauth', 'forcepasswordchange']], function ($routes) {
         $routes->get('/', 'Admin::index');
         $routes->get('logout', 'AdminAuth::logout');
-        $routes->get('change-password', 'Admin::changePasswordView');
-        $routes->post('setPassword', 'AdminAuth::setPassword');
         $routes->get('registeredUsers', 'Admin::registeredUsers');
         $routes->get('announcements', 'Admin::announcements');
         $routes->get('manageAccounts', 'Admin::manageAccounts');
@@ -87,7 +87,7 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
         $routes->get('401', 'Admin::page401');
         $routes->get('500', 'Admin::page500');
 
-        // ✅ Billing Controller Routes
+        // Billing Controller Routes
         $routes->get('view/(:num)', 'Billing::view/$1');
         $routes->post('addBill/(:num)', 'Billing::addBill/$1');
         $routes->get('paidBills', 'Billing::paidBills');

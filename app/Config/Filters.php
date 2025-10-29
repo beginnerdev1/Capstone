@@ -39,6 +39,7 @@ class Filters extends BaseFilters
         'guest' => \App\Filters\GuestFilter::class,
         'superadminauth' => \App\Filters\SuperadminAuth::class,
         'superadminguest' => \App\Filters\SuperadminGuest::class,
+        'forcepasswordchange' => \App\Filters\ForcePasswordChange::class,
 
 
     ];
@@ -110,12 +111,21 @@ class Filters extends BaseFilters
      * @var array<string, array<string, list<string>>>
      */
     public array $filters = [
-                'userauth' => [
-        'before' => [
-            'users/*', // protect all user routes
+        'forcepasswordchange' => [
+            'before' => [
+                'admin/*', // Apply to all admin routes
+            ],
+            'except' => [
+                'admin/change-password',
+                'admin/setPassword',
+                'admin/logout',
+            ],
         ],
-    ],
-    
+        'userauth' => [
+            'before' => [
+                'users/*',
+            ],
+        ],
     ];
 
 }
