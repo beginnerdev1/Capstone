@@ -39,79 +39,155 @@
   <div class="card box2 shadow-sm flex-fill">
     <div class="d-flex align-items-center justify-content-between p-md-5 p-4">
       <h5 class="fw-bold m-0">Payment methods</h5>
-      <button type="button" class="btn btn-primary bar"><i class="fas fa-bars"></i></button>
+     
     </div>
+
+    <!-- NAV TABS -->
     <ul class="nav nav-tabs mb-3 px-md-4 px-2">
       <li class="nav-item">
-        <a class="nav-link px-2 active" href="#">Credit Card</a>
+        <a class="nav-link px-2 active" href="#" id="creditTab">Gcash Payment</a>
       </li>
       <li class="nav-item">
-        <a class="nav-link px-2" href="#">Mobile Payment</a>
+        <a class="nav-link px-2" href="#" id="mobileTab">Manual Payment</a>
       </li>
-      <li class="nav-item ms-auto">
-        <a class="nav-link px-2" href="#">+ More</a>
-      </li>
-    </ul>
-    <div class="px-md-5 px-4 mb-4 d-flex align-items-center">
-      <button type="button" class="btn btn-success me-4"><i class="fas fa-plus"></i></button>
-      <div class="btn-group" role="group">
-        <input type="radio" class="btn-check" name="btnradio" id="btnradio1" autocomplete="off" checked />
-        <label class="btn btn-outline-primary" for="btnradio1"><span class="pe-1">+</span>5949</label>
+    </ul> 
+    <br>
 
-        <input type="radio" class="btn-check" name="btnradio" id="btnradio2" autocomplete="off" />
-        <label class="btn btn-outline-primary" for="btnradio2"><span class="pe-1">+</span>3894</label>
-      </div>
+    <!-- CREDIT CARD FORM -->
+    <div id="creditContent">
+      <form id="payForm" action="<?= site_url('users/createCheckout') ?>" method="post">
+        <div class="row">
+          <div class="col-12">
+            <div class="d-flex flex-column px-md-5 px-4 mb-4">
+              <label for="cardNumber">Credit Card</label>
+              <div class="inputWithIcon position-relative">
+                <input id="cardNumber" class="form-control" type="text" value="5136 1845 5468 3894" />
+                <span class="position-absolute end-0 me-3">
+                  <img src="https://www.freepnglogos.com/uploads/mastercard-png/mastercard-logo-logok-15.png" alt="Mastercard" width="40" />
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <div class="d-flex flex-column ps-md-5 px-md-0 px-4 mb-4">
+              <label for="expiry">Expiration Date</label>
+              <div class="inputWithIcon position-relative">
+                <input id="expiry" type="text" class="form-control" value="05/20" />
+                <i class="fas fa-calendar-alt position-absolute end-0 me-3"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <div class="d-flex flex-column pe-md-5 px-md-0 px-4 mb-4">
+              <label for="cvv">Code CVV</label>
+              <div class="inputWithIcon position-relative">
+                <input id="cvv" type="password" class="form-control" value="123" />
+                <i class="fas fa-lock position-absolute end-0 me-3"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-12">
+            <div class="d-flex flex-column px-md-5 px-4 mb-4">
+              <label for="cardName">Name</label>
+              <div class="inputWithIcon position-relative">
+                <input id="cardName" class="form-control text-uppercase" type="text" value="Valdimir Berezovkiy" />
+                <i class="far fa-user position-absolute end-0 me-3"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-12 px-md-5 px-4 mt-3">
+            <button type="submit" class="btn btn-primary w-100">Pay ₱599.00</button>
+          </div>
+        </div>
+      </form>
     </div>
 
-    <!-- FORM -->
-    <form id="payForm" action="<?= site_url('users/createCheckout') ?>" method="post">
-      <div class="row">
-        <div class="col-12">
-          <div class="d-flex flex-column px-md-5 px-4 mb-4">
-            <label for="cardNumber">Credit Card</label>
-            <div class="inputWithIcon position-relative">
-              <input id="cardNumber" class="form-control" type="text" value="5136 1845 5468 3894" />
-              <span class="position-absolute end-0 me-3">
-                <img src="https://www.freepnglogos.com/uploads/mastercard-png/mastercard-logo-logok-15.png" alt="Mastercard" width="40" />
-              </span>
+    <!-- ALTERNATIVE / MOBILE PAYMENT -->
+    <div id="mobileContent" style="display: none;">
+      <div class="px-md-5 px-4 mb-4">
+        <h6 class="fw-bold mb-3">Alternative Mobile Payment</h6>
+
+        <!-- GCash Info -->
+        <div class="text-center mb-4">
+          <p class="fw-semibold">Pay via GCash</p>
+          <div class="bg-light border rounded p-3 d-inline-block">
+            <p class="mb-1">GCash Number:</p>
+            <h5 id="gcashNumber" class="fw-bold text-primary">09XX-XXX-XXXX</h5>
+            <img src="your_qr_code.png" alt="GCash QR Code" class="img-fluid rounded mt-3" width="150" />
+            <div class="mt-3 d-flex justify-content-center gap-2">
+              <button type="button" class="btn btn-outline-primary btn-sm" id="copyNumber">Copy Number</button>
+              <a href="your_qr_code.png" download class="btn btn-outline-secondary btn-sm">Download QR</a>
             </div>
           </div>
         </div>
 
-        <div class="col-md-6">
-          <div class="d-flex flex-column ps-md-5 px-md-0 px-4 mb-4">
-            <label for="expiry">Expiration Date</label>
-            <div class="inputWithIcon position-relative">
-              <input id="expiry" type="text" class="form-control" value="05/20" />
-              <i class="fas fa-calendar-alt position-absolute end-0 me-3"></i>
-            </div>
-          </div>
+        <!-- Pay Button -->
+        <div class="mb-4">
+          <button type="button" class="btn btn-success w-100" id="createTransaction">Pay It</button>
         </div>
 
-        <div class="col-md-6">
-          <div class="d-flex flex-column pe-md-5 px-md-0 px-4 mb-4">
-            <label for="cvv">Code CVV</label>
-            <div class="inputWithIcon position-relative">
-              <input id="cvv" type="password" class="form-control" value="123" />
-              <i class="fas fa-lock position-absolute end-0 me-3"></i>
+        <!-- Upload Proof -->
+        <div id="uploadSection" style="display: none;">
+          <form id="proofForm" method="post" enctype="multipart/form-data" action="<?= site_url('users/uploadProof') ?>">
+            <div class="mb-3">
+              <label for="referenceNumber" class="form-label">Transaction Reference Number</label>
+              <input type="text" name="referenceNumber" id="referenceNumber" class="form-control" placeholder="Enter GCash reference number" required />
             </div>
-          </div>
-        </div>
 
-        <div class="col-12">
-          <div class="d-flex flex-column px-md-5 px-4 mb-4">
-            <label for="cardName">Name</label>
-            <div class="inputWithIcon position-relative">
-              <input id="cardName" class="form-control text-uppercase" type="text" value="Valdimir Berezovkiy" />
-              <i class="far fa-user position-absolute end-0 me-3"></i>
+            <div class="mb-3">
+              <label for="screenshot" class="form-label">Upload Screenshot</label>
+              <input type="file" name="screenshot" id="screenshot" class="form-control" accept="image/*" required />
             </div>
-          </div>
-        </div>
 
-        <div class="col-12 px-md-5 px-4 mt-3">
-          <button type="submit" class="btn btn-primary w-100">Pay ₱599.00</button>
+            <button type="submit" class="btn btn-primary w-100">Submit Proof</button>
+          </form>
         </div>
       </div>
-    </form>
+    </div>
   </div>
 </div>
+
+<!-- SCRIPT -->
+<script>
+  const creditTab = document.getElementById('creditTab');
+  const mobileTab = document.getElementById('mobileTab');
+  const creditContent = document.getElementById('creditContent');
+  const mobileContent = document.getElementById('mobileContent');
+  const copyNumber = document.getElementById('copyNumber');
+  const createTransaction = document.getElementById('createTransaction');
+  const uploadSection = document.getElementById('uploadSection');
+  const gcashNumber = document.getElementById('gcashNumber');
+
+  creditTab.addEventListener('click', (e) => {
+    e.preventDefault();
+    creditContent.style.display = 'block';
+    mobileContent.style.display = 'none';
+    creditTab.classList.add('active');
+    mobileTab.classList.remove('active');
+  });
+
+  mobileTab.addEventListener('click', (e) => {
+    e.preventDefault();
+    creditContent.style.display = 'none';
+    mobileContent.style.display = 'block';
+    mobileTab.classList.add('active');
+    creditTab.classList.remove('active');
+  });
+
+  // Copy number
+  copyNumber.addEventListener('click', () => {
+    navigator.clipboard.writeText(gcashNumber.textContent);
+    alert('GCash number copied!');
+  });
+
+  // Show upload section after clicking Pay It
+  createTransaction.addEventListener('click', () => {
+    alert('Transaction created! Please upload your payment proof.');
+    uploadSection.style.display = 'block';
+    createTransaction.disabled = true;
+  });
+</script>
