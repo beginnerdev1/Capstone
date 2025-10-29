@@ -323,6 +323,76 @@ public function createCheckout()
         return redirect()->to(base_url('users/index'));
     }
 
+    //payment proof   
+    public function paymentProof()
+    {
+        return view('users/payment_proof'); // your file: app/Views/payment_proof.php
+    }
+
+
+    //upload Proof
+public function uploadProof()
+{
+    $paymentModel = new PaymentsModel();
+
+    $validation = \Config\Services::validation();
+    $validation->setRules([
+        'referenceNumber' => 'required|min_length[5]',
+        'screenshot'      => 'uploaded[screenshot]|is_image[screenshot]|max_size[screenshot,2048]',
+    ]);
+
+    if (!$validation->withRequest($this->request)->run()) {
+        return redirect()->back()->with('error', $validation->listErrors());
+    }
+
+    $reference = trim($this->request->getPost('referenceNumber'));
+
+    // Duplicate guard
+    if ($paymentModel->where('reference_number', $reference)->first()) {
+        return redirect()->back()->with('error', 'This reference number is already in use.');
+    }
+
+    $file = $this->request->getFile('screenshot');
+    if ($file && $file->isValid() && !$file->hasMoved()) {
+        $safeReference = preg_replace('/[^A-Za-z0-9_\-]/', '_', $reference);
+        $timestamp     = date('Ymd_His');
+        $newName       = $safeReference . '_' . $timestamp . '.' . $file->getExtension();
+
+        $file->move(FCPATH . 'uploads/receipts', $newName);
+
+        $paymentModel->insert([
+            'payment_intent_id' => uniqid('manual_'),
+            'payment_method_id' => null,
+            'method'            => 'manual',
+            'reference_number'  => $reference,
+            'admin_reference'   => null,
+            'receipt_image'     => 'uploads/receipts/' . $newName,
+            'amount'            => 0,
+            'currency'          => 'PHP',
+            'status'            => 'pending',
+            'user_id'           => session()->get('user_id'),
+            'paid_at'           => null,
+        ]);
+
+        // Redirect to Users::index (homepage)
+        return redirect()->to('users')->with('success', 'Payment proof submitted successfully!');
+        // Or: return redirect()->route('home')->with('success', 'Payment proof submitted successfully!');
+    }
+
+    return redirect()->back()->with('error', 'File upload failed.');
+}
+
+    //check reference
+    public function checkReference()
+        {
+            $reference = $this->request->getPost('referenceNumber');
+            $paymentModel = new PaymentsModel();
+
+            $exists = $paymentModel->where('reference_number', $reference)->first();
+
+            return $this->response->setJSON(['exists' => $exists ? true : false]);
+        }
+
 
 
 }

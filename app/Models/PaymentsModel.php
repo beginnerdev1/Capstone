@@ -16,6 +16,10 @@ class PaymentsModel extends Model
     protected $allowedFields = [
         'payment_intent_id',
         'payment_method_id',
+        'method',
+        'reference_number',
+        'admin_reference',
+        'receipt_image',
         'amount',
         'currency',
         'status',
@@ -50,7 +54,7 @@ class PaymentsModel extends Model
     public function markAsFailed(string $intentId)
     {
         return $this->where('payment_intent_id', $intentId)->set([
-            'status'   => 'failed',
+            'status'     => 'failed',
             'updated_at' => date('Y-m-d H:i:s'),
         ])->update();
     }
