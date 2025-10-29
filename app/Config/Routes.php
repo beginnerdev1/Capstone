@@ -81,6 +81,9 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
         $routes->get('announcements', 'Admin::announcements');
         $routes->get('manageAccounts', 'Admin::manageAccounts');
         $routes->get('userInfo', 'Admin::getUserInfo');
+        $routes->get('pendingAccounts', 'Admin::pendingAccounts');
+        $routes->post('approve/(:num)', 'Admin::approveUser/$1');
+        $routes->post('reject/(:num)', 'Admin::rejectUser/$1');;
         $routes->get('reports', 'Admin::reports');
         $routes->get('charts', 'Admin::charts');
         $routes->get('tables', 'Admin::tables');
@@ -88,9 +91,8 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
         $routes->get('401', 'Admin::page401');
         $routes->get('500', 'Admin::page500');
 
-         // Edit user
-        $routes->get('editUser/(:num)', 'Admin::editUser/$1');
-        $routes->post('updateUser/(:num)', 'Admin::updateUser/$1');
+        // View single user details
+        $routes->get('viewUser/(:num)', 'Admin::viewUser/$1');
 
         // Deactivate / activate user
         $routes->get('toggleUserStatus/(:num)', 'Admin::toggleUserStatus/$1');
@@ -100,7 +102,7 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
         $routes->post('addBill/(:num)', 'Billing::addBill/$1');
         $routes->get('paidBills', 'Billing::paidBills');
         $routes->get('(:segment)', 'Billing::show/$1');
-        $routes->post('update-status/(:num)', 'Billing::updateStatus/$1');
+       $routes->post('update-status/(:num)', 'Billing::updateStatus/$1');
         $routes->get('delete/(:num)', 'Billing::delete/$1');
     });
 });
