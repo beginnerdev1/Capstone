@@ -4,6 +4,10 @@ namespace App\Controllers;
 
 use App\Models\UsersModel;
 use PHPMailer\PHPMailer\PHPMailer;
+use Brevo\Client\Api\TransactionalEmailsApi;
+use Brevo\Client\Configuration;
+use Brevo\Client\Model\SendSmtpEmail;
+use GuzzleHttp\Client;  
 
 class Auth extends BaseController
 {
@@ -146,58 +150,75 @@ class Auth extends BaseController
         }
     }
 
-    // 🔹 Resend OTP
+    // 🔹 Resend OTP email Using Brevo
     public function resendOtp()
     {
+        // Check if there's a pending user in session
         if (!session()->has('pending_user')) {
-            return redirect()->to('/register');
+            return redirect()->to('/register')->with('error', 'Session expired. Please register again.');
         }
 
-        $user = $this->userModel->find(session()->get('pending_user'));
+        // Fetch user details
+        $userId = session()->get('pending_user');
+        $user = $this->userModel->find($userId);
 
         if (!$user) {
             return redirect()->to('/register')->with('error', 'User not found.');
         }
 
+        // Generate new OTP
         $otp = rand(100000, 999999);
 
-        $this->userModel->update($user['id'], [
+        // Update OTP and expiration time (5 minutes)
+        $this->userModel->update($userId, [
             'otp_code'    => $otp,
-            'otp_expires' => date('Y-m-d H:i:s', time() + 300),
+            'otp_expires' => date('Y-m-d H:i:s', strtotime('+5 minutes')),
         ]);
 
+        // Send the OTP via Brevo
         $this->sendOtpEmail($user['email'], $otp);
 
-        return redirect()->to('/verify')->with('message', 'A new OTP has been sent.');
+        // Redirect with success message
+        return redirect()->to('/verify')->with('message', 'A new OTP has been sent to your email.');
     }
 
-    // 🔹 Send OTP email
+
+// 🔹 Send OTP email using Brevo
     private function sendOtpEmail($toEmail, $otp)
     {
         require ROOTPATH . 'vendor/autoload.php';
-        $mail = new PHPMailer(true);
+
+        $config = Configuration::getDefaultConfiguration()
+            ->setApiKey('api-key', getenv('BREVO_API_KEY'));
+
+        $apiInstance = new TransactionalEmailsApi(
+            new Client(),
+            $config
+        );
+
+        $email = new SendSmtpEmail([
+            'subject' => 'Account Verification - One Time Password (OTP)',
+            'sender' => ['name' => 'Water Billing System', 'email' => getenv('SMTP_FROM')],
+            'to' => [['email' => $toEmail]],
+            'htmlContent' => "
+                <h3>Account Verification</h3>
+                <p>Dear user,</p>
+                <p>To complete your account verification process, please use the following One Time Password (OTP):</p>
+                <h2><b>{$otp}</b></h2>
+                <p>This code will expire in 5 minutes. Please do not share this code with anyone.</p>
+                <br>
+                <p>Thank you for using our Water Billing System.</p>
+                <small>This is an automated message. Please do not reply.</small>
+            ",
+        ]);
 
         try {
-            $mail->isSMTP();
-            $mail->Host       = getenv('SMTP_HOST');
-            $mail->SMTPAuth   = true;
-            $mail->Username   = getenv('SMTP_USER');
-            $mail->Password   = getenv('SMTP_PASS');
-            $mail->SMTPSecure = 'tls';
-            $mail->Port       = getenv('SMTP_PORT');
-
-            $mail->setFrom(getenv('SMTP_FROM'), 'Account Verification');
-            $mail->addAddress($toEmail);
-
-            $mail->isHTML(true);
-            $mail->Subject = 'Your OTP Code';
-            $mail->Body    = "<h3>Your OTP code is: <b>{$otp}</b></h3><p>This code will expire in 5 minutes.</p>";
-
-            $mail->send();
-        } catch (\Exception $e) {
-            log_message('error', "Mailer Error: {$mail->ErrorInfo}");
+            $apiInstance->sendTransacEmail($email);
+        } catch (Exception $e) {
+            log_message('error', 'Email could not be sent. Error: ' . $e->getMessage());
         }
     }
+
 
     // 🔹 Logout
     public function logout()
