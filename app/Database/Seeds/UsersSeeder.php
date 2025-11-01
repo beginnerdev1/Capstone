@@ -10,20 +10,23 @@ class UsersSeeder extends Seeder
     {
         $data = [
             [
-                'email' => 'admin@example.com',
-                'password' => password_hash('admin123', PASSWORD_DEFAULT),
-                'is_verified' => 1,
+                'email'        => 'user1@example.com',
+                'password'     => password_hash('user123', PASSWORD_DEFAULT),
+                'active'       => 1,
+                'is_verified'  => 1,
+                'status'        => 'pending',
+                'created_at'   => date('Y-m-d H:i:s'),
+                'updated_at'   => date('Y-m-d H:i:s'),
             ],
             [
-                'email' => 'johndoe@example.com',
-                'password' => password_hash('password123', PASSWORD_DEFAULT),
-                'is_verified' => 1,
-            ],
-            [
-                'email' => 'janesmith@example.com',
-                'password' => password_hash('mypassword', PASSWORD_DEFAULT),
-                'is_verified' => 0,
-            ],
+                'email'        => 'user2@example.com',
+                'password'     => password_hash('user123', PASSWORD_DEFAULT),
+                'active'       => 1,
+                'is_verified'  => 0,
+                'status'        => 'approved',
+                'created_at'   => date('Y-m-d H:i:s'),
+                'updated_at'   => date('Y-m-d H:i:s'),
+            ]
         ];
 
         $this->db->table('users')->insertBatch($data);

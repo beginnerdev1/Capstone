@@ -10,31 +10,32 @@ class UserInformationSeeder extends Seeder
     {
         $data = [
             [
-                'user_id'    => 1,
-                'first_name' => 'Admin',
-                'last_name'  => 'User',
-                'email'      => 'admin@myapp.com',
-                'phone'      => '09171234567',
-                'barangay'   => 'Poblacion',
-                'purok'      => '1'
+                'user_id'     => 1,
+                'first_name'  => 'Carlos',
+                'last_name'   => 'Reyes',
+                'gender'      => 'Male',
+                'phone'       => '09171234567',
+                'email'       => 'user1@example.com',
+                'purok'       => '2',
+                'barangay'    => 'San Juan',
+                'municipality'=> 'Bayawan',
+                'province'    => 'Negros Oriental',
+                'created_at'  => date('Y-m-d H:i:s'),
+                'updated_at'  => date('Y-m-d H:i:s'),
             ],
             [
-                'user_id'    => 2,
-                'first_name' => 'John',
-                'last_name'  => 'Doe',
-                'email'      => 'john@example.com',
-                'phone'      => '09181234567',
-                'barangay'   => 'San Roque',
-                'purok'      => '2'
-            ],
-            [
-                'user_id'    => 3,
-                'first_name' => 'Jane',
-                'last_name'  => 'Smith',
-                'email'      => 'jane@example.com',
-                'phone'      => '09191234567',
-                'barangay'   => 'San Isidro',
-                'purok'      => '3'
+                'user_id'     => 2,
+                'first_name'  => 'Maria',
+                'last_name'   => 'Santos',
+                'gender'      => 'Female',
+                'phone'       => '09987654321',
+                'email'       => 'user2@example.com',
+                'purok'       => '3',
+                'barangay'    => 'Poblacion',
+                'municipality'=> 'Bayawan',
+                'province'    => 'Negros Oriental',
+                'created_at'  => date('Y-m-d H:i:s'),
+                'updated_at'  => date('Y-m-d H:i:s'),
             ],
         ];
 

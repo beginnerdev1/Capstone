@@ -26,7 +26,7 @@
         <div class="collapse ms-4" id="registeredUsersMenu">
           <ul class="nav flex-column">
             <li><a class="nav-link text-white-50" href="<?= base_url('admin/registeredUsers') ?>">All Users</a></li>
-            <li><a class="nav-link text-white-50" href="<?= base_url('admin/verifyUser') ?>">Account Approval</a></li>
+            <li><a class="nav-link text-white-50" href="<?= base_url('admin/pendingAccounts') ?>">Account Approval</a></li>
           </ul>
         </div>
       </li>

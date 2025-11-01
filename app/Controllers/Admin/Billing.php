@@ -98,13 +98,13 @@ class Billing extends BaseController
     /**
      * Update a bill's payment status
      */
-    public function updateStatus($id)
+     public function updateStatus($id)
     {
-        $billingModel = new BillingModel();
-        $status = $this->request->getPost('status');
+        $status = $this->request->getPost('status') ?? 'Paid';
 
-        if ($billingModel->update($id, ['status' => $status])) {
-            return redirect()->back()->with('success', 'Billing status updated.');
+        // ✅ Update using existing model instance
+        if ($this->billingModel->update($id, ['status' => $status])) {
+            return redirect()->back()->with('success', 'Billing status updated successfully.');
         }
 
         return redirect()->back()->with('error', 'Failed to update billing status.');

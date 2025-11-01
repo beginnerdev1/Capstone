@@ -163,11 +163,11 @@
                                 </td>
                                 <td>
                                     <?php if (strtolower(trim($bill['status'])) !== 'paid'): ?>
-                                        <a href="<?= base_url('admin/markAsPaid/' . $bill['id']) ?>" 
-                                           class="btn btn-success btn-sm"
-                                           onclick="return confirm('Mark this bill as paid?');">
-                                           Mark as Paid
-                                        </a>
+                                      <?= csrf_field() ?>
+                                      <form action="<?= site_url('admin/update-status/'.$bill['id']); ?>" method="post">
+                                        <input type="hidden" name="status" value="Paid">
+                                        <button type="submit" class="btn btn-sm btn-success">Mark as Paid</button>
+                                      </form>
                                     <?php else: ?>
                                         <span class="badge bg-success">Paid</span>
                                     <?php endif; ?>
