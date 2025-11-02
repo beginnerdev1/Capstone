@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta content="width=device-width, initial-scale=1.0" name="viewport">
-  <title>Index - Home</title>
+  <title>Home</title>
 
   <!-- Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -166,6 +166,24 @@
       });
     });
   </script>
+
+
+  <?php if (session()->getFlashdata('success')): ?>
+  <div class="modal fade" id="successModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content text-center p-4">
+        <h5 class="text-success mb-3">Success!</h5>
+        <p><?= esc(session()->getFlashdata('success')) ?></p>
+        <button type="button" class="btn btn-success mt-2" data-bs-dismiss="modal">OK</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    var successModal = new bootstrap.Modal(document.getElementById('successModal'));
+    successModal.show();
+  </script>
+  <?php endif; ?>
+
 
 </body>
 

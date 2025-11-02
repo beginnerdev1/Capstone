@@ -105,12 +105,11 @@
       </form>
     </div>
 
-    <!-- ALTERNATIVE / MOBILE PAYMENT -->
+    <!-- MANUAL PAYMENT -->
     <div id="mobileContent" style="display: none;">
       <div class="px-md-5 px-4 mb-4">
         <h6 class="fw-bold mb-3">Alternative Mobile Payment</h6>
 
-        <!-- GCash Info -->
         <div class="text-center mb-4">
           <p class="fw-semibold">Pay via GCash</p>
           <div class="bg-light border rounded p-3 d-inline-block">
@@ -124,18 +123,15 @@
           </div>
         </div>
 
-        <!-- Pay Button -->
         <div class="mb-4">
           <button 
             type="button" 
             class="btn btn-success w-100" 
             id="createTransaction"
             onclick="window.location.href='<?= base_url('users/paymentProof') ?>'">
-            Proceed to Payment proof
+            Create A Transaction
           </button>
         </div>
-
-
       </div>
     </div>
   </div>
@@ -143,7 +139,7 @@
 
 <!-- SCRIPT -->
 <script>
-  // Tab switching
+  // initial tab logic
   const creditTab = document.getElementById('creditTab');
   const mobileTab = document.getElementById('mobileTab');
   const creditContent = document.getElementById('creditContent');
@@ -155,6 +151,7 @@
     mobileContent.style.display = 'none';
     creditTab.classList.add('active');
     mobileTab.classList.remove('active');
+    localStorage.setItem('activeTab', 'credit');
   });
 
   mobileTab.addEventListener('click', (e) => {
@@ -163,13 +160,69 @@
     mobileContent.style.display = 'block';
     mobileTab.classList.add('active');
     creditTab.classList.remove('active');
+    localStorage.setItem('activeTab', 'mobile');
+  });
+
+  window.addEventListener('load', () => {
+    const activeTab = localStorage.getItem('activeTab');
+    if (activeTab === 'mobile') {
+      creditContent.style.display = 'none';
+      mobileContent.style.display = 'block';
+      mobileTab.classList.add('active');
+      creditTab.classList.remove('active');
+    }
+  });
+
+  // Reattach tab events when modal is opened again
+  document.addEventListener('show.bs.modal', (e) => {
+    const modal = e.target;
+    const creditTab = modal.querySelector('#creditTab');
+    const mobileTab = modal.querySelector('#mobileTab');
+    const creditContent = modal.querySelector('#creditContent');
+    const mobileContent = modal.querySelector('#mobileContent');
+
+    if (creditTab && mobileTab && creditContent && mobileContent) {
+      creditTab.onclick = (ev) => {
+        ev.preventDefault();
+        creditContent.style.display = 'block';
+        mobileContent.style.display = 'none';
+        creditTab.classList.add('active');
+        mobileTab.classList.remove('active');
+        localStorage.setItem('activeTab', 'credit');
+      };
+
+      mobileTab.onclick = (ev) => {
+        ev.preventDefault();
+        creditContent.style.display = 'none';
+        mobileContent.style.display = 'block';
+        mobileTab.classList.add('active');
+        creditTab.classList.remove('active');
+        localStorage.setItem('activeTab', 'mobile');
+      };
+
+      // restore tab state
+      const activeTab = localStorage.getItem('activeTab');
+      if (activeTab === 'mobile') {
+        creditContent.style.display = 'none';
+        mobileContent.style.display = 'block';
+        mobileTab.classList.add('active');
+        creditTab.classList.remove('active');
+      } else {
+        creditContent.style.display = 'block';
+        mobileContent.style.display = 'none';
+        creditTab.classList.add('active');
+        mobileTab.classList.remove('active');
+      }
+    }
   });
 
   // Copy GCash number
   const copyNumber = document.getElementById('copyNumber');
   const gcashNumber = document.getElementById('gcashNumber');
-  copyNumber.addEventListener('click', () => {
-    navigator.clipboard.writeText(gcashNumber.textContent);
-    alert('GCash number copied!');
-  });
+  if (copyNumber) {
+    copyNumber.addEventListener('click', () => {
+      navigator.clipboard.writeText(gcashNumber.textContent);
+      alert('GCash number copied!');
+    });
+  }
 </script>
