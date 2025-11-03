@@ -41,11 +41,11 @@
                                 <td><?= esc($user['barangay']) ?></td>
                                 <td><span class="badge bg-warning text-dark"><?= esc($user['status']) ?></span></td>
                                 <td>
-                                    <form action="<?= site_url('approve'.$user['id']) ?>" method="post" class="d-inline">
+                                    <form action="<?= base_url('admin/approve/'.$user['id']) ?>" method="post" class="d-inline">
                                         <?= csrf_field() ?>
                                         <button type="submit" class="btn btn-success btn-sm">Approve</button>
                                     </form>
-                                    <form action="<?= site_url('reject'.$user['id']) ?>" method="post" class="d-inline">
+                                    <form action="<?= base_url('admin/reject/'.$user['id']) ?>" method="post" class="d-inline">
                                         <?= csrf_field() ?>
                                         <button type="submit" class="btn btn-danger btn-sm">Reject</button>
                                     </form>

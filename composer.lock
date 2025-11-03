@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "5287d9ca7a3d02c1e1565c38efe7b3df",
+    "content-hash": "b131bdea021348efd348c2a195f553ec",
     "packages": [
         {
             "name": "getbrevo/brevo-php",

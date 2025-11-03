@@ -17,6 +17,8 @@ class UsersModel extends Model
         'otp_expires',
         'created_at',
         'updated_at',
+        'status',
+        
     ];
 
     protected $useTimestamps = true;

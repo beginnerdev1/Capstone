@@ -6,13 +6,10 @@ use App\Controllers\BaseController;
 use App\Models\BillingModel;
 use App\Models\UsersModel;
 use App\Models\UserInformationModel;
+use CodeIgniter\Exceptions\PageNotFoundException;
 
 class Billing extends BaseController
 {
-    /**  para hindi an mag: $NameNgModel = new NameNgModel(); sa bawat function
-     *  pero ganto nalang this->NameNgModel
-     * Mula dito
-    */
     protected $usersModel;
     protected $userInfoModel;
     protected $billingModel;
@@ -23,14 +20,13 @@ class Billing extends BaseController
         $this->userInfoModel = new UserInformationModel();
         $this->billingModel = new BillingModel();
     }
-    // hanggang dito
 
-      //Show a single billing record
+    /**
+     * View a single billing record by ID
+     */
     public function view($id)
     {
-        $billingModel = new BillingModel();
-
-        $bill = $billingModel
+        $bill = $this->billingModel
             ->select('billings.*, 
                       CONCAT(user_information.first_name, " ", user_information.last_name) AS user_name, 
                       users.email')
@@ -40,7 +36,7 @@ class Billing extends BaseController
             ->first();
 
         if (!$bill) {
-            throw new \CodeIgniter\Exceptions\PageNotFoundException("Bill ID {$id} not found.");
+            throw new PageNotFoundException("Bill ID {$id} not found.");
         }
 
         return view('admin/billing_view', [
@@ -49,18 +45,18 @@ class Billing extends BaseController
         ]);
     }
 
-    //Show only paid bills
+    /**
+     * Show all paid bills
+     */
     public function paidBills()
     {
-        $billingModel = new BillingModel();
-
-        $bills = $billingModel
+        $bills = $this->billingModel
             ->select('billings.*, 
                       CONCAT(user_information.first_name, " ", user_information.last_name) AS user_name, 
                       users.email')
             ->join('users', 'users.id = billings.user_id', 'left')
             ->join('user_information', 'user_information.user_id = users.id', 'left')
-            ->where('billings.status', 'Paid')
+            ->whereIn('billings.status', ['Paid', 'Over the Counter']) // ✅ include OTC
             ->orderBy('billings.updated_at', 'DESC')
             ->findAll();
 
@@ -70,41 +66,51 @@ class Billing extends BaseController
         ]);
     }
 
-    //Create a new billing record
-   public function addBill($userId)
+    /**
+     * Add a new billing record
+     */
+    public function addBill($userId)
     {
         $amount = $this->request->getPost('amount');
         $due_date = $this->request->getPost('due_date');
 
-        //  Generate unique bill number (timestamp + random)
+        // Validation check
+        if (empty($amount) || empty($due_date)) {
+            return redirect()->back()->with('error', 'Amount and due date are required.');
+        }
+
+        // Generate unique bill number
         $bill_no = 'BILL-' . date('YmdHis') . '-' . rand(100, 999);
 
         $data = [
-            'user_id' => $userId,
-            'bill_no' => $bill_no,
-            'amount_due' => $amount,
-            'due_date' => $due_date,
-            'status' => 'Pending',
-            'created_at' => date('Y-m-d H:i:s')
+            'user_id'     => $userId,
+            'bill_no'     => $bill_no,
+            'amount_due'  => $amount,
+            'due_date'    => $due_date,
+            'status'      => 'Pending',
+            'created_at'  => date('Y-m-d H:i:s')
         ];
 
         if ($this->billingModel->insert($data)) {
             return redirect()->back()->with('success', 'New bill added successfully!');
-        } else {
-            return redirect()->back()->with('error', 'Failed to add bill. Please try again.');
         }
+
+        return redirect()->back()->with('error', 'Failed to add bill. Please try again.');
     }
 
     /**
-     * Update a bill's payment status
+     * Update billing status (Paid / Over the Counter)
      */
-     public function updateStatus($id)
+    public function updateStatus($id)
     {
-        $status = $this->request->getPost('status') ?? 'Paid';
+        $status = $this->request->getPost('status');
 
-        // ✅ Update using existing model instance
+        if (!$status) {
+            return redirect()->back()->with('error', 'No status provided.');
+        }
+
         if ($this->billingModel->update($id, ['status' => $status])) {
-            return redirect()->back()->with('success', 'Billing status updated successfully.');
+            return redirect()->back()->with('success', "Billing status updated to '{$status}' successfully.");
         }
 
         return redirect()->back()->with('error', 'Failed to update billing status.');
@@ -115,9 +121,7 @@ class Billing extends BaseController
      */
     public function delete($id)
     {
-        $billingModel = new BillingModel();
-
-        if ($billingModel->delete($id)) {
+        if ($this->billingModel->delete($id)) {
             return redirect()->back()->with('success', 'Billing deleted successfully.');
         }
 

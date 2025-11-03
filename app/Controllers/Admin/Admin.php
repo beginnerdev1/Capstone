@@ -13,12 +13,14 @@ class Admin extends BaseController
     protected $usersModel;
     protected $userInfoModel;
     protected $billingModel;
+    protected $adminModel;
 
     public function __construct()
     {
         $this->usersModel = new UsersModel();
         $this->userInfoModel = new UserInformationModel();
         $this->billingModel = new BillingModel();
+        $this->adminModel = new AdminModel();
     }
 
     public function index()
@@ -248,61 +250,55 @@ class Admin extends BaseController
 
      public function manageAccounts()
     {
-        $statusFilters = $this->request->getGet('status');
-        $search = $this->request->getGet('search');
+        $status = $this->request->getGet('status') ?? '';
+        $search = $this->request->getGet('search') ?? '';
 
-        // Base user query
-        $builder = $this->usersModel
-            ->select('users.id, users.is_verified, user_information.first_name, user_information.last_name,
-                    user_information.email, user_information.phone, user_information.barangay, user_information.purok')
+        // Start with all users
+        $users = $this->usersModel->select('users.id, users.email, users.is_verified, user_information.first_name, user_information.last_name, user_information.phone, user_information.barangay, user_information.purok')
             ->join('user_information', 'user_information.user_id = users.id', 'left');
 
-        // Search filter
         if (!empty($search)) {
-            $builder->groupStart()
-                ->like('LOWER(user_information.first_name)', strtolower($search))
-                ->orLike('LOWER(user_information.last_name)', strtolower($search))
-            ->groupEnd();
+            $users->groupStart()
+                ->like('user_information.first_name', $search)
+                ->orLike('user_information.last_name', $search)
+                ->groupEnd();
         }
 
-        // Fetch all filtered users
-        $users = $builder->orderBy('user_information.last_name', 'ASC')->findAll();
+        $users = $users->findAll();
 
-       $filteredUsers = [];
+        // Attach bills per user
+        foreach ($users as &$user) {
+            $builder = $this->billingModel->where('user_id', $user['id']);
 
-        foreach ($users as $user) {
-            // Get unpaid bills for each user
-            $billQuery = $this->billingModel->where('user_id', $user['id']) ->where('status', 'Pending');;
-
-            // Apply status filter if not 'All'
-            if (!empty($statusFilters) && strtolower($statusFilters) !== 'all') {
-                $billQuery->like('LOWER(TRIM(status))', strtolower($statusFilters));
+            // Filter by selected status
+            if (!empty($status) && strtolower($status) != 'all') {
+                if ($status == 'Paid') {
+                    // Include both Paid and Over the Counter
+                    $builder->groupStart()
+                        ->where('status', 'Paid')
+                        ->orWhere('status', 'Over the Counter')
+                        ->groupEnd();
+                } else {
+                    $builder->where('status', $status);
+                }
             }
 
-            $bills = $billQuery->orderBy('created_at', 'DESC')->findAll();
-
-            // Only keep users that actually have bills (or if no status filter, keep all)
-            if (!empty($bills) || empty($statusFilters) || strtolower($statusFilters) === 'all') {
-                $user['unpaid_bills'] = $bills;
-                $filteredUsers[] = $user;
-            }
+            $user['unpaid_bills'] = $builder->findAll();
         }
 
-        $users = $filteredUsers;
+        // Filter out users with no bills if a specific status is selected
+        if (!empty($status) && strtolower($status) != 'all') {
+            $users = array_filter($users, fn($u) => !empty($u['unpaid_bills']));
+        }
 
-        // For showing “No results found”
-        $noResults = empty($users);
-
-        $data = [
-            'title' => 'Manage Accounts',
+        return view('admin/manageAccounts', [
             'users' => $users,
             'search' => $search,
-            'selectedStatus' => $statusFilters,
-            'noResults' => $noResults,
-        ];
-
-        return view('admin/ManageAccounts', $data);
+            'selectedStatus' => $status,
+            'payment' => $this->adminModel->first(),
+        ]);
     }
+
     public function markAsPaid($billId)
     {
         // Find the bill
@@ -373,5 +369,81 @@ class Admin extends BaseController
         }
 
         return redirect()->back()->with('error', 'QR upload failed!');
+    }
+    //view profile
+    public function profile()
+    {
+        $adminId = session()->get('admin_id');
+
+        if (!$adminId) {
+            return redirect()->to(base_url('admin/login'))->with('error', 'You must be logged in.');
+        }
+
+        $admin = $this->adminModel->find($adminId);
+
+        if (!$admin) {
+            return redirect()->to(base_url('admin/login'))->with('error', 'Admin not found.');
+        }
+
+        return view('admin/profile', ['admin' => $admin]);
+    }
+    //update profile
+    public function updateProfile()
+    {
+        helper(['form', 'url']);
+
+        $adminId = session()->get('admin_id');
+        if (!$adminId) {
+            return redirect()->to(base_url('admin/login'))->with('error', 'You must be logged in.');
+        }
+
+        $admin = $this->adminModel->find($adminId);
+        if (!$admin) {
+            return redirect()->back()->with('error', 'Admin not found.');
+        }
+
+        $updateData = [
+            'first_name'  => $this->request->getPost('first_name'),
+            'middle_name' => $this->request->getPost('middle_name'),
+            'last_name'   => $this->request->getPost('last_name'),
+            'email'       => $this->request->getPost('email'),
+        ];
+
+        // ✅ Handle file upload
+        $file = $this->request->getFile('profile_picture');
+        if ($file && $file->isValid() && !$file->hasMoved()) {
+            $newName = $file->getRandomName();
+            $uploadPath = FCPATH . 'uploads/profile/';
+
+            if (!is_dir($uploadPath)) {
+                mkdir($uploadPath, 0755, true);
+            }
+
+            if ($file->move($uploadPath, $newName)) {
+                // Delete old file if exists
+                if (!empty($admin['profile_picture']) && $admin['profile_picture'] !== 'default.png') {
+                    $oldFile = $uploadPath . $admin['profile_picture'];
+                    if (file_exists($oldFile)) {
+                        unlink($oldFile);
+                    }
+                }
+
+                $updateData['profile_picture'] = $newName;
+            }
+        }
+
+        // ✅ Save update
+        $this->adminModel->update($adminId, $updateData);
+
+        // ✅ Update session
+        session()->set([
+            'admin_first_name'  => $updateData['first_name'],
+            'admin_middle_name' => $updateData['middle_name'],
+            'admin_last_name'   => $updateData['last_name'],
+            'admin_email'       => $updateData['email'],
+            'admin_picture'     => $updateData['profile_picture'] ?? $admin['profile_picture'] ?? 'default.png',
+        ]);
+
+        return redirect()->back()->with('success', 'Profile updated successfully.');
     }
 }

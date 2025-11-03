@@ -30,6 +30,11 @@ class CreateAdminTable extends Migration
                 'constraint' => 50,
                 'null'       => false,
             ],
+            'profile_picture' => [
+                'type'       => 'VARCHAR',
+                'constraint' => 255,
+                'null'       => true,
+            ],
             'username' => [
                 'type'       => 'VARCHAR',
                 'constraint' => 100,

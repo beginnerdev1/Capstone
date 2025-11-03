@@ -87,12 +87,14 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
         $routes->get('pendingAccounts', 'Admin::pendingAccounts');
         $routes->post('approve/(:num)', 'Admin::approve/$1');
         $routes->post('reject/(:num)', 'Admin::reject/$1');;
-        $routes->get('reports', 'Admin::reports');
+        $routes->get('reports', 'Reports::index');
         $routes->get('charts', 'Admin::charts');
         $routes->get('tables', 'Admin::tables');
         $routes->get('404', 'Admin::page404');
         $routes->get('401', 'Admin::page401');
         $routes->get('500', 'Admin::page500');
+        $routes->get('profile', 'Admin::profile');
+        $routes->post('updateProfile', 'Admin::updateProfile');
 
         // View single user details
         $routes->get('viewUser/(:num)', 'Admin::viewUser/$1');

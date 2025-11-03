@@ -9,7 +9,6 @@ class AdminModel extends Model
     protected $table            = 'admin';
     protected $primaryKey       = 'id';
     protected $allowedFields    = [
-        'name',
         'username',
         'email',
         'password',
@@ -18,7 +17,11 @@ class AdminModel extends Model
         'otp_code',
         'otp_expire',
         'created_at',
-        'updated_at'
+        'updated_at',
+        'first_name',
+        'last_name',
+        'middle_name',
+        'profile_picture',
     ];
 
     protected $useTimestamps    = true;

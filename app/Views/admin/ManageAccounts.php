@@ -5,11 +5,15 @@
 
 <!-- Flash messages -->
 <?php if (session()->getFlashdata('success')): ?>
-<div class="alert alert-success"><?= session()->getFlashdata('success') ?></div>
-<?php endif; ?>
-
-<?php if (session()->getFlashdata('error')): ?>
-<div class="alert alert-danger"><?= session()->getFlashdata('error') ?></div>
+<div class="alert alert-success alert-dismissible fade show">
+    <?= session()->getFlashdata('success') ?>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+<?php elseif (session()->getFlashdata('error')): ?>
+<div class="alert alert-danger alert-dismissible fade show">
+    <?= session()->getFlashdata('error') ?>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
 <?php endif; ?>
 
 <!-- QR Code Section -->
@@ -68,7 +72,7 @@
   </div>
 </div>
 
-<!-- Tabs for filtering -->
+<!-- Tabs -->
 <ul class="nav nav-tabs mb-3">
     <?php 
     $tabs = ['All' => '', 'Pending' => 'Pending', 'Paid' => 'Paid', 'Over the Counter' => 'Over the Counter'];
@@ -84,7 +88,7 @@
     <?php endforeach; ?>
 </ul>
 
-<!-- Search bar -->
+<!-- Search -->
 <form method="get" action="<?= site_url('admin/manageAccounts') ?>" class="d-flex mb-4">
     <input type="hidden" name="status" value="<?= esc($selectedStatus) ?>">
     <input type="text" name="search" value="<?= esc($search) ?>" class="form-control me-2" placeholder="Search by name...">
@@ -92,7 +96,6 @@
 </form>
 
 <?php if (empty($users)): ?>
-    <!-- No results -->
     <div class="alert alert-warning text-center mt-4">
         No users found
         <?php if (!empty($search)): ?>
@@ -103,23 +106,8 @@
         <?php endif; ?>.
     </div>
 <?php else: ?>
-    <!-- User list -->
     <?php foreach ($users as $user): ?>
         <div class="card mb-3 shadow-sm">
-
-            <!--Flash Message Ng pag add ng bill-->
-            <?php if (session()->getFlashdata('success')): ?>
-                <div class="alert alert-success alert-dismissible fade show" role="alert">
-                    <?= session()->getFlashdata('success') ?>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
-            <?php elseif (session()->getFlashdata('error')): ?>
-                <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    <?= session()->getFlashdata('error') ?>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
-            <?php endif; ?>
-
             <div class="card-header bg-primary text-white">
                 <strong><?= esc($user['last_name'] . ', ' . $user['first_name']) ?></strong>
                 <span class="float-end">
@@ -162,15 +150,19 @@
                                     <?php endif; ?>
                                 </td>
                                 <td>
-                                    <?php if (strtolower(trim($bill['status'])) !== 'paid'): ?>
-                                      <?= csrf_field() ?>
-                                      <form action="<?= site_url('admin/update-status/'.$bill['id']); ?>" method="post">
-                                        <input type="hidden" name="status" value="Paid">
-                                        <button type="submit" class="btn btn-sm btn-success">Mark as Paid</button>
-                                      </form>
-                                    <?php else: ?>
-                                        <span class="badge bg-success">Paid</span>
-                                    <?php endif; ?>
+                                <?php if (!in_array($selectedStatus, ['Paid', 'Over the Counter'])): ?>
+                                    <form action="<?= site_url('admin/update-status/' . $bill['id']) ?>" method="post" class="d-flex">
+                                        <?= csrf_field() ?>
+                                      
+                                        <select name="status" class="form-select form-select-sm me-2" required>
+                                            <option value="" disabled selected>Choose...</option>
+                                            <option value="Paid">Paid</option>
+                                            <option value="Over the Counter">Over the Counter</option>
+                                        </select>
+                                        
+                                            <button type="button" class="btn btn-sm btn-primary">Update</button>
+                                <?php endif; ?>
+                                    </form>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -180,9 +172,9 @@
                     <p class="text-muted">No bills found.</p>
                 <?php endif; ?>
 
-                <!--Button para sa pag add ng bill-->
+                <!-- Add Bill -->
                 <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addBillModal<?= $user['id'] ?>">
-                     + Add Bill
+                    + Add Bill
                 </button>
 
                 <!-- Add Bill Modal -->
@@ -191,22 +183,22 @@
                         <div class="modal-content">
                             <form action="<?= base_url('admin/addBill/' . $user['id']) ?>" method="post">
                                 <div class="modal-header">
-                                <h5 class="modal-title" id="addBillLabel<?= $user['id'] ?>">Add New Bill for <?= esc($user['first_name'] . ' ' . $user['last_name']) ?></h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    <h5 class="modal-title" id="addBillLabel<?= $user['id'] ?>">Add New Bill for <?= esc($user['first_name'] . ' ' . $user['last_name']) ?></h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                 </div>
                                 <div class="modal-body">
-                                <div class="mb-3">
-                                    <label for="amount<?= $user['id'] ?>" class="form-label">Amount</label>
-                                    <input type="number" step="0.01" class="form-control" name="amount" id="amount<?= $user['id'] ?>" required>
-                                </div>
-                                <div class="mb-3">
-                                    <label for="due_date<?= $user['id'] ?>" class="form-label">Due Date</label>
-                                    <input type="date" class="form-control" name="due_date" id="due_date<?= $user['id'] ?>" required>
-                                </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Amount</label>
+                                        <input type="number" step="0.01" class="form-control" name="amount" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Due Date</label>
+                                        <input type="date" class="form-control" name="due_date" required>
+                                    </div>
                                 </div>
                                 <div class="modal-footer">
-                                <button type="submit" class="btn btn-success">Add Bill</button>
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                    <button type="submit" class="btn btn-success">Add Bill</button>
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                                 </div>
                             </form>
                         </div>
@@ -217,6 +209,5 @@
         </div>
     <?php endforeach; ?>
 <?php endif; ?>
-
 
 <?= $this->endSection() ?>
