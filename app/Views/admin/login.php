@@ -33,19 +33,15 @@
       <?php endif; ?>
 
       <form action="<?= base_url('admin/login') ?>" method="post">
+        <label for="email"><i class="fa-solid fa-envelope me-2"></i>Email address</label>
         <div class="form-floating mb-3">
           <input type="email" class="form-control" id="email" name="email" placeholder="name@example.com" required>
-          <label for="email"><i class="fa-solid fa-envelope me-2"></i>Email address</label>
         </div>
+        <label for="password"><i class="fa-solid fa-lock me-2"></i>Password</label>
         <div class="form-floating mb-3 position-relative">
           <input type="password" class="form-control" id="password" name="password" placeholder="Password" >
-          <label for="password"><i class="fa-solid fa-lock me-2"></i>Password</label>
           <i class="fa-solid fa-eye position-absolute top-50 end-0 translate-middle-y me-3 text-muted" id="togglePassword" style="cursor:pointer;"></i>
         </div>
-
-       <!--  <div class="d-flex justify-content-between align-items-center mb-4">
-          <a href="<?= base_url('forgot-password') ?>" class="text-decoration-none small text-primary">Forgot password?</a>
-        </div> -->
 
         <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold shadow-sm">Login</button>
       </form>

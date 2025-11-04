@@ -45,7 +45,7 @@
         <div class="row mb-4">
             <div class="col-md-6">
                 <label>Status</label>
-                <input type="text" class="form-control" value="<?= $user['active'] ? 'Active' : 'Deactivated' ?>" readonly>
+                <input type="text" class="form-control" value="<?= $user['active'] ? 'Active' : 'Inactive' ?>" readonly>
             </div>
         </div>
 
