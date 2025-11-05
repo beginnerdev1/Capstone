@@ -56,7 +56,7 @@ class Billing extends BaseController
                       users.email')
             ->join('users', 'users.id = billings.user_id', 'left')
             ->join('user_information', 'user_information.user_id = users.id', 'left')
-            ->whereIn('billings.status', ['Paid', 'Over the Counter']) // ✅ include OTC
+            ->whereIn('billings.status', ['Paid', 'Over the Counter'])
             ->orderBy('billings.updated_at', 'DESC')
             ->findAll();
 
@@ -71,15 +71,13 @@ class Billing extends BaseController
      */
     public function addBill($userId)
     {
-        $amount = $this->request->getPost('amount');
-        $due_date = $this->request->getPost('due_date');
+        $amount = $this->p('amount');
+        $due_date = $this->p('due_date');
 
-        // Validation check
         if (empty($amount) || empty($due_date)) {
             return redirect()->back()->with('error', 'Amount and due date are required.');
         }
 
-        // Generate unique bill number
         $bill_no = 'BILL-' . date('YmdHis') . '-' . rand(100, 999);
 
         $data = [
@@ -99,14 +97,14 @@ class Billing extends BaseController
     }
 
     /**
-     * Update billing status (Paid / Over the Counter)
+     * Update billing status
      */
     public function updateStatus($id)
     {
-        $status = $this->request->getPost('status');
+        $status = $this->p('status', ['Paid', 'Pending', 'Over the Counter']);
 
         if (!$status) {
-            return redirect()->back()->with('error', 'No status provided.');
+            return redirect()->back()->with('error', 'Invalid or missing status.');
         }
 
         if ($this->billingModel->update($id, ['status' => $status])) {

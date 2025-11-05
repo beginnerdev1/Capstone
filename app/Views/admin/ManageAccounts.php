@@ -150,7 +150,7 @@
                                     <?php endif; ?>
                                 </td>
                                 <td>
-                                <?php if (!in_array($selectedStatus, ['Paid', 'Over the Counter'])): ?>
+                                <?php if (in_array($bill['status'], ['Rejected', 'Pending']) ): ?>
                                     <form action="<?= site_url('admin/update-status/' . $bill['id']) ?>" method="post" class="d-flex">
                                         <?= csrf_field() ?>
                                       
@@ -160,7 +160,7 @@
                                             <option value="Over the Counter">Over the Counter</option>
                                         </select>
                                         
-                                            <button type="button" class="btn btn-sm btn-primary">Update</button>
+                                            <button type="submit" class="btn btn-sm btn-primary">Update</button>
                                 <?php endif; ?>
                                     </form>
                                 </td>

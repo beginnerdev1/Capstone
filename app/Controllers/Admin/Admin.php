@@ -28,29 +28,60 @@ class Admin extends BaseController
 
     public function index()
     {
-        $query = $this->billingModel->select("
-                DATE_FORMAT(updated_at, '%b') AS month,
-                SUM(amount_due) AS total
-            ")
-            ->whereIn('status', ['Paid', 'Over the Counter'])
-            ->groupBy('month')
-            ->orderBy('updated_at', 'ASC')
-            ->get();
+       // === Billing data ===
+    $totalCollected = $this->billingModel
+        ->whereIn('status', ['Paid', 'Over the Counter'])
+        ->selectSum('amount_due')
+        ->get()->getRow()->amount_due ?? 0;
 
-        $months = [];
-        $incomeData = [];
+    $unpaidCount = $this->billingModel
+        ->where('status', 'Pending')
+        ->countAllResults();
 
-        foreach ($query->getResultArray() as $row) {
-            $months[] = $row['month'];
-            $incomeData[] = (float) $row['total'];
-        }
+    $monthlyTotal = $this->billingModel
+        ->whereIn('status', ['Paid', 'Over the Counter'])
+        ->where('MONTH(updated_at)', date('m'))
+        ->where('YEAR(updated_at)', date('Y'))
+        ->selectSum('amount_due')
+        ->get()->getRow()->amount_due ?? 0;
 
-        $data = [
-            'title' => 'Dashboard',
-            'months' => $months,
-            'incomeData' => $incomeData,
-        ];
+    // === User counts ===
+    $active = $this->usersModel->where('status', 'approved')->countAllResults();
+    $pending = $this->usersModel->where('status', 'pending')->countAllResults();
+    $inactive = $this->usersModel->where('status', 'inactive')->countAllResults();
+    $activeUsers = $active;
 
+    // === Monthly income data (for charts) ===
+    $query = $this->billingModel->select("
+            DATE_FORMAT(updated_at, '%b') AS month,
+            SUM(amount_due) AS total
+        ")
+        ->whereIn('status', ['Paid', 'Over the Counter'])
+        ->groupBy('MONTH(updated_at)')
+        ->orderBy('MONTH(updated_at)', 'ASC')
+        ->get();
+
+    $months = [];
+    $incomeData = [];
+
+    foreach ($query->getResultArray() as $row) {
+        $months[] = $row['month'];
+        $incomeData[] = (float) $row['total'];
+    }
+
+    // === Pass data to view ===
+    $data = [
+        'title'          => 'Dashboard',
+        'totalCollected' => $totalCollected,
+        'unpaidCount'    => $unpaidCount,
+        'activeUsers'    => $activeUsers,
+        'monthlyTotal'   => $monthlyTotal,
+        'months'         => json_encode($months),
+        'incomeData'     => json_encode($incomeData),
+        'active'         => $active,
+        'pending'        => $pending,
+        'inactive'       => $inactive,
+    ];
         return view('admin/index', $data);
     }
 

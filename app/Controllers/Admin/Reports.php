@@ -39,7 +39,7 @@ class Reports extends BaseController
         // === User counts ===
         $active = $this->usersModel->where('status', 'approved')->countAllResults();
         $pending = $this->usersModel->where('status', 'pending')->countAllResults();
-        $inactive = $this->usersModel->where('status', 'rejected')->countAllResults();
+        $inactive = $this->usersModel->where('status', 'inactive')->countAllResults();
         $activeUsers = $active;
 
         // === Monthly paid bills ===
@@ -58,7 +58,7 @@ class Reports extends BaseController
             $totals[] = (float)$b['total'];
         }
 
-        return view('admin/reports', [
+        return view('admin/index', [
             'title' => 'Reports',
             'totalCollected' => $totalCollected,
             'unpaidCount' => $unpaidCount,
