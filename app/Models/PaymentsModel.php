@@ -14,6 +14,7 @@ class PaymentsModel extends Model
     protected $useSoftDeletes   = true;
 
     protected $allowedFields = [
+        'billing_id',
         'payment_intent_id',
         'payment_method_id',
         'method',

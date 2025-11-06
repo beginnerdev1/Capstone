@@ -16,6 +16,7 @@ class BillingModel extends Model
         'status',
         'billing_month',
         'due_date',
+        'paid_date',
         'proof_of_payment',
         'remarks',
         'created_at',

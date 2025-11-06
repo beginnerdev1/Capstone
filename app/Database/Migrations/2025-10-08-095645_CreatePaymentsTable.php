@@ -14,6 +14,11 @@ class CreatePaymentsTable extends Migration
                 'unsigned'       => true,
                 'auto_increment' => true,
             ],
+            'billing_id' => [
+                'type'     => 'INT',
+                'unsigned' => true,
+                'null'     => true,
+            ],
             'payment_intent_id' => [
                 'type'       => 'VARCHAR',
                 'constraint' => 255,
@@ -24,7 +29,7 @@ class CreatePaymentsTable extends Migration
                 'null'       => true,
             ],
             'method' => [
-                'type'       => 'ENUM("gateway","manual")',
+                'type'       => 'ENUM("gateway","manual", "offline")',
                 'default'    => 'gateway',
             ],
             'reference_number' => [
@@ -52,9 +57,9 @@ class CreatePaymentsTable extends Migration
                 'default'    => 'PHP',
             ],
             'status' => [
-                'type'       => 'VARCHAR',
-                'constraint' => 50,
-                'default'    => 'pending',
+                'type'       => 'ENUM',
+                'constraint' => ['Pending', 'Paid', 'Rejected', 'Over the Counter'],
+                'default'    => 'Pending',
             ],
             'user_id' => [
                 'type'     => 'INT',
@@ -80,7 +85,9 @@ class CreatePaymentsTable extends Migration
 
         $this->forge->addKey('id', true);
         $this->forge->addForeignKey('user_id', 'users', 'id', 'CASCADE', 'CASCADE');
+        $this->forge->addForeignKey('billing_id', 'billings', 'id', 'SET NULL', 'CASCADE');
         $this->forge->createTable('payments');
+       
     }
 
     public function down()

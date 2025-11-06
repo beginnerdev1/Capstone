@@ -128,6 +128,7 @@
                                 <th>ID</th>
                                 <th>Amount</th>
                                 <th>Due Date</th>
+                                <th>Paid Date</th>
                                 <th>Status</th>
                                 <th>Created At</th>
                                 <th>Proof</th>
@@ -140,6 +141,7 @@
                                 <td><?= esc($bill['id']) ?></td>
                                 <td>₱<?= number_format($bill['amount_due'], 2) ?></td>
                                 <td><?= esc($bill['due_date']) ?></td>
+                                <td><?= esc($bill['paid_date'] ?? 'N/A') ?></td>
                                 <td><?= esc(ucwords($bill['status'])) ?></td>
                                 <td><?= date('Y-m-d', strtotime($bill['created_at'])) ?></td>
                                 <td>
@@ -151,16 +153,54 @@
                                 </td>
                                 <td>
                                 <?php if (in_array($bill['status'], ['Rejected', 'Pending']) ): ?>
-                                    <form action="<?= site_url('admin/update-status/' . $bill['id']) ?>" method="post" class="d-flex">
+                                <div class="d-flex">
+                                    <!-- Status Update Form -->
+                                    <form action="<?= site_url('admin/update-status/' . $bill['id']) ?>" method="post" class="d-flex me-2">
                                         <?= csrf_field() ?>
-                                      
+                                    
                                         <select name="status" class="form-select form-select-sm me-2" required>
                                             <option value="" disabled selected>Choose...</option>
                                             <option value="Paid">Paid</option>
                                             <option value="Over the Counter">Over the Counter</option>
                                         </select>
                                         
-                                            <button type="submit" class="btn btn-sm btn-primary">Update</button>
+                                        <button type="submit" class="btn btn-sm btn-primary">Update</button>
+                                    </form>
+
+                                    <!-- Edit Button -->
+                                    <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editBillModal<?= $bill['id'] ?>">
+                                        Edit
+                                    </button>
+                                </div>
+
+                                <!-- Edit Bill Modal -->
+                                <div class="modal fade" id="editBillModal<?= $bill['id'] ?>" tabindex="-1" aria-labelledby="editBillLabel<?= $bill['id'] ?>" aria-hidden="true">
+                                    <div class="modal-dialog">
+                                        <div class="modal-content">
+                                            <form action="<?= site_url('admin/editBill/' . $bill['id']) ?>" method="post">
+                                                <?= csrf_field() ?>
+                                                <div class="modal-header">
+                                                    <h5 class="modal-title" id="editBillLabel<?= $bill['id'] ?>">Edit Bill #<?= $bill['id'] ?></h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                </div>
+                                                <div class="modal-body">
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Amount</label>
+                                                        <input type="number" step="0.01" class="form-control" name="amount" value="<?= esc($bill['amount_due']) ?>" required>
+                                                    </div>
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Due Date</label>
+                                                        <input type="date" class="form-control" name="due_date" value="<?= esc($bill['due_date']) ?>" required>
+                                                    </div>
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="submit" class="btn btn-success">Save Changes</button>
+                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
                                 <?php endif; ?>
                                     </form>
                                 </td>

@@ -30,9 +30,11 @@ class Users extends BaseController
 
         // Fetch all payments for this user, latest first
         $data['payments'] = $paymentsModel
-                                ->where('user_id', $userId)
-                                ->orderBy('created_at', 'DESC')
-                                ->findAll();
+        ->select('payments.*, billings.bill_no, billings.due_date')
+        ->join('billings', 'billings.id = payments.billing_id', 'left')
+        ->where('payments.user_id', $userId)
+        ->orderBy('payments.created_at', 'DESC')
+        ->findAll();
 
         // Load the history view (file: app/Views/Users/history.php)
         return view('users/history', $data);
@@ -271,26 +273,30 @@ public function changePassword()
 
 
     // Return billing data via AJAX
-    public function getBillingsAjax()
+   public function getBillingsAjax()
     {
         $limit = (int) ($this->request->getGet('limit') ?? 10);
+        $userId = session()->get('id'); // get the logged-in user's ID
 
-        // Mock billing data
-        $billings = [
-            ['id'=>302, 'amount'=>950.00,  'due_date'=>'2025-07-01', 'status'=>'paid'],
-            ['id'=>303, 'amount'=>1100.75, 'due_date'=>'2025-06-01', 'status'=>'paid'],
-            ['id'=>304, 'amount'=>1300.00, 'due_date'=>'2025-05-01', 'status'=>'paid'],
-            ['id'=>305, 'amount'=>1250.25, 'due_date'=>'2025-04-01', 'status'=>'paid'],
-            ['id'=>306, 'amount'=>1400.00, 'due_date'=>'2025-03-01', 'status'=>'paid'],
-            ['id'=>307, 'amount'=>1150.80, 'due_date'=>'2025-02-01', 'status'=>'paid'],
-            ['id'=>308, 'amount'=>1600.00, 'due_date'=>'2025-01-01', 'status'=>'paid'],
-            ['id'=>309, 'amount'=>1700.60, 'due_date'=>'2024-12-01', 'status'=>'paid'],
-            ['id'=>310, 'amount'=>1800.90, 'due_date'=>'2024-11-01', 'status'=>'paid'],
-            ['id'=>311, 'amount'=>1900.00, 'due_date'=>'2024-10-01', 'status'=>'paid'],
-            ['id'=>312, 'amount'=>2000.75, 'due_date'=>'2024-09-01', 'status'=>'paid'],
-        ];
+        $billingModel = new \App\Models\BillingModel();
 
-        $data = array_slice($billings, 0, $limit);
+        // Fetch bills belonging to the logged-in user
+        $billings = $billingModel
+            ->where('user_id', $userId)
+            ->orderBy('created_at', 'DESC')
+            ->findAll($limit);
+
+        // Optionally format the data for JSON (for cleaner output)
+        $data = array_map(function ($bill) {
+            return [
+                'id'         => $bill['id'],
+                'bill_no'    => $bill['bill_no'],
+                'amount'     => (float) $bill['amount_due'],
+                'due_date'   => $bill['due_date'],
+                'status'     => ucfirst($bill['status']),
+                'month'      => $bill['billing_month'] ?? '',
+            ];
+        }, $billings);
 
         return $this->response->setJSON($data);
     }
@@ -430,6 +436,7 @@ public function createCheckout()
         if ($paymentIntentId) {
             $paymentsModel = new \App\Models\PaymentsModel();
             $paymentsModel->insert([
+                'billing_id'        => $this->request->getPost('billing_id') ?? null,
                 'payment_intent_id' => $paymentIntentId,
                 'amount'            => $amount,
                 'currency'          => 'PHP',
@@ -454,11 +461,44 @@ public function createCheckout()
 
 
 // Handle payment success and failure redirects
-    public function paymentSuccess()
+   public function paySuccess()
     {
-        session()->setFlashdata('payment_status', 'success');
-        return redirect()->to(base_url('users/index'));
+        $session = session();
+        $userId = $session->get('user_id');
+
+        $paymentModel = new \App\Models\PaymentModel();
+        $billingModel = new \App\Models\BillingModel();
+
+        // 1️⃣ Find the latest pending bill of the user
+        $latestBill = $billingModel
+            ->where('user_id', $userId)
+            ->where('status', 'Pending')
+            ->orderBy('id', 'DESC')
+            ->first();
+
+        // 2️⃣ Create the payment record
+        $paymentData = [
+            'user_id' => $userId,
+            'amount'  => $latestBill ? $latestBill['amount_due'] : 0,
+            'status'  => 'Paid',
+            'billing_id' => $latestBill ? $latestBill['id'] : null,
+            'created_at' => date('Y-m-d H:i:s'),
+        ];
+
+        $paymentModel->insert($paymentData);
+
+        // 3️⃣ Update the billing record to mark as paid
+        if ($latestBill) {
+            $billingModel->update($latestBill['id'], [
+                'status' => 'Paid',
+                'paid_date' => date('Y-m-d H:i:s'),
+            ]);
+        }
+
+        // Redirect or load success page
+        return redirect()->to('/user/payments')->with('success', 'Payment successful!');
     }
+
 
     public function paymentFailed()
     {
@@ -504,6 +544,7 @@ public function uploadProof()
         $file->move(FCPATH . 'uploads/receipts', $newName);
 
         $paymentModel->insert([
+            'billing_id'       => $this->request->getPost('billing_id') ?? null,
             'payment_intent_id' => uniqid('manual_'),
             'payment_method_id' => null,
             'method'            => 'manual',
@@ -516,6 +557,14 @@ public function uploadProof()
             'user_id'           => session()->get('user_id'),
             'paid_at'           => null,
         ]);
+        
+        $billingModel = new BillingModel();
+
+        // Update all user's billings to 'Pending' upon new proof submission
+        $billingModel->where('user_id', session()->get('user_id'))
+             ->orderBy('id', 'DESC')
+             ->set(['status' => 'Pending'])
+             ->update();
 
         // Redirect to Users::index (homepage)
         return redirect()->to('users')->with('success', 'Payment proof submitted successfully!');

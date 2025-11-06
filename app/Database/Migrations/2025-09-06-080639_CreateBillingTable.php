@@ -43,6 +43,10 @@ class CreateBillingTable extends Migration
                 'type'           => 'DATE',
                 'null'           => true,
             ],
+            'paid_date' => [
+                'type' => 'DATETIME',
+                'null' => true,
+            ],
             'proof_of_payment' => [
                 'type'           => 'VARCHAR',
                 'constraint'     => '255',

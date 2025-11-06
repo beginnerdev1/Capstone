@@ -114,6 +114,7 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
         $routes->post('addBill/(:num)', 'Billing::addBill/$1');
         $routes->get('paidBills', 'Billing::paidBills');
         $routes->get('(:segment)', 'Billing::show/$1');
+        $routes->post('editBill/(:num)', 'Billing::editBill/$1');
        $routes->post('update-status/(:num)', 'Billing::updateStatus/$1');
         $routes->get('delete/(:num)', 'Billing::delete/$1');
     });
