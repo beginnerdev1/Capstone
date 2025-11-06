@@ -28,8 +28,8 @@ class CreateUsersTable extends Migration
             ],
             'active' => [
                 'type'       => 'TINYINT',
-                'constraint' => 1,
-                'default'    => 1, // 1 = active, 0 = inactive, -1 = suspended
+                'constraint' => 2,
+                'default'    => 1, // 2 = active, 1 = inactive 0=pending -1 = suspended 
             ],
             'status' => [
                 'type'       => "ENUM('pending','approved','rejected','inactive','suspended')",

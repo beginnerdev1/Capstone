@@ -203,6 +203,8 @@
               <div class="modal-body bg-light" id="receiptContent<?= $payment['id'] ?>">
                 <p><strong>Time:</strong> <?= esc($time) ?></p>
                 <p><strong>Transaction:</strong> <?= esc($payment['method'] === 'manual' ? 'Manual Payment' : 'Online Payment') ?></p>
+                <p><strong>Bill No.:</strong> <?= esc($payment['bill_no'] ?? 'N/A') ?></p>
+                <p><strong>Due Date:</strong> <?= esc($payment['due_date'] ?? 'N/A') ?></p>
                 <p><strong>Amount:</strong> ₱<?= number_format($payment['amount'], 2) ?></p>
                 <p><strong>Status:</strong> <?= ucfirst($payment['status']) ?></p>
                 <p><strong>Reference ID:</strong> <?= esc($payment['reference_number']) ?></p>

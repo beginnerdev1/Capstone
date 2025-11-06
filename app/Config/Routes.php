@@ -94,6 +94,9 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
         $routes->get('pendingAccounts', 'Admin::pendingAccounts');
         $routes->post('approve/(:num)', 'Admin::approve/$1');
         $routes->post('reject/(:num)', 'Admin::reject/$1');;
+        $routes->get('activateUser/(:num)', 'Admin::activateUser/$1');
+        $routes->get('deactivateUser/(:num)', 'Admin::deactivateUser/$1');
+        $routes->get('suspendUser/(:num)', 'Admin::suspendUser/$1');
         $routes->get('reports', 'Reports::index');
         $routes->get('charts', 'Admin::charts');
         $routes->get('tables', 'Admin::tables');
@@ -114,6 +117,7 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
         $routes->post('addBill/(:num)', 'Billing::addBill/$1');
         $routes->get('paidBills', 'Billing::paidBills');
         $routes->get('(:segment)', 'Billing::show/$1');
+        $routes->post('editBill/(:num)', 'Billing::editBill/$1');
        $routes->post('update-status/(:num)', 'Billing::updateStatus/$1');
         $routes->get('delete/(:num)', 'Billing::delete/$1');
     });
