@@ -9,10 +9,17 @@ class CreateUserInformation extends Migration
     public function up()
     {
         $this->forge->addField([
-            'user_id'    => [
+            'info_id' => [
+                'type'           => 'INT',
+                'constraint'     => 11,
+                'unsigned'       => true,
+                'auto_increment' => true,
+            ],
+            'user_id' => [
                 'type'       => 'INT',
                 'constraint' => 11,
                 'unsigned'   => true,
+                'unique'     => true,
             ],
             'first_name' => [
                 'type'       => 'VARCHAR',
@@ -24,40 +31,50 @@ class CreateUserInformation extends Migration
                 'constraint' => 100,
                 'null'       => true,
             ],
-            'gender'      => [
+            'gender' => [
                 'type'       => 'VARCHAR',
                 'constraint' => 20,
                 'null'       => true,
             ],
-            'phone'      => [
+            'age' => [
+                'type'       => 'INT',
+                'constraint' => 3,
+                'null'       => true,
+            ],
+            'family_number' => [
+                'type'       => 'INT',
+                'constraint' => 11,
+                'null'       => true,
+            ],
+            'phone' => [
                 'type'       => 'VARCHAR',
                 'constraint' => 20,
                 'null'       => true,
             ],
-            'email'      => [
+            'purok' => [
                 'type'       => 'VARCHAR',
                 'constraint' => 100,
                 'null'       => true,
             ],
-            'purok'      => [
+            'barangay' => [
                 'type'       => 'VARCHAR',
                 'constraint' => 100,
-                'null'       => true,
-            ],
-            'barangay'   => [
-                'type'       => 'VARCHAR',
-                'constraint' => 100,
-                'null'       => true,
+                'default'    => 'Borlongan',
             ],
             'municipality' => [
                 'type'       => 'VARCHAR',
                 'constraint' => 100,
-                'null'       => true,
+                'default'    => 'Dipaculao',
             ],
-            'province'   => [
+            'province' => [
                 'type'       => 'VARCHAR',
                 'constraint' => 100,
-                'null'       => true,
+                'default'    => 'Aurora',
+            ],
+            'zipcode' => [
+                'type'       => 'VARCHAR',
+                'constraint' => 10,
+                'default'    => '3203',
             ],
             'profile_picture' => [
                 'type'       => 'VARCHAR',
@@ -74,13 +91,8 @@ class CreateUserInformation extends Migration
             ],
         ]);
 
-        // Make user_id the PRIMARY KEY
-        $this->forge->addKey('user_id', true);
-
-        // Foreign key links user_information.user_id to users.id
+        $this->forge->addKey('info_id', true);
         $this->forge->addForeignKey('user_id', 'users', 'id', 'CASCADE', 'CASCADE');
-
-        // Create the table
         $this->forge->createTable('user_information');
     }
 

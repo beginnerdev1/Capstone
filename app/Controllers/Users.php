@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Models\BillingModel;
 use App\Models\UserInformationModel;
 use App\Models\PaymentsModel;
+use App\Models\UsersModel;
 
 class Users extends BaseController
 {
@@ -14,145 +15,258 @@ class Users extends BaseController
         return view('users/index');
     }
 
-    // Show billing history page with sample data
-public function history()
-{
-    $session = session();
-    $userId = $session->get('user_id'); // Get logged-in user's ID
+    // Show billing history page - ongoing
+    public function history()
+    {
+        $session = session();
+        $userId = $session->get('user_id'); // Get logged-in user's ID
 
-    if (!$userId) {
-        // Redirect to login if user is not logged in
-        return redirect()->to('/login');
+        if (!$userId) {
+            // Redirect to login if user is not logged in
+            return redirect()->to('/login');
+        }
+
+        $paymentsModel = new PaymentsModel();
+
+        // Fetch all payments for this user, latest first
+        $data['payments'] = $paymentsModel
+                                ->where('user_id', $userId)
+                                ->orderBy('created_at', 'DESC')
+                                ->findAll();
+
+        // Load the history view (file: app/Views/Users/history.php)
+        return view('users/history', $data);
     }
 
-    $paymentsModel = new PaymentsModel();
-
-    // Fetch all payments for this user, latest first
-    $data['payments'] = $paymentsModel
-                            ->where('user_id', $userId)
-                            ->orderBy('created_at', 'DESC')
-                            ->findAll();
-
-    // Load the history view (file: app/Views/Users/history.php)
-    return view('Users/history', $data);
-}
-
-    // Show profile page
+    // Show profile page - Done
     public function profile()
     {
         return view('users/profile');
     }
 
-    // Show change password page
-    public function changePassword()
-    {
-        $session = session();
-        $userId = $session->get('user_id');
-
-        if (!$userId) {
-            return $this->response->setJSON(['status' => 'error', 'message' => 'User not logged in']);
-        }
-
-        $userModel = new UserModel();
-        $user = $userModel->find($userId);
-
-        if (!$user) {
-            return $this->response->setJSON(['status' => 'error', 'message' => 'User not found']);
-        }
-
-        $currentPassword = trim($this->request->getPost('current_password'));
-        $newPassword     = trim($this->request->getPost('new_password'));
-        $confirmPassword = trim($this->request->getPost('confirm_password'));
-
-        // 🔒 Verify current password
-        if (!password_verify($currentPassword, $user['password'])) {
-            return $this->response->setJSON(['status' => 'error', 'message' => 'Incorrect Current Password']);
-        }
-
-        // 🔒 Confirm password match
-        if ($newPassword !== $confirmPassword) {
-            return $this->response->setJSON(['status' => 'error', 'message' => 'Incorrect Confirm Password']);
-        }
-
-        // 🔒 Password strength validation
-        if (
-            strlen($newPassword) < 8 ||
-            !preg_match('/[A-Z]/', $newPassword) ||
-            !preg_match('/[a-z]/', $newPassword) ||
-            !preg_match('/[0-9]/', $newPassword)
-        ) {
-            return $this->response->setJSON(['status' => 'error', 'message' => 'Password must include at least 8 characters, 1 uppercase, 1 lowercase, and 1 number.']);
-        }
-
-        // ✅ Hash new password and update
-        $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
-        $userModel->update($userId, ['password' => $hashedPassword]);
-
-        return $this->response->setJSON(['status' => 'success', 'message' => 'Password changed successfully']);
-    }
-
-
-    // Update user profile info via AJAX
-      // Update or insert profile info
-public function updateProfile()
+// Show change password page
+public function changePassword()
 {
-    $request = $this->request;
-    $user_id = session()->get('user_id');
+    $userId = session()->get('user_id');
+    
+    $currentPassword = $this->request->getPost('current_password');
+    $newPassword = $this->request->getPost('new_password');
+    $confirmPassword = $this->request->getPost('confirm_password');
 
-    if (!$user_id) {
+    // Check if new passwords match
+    if ($newPassword !== $confirmPassword) {
         return $this->response->setJSON([
-            'status'  => 'error',
-            'message' => 'User not logged in'
+            'status' => 'error',
+            'message' => 'New passwords do not match.'
         ]);
     }
 
-    $userModel = new \App\Models\UserInformationModel();
-    $existing  = $userModel->find($user_id);
+    // Password complexity validation
+    $uppercase = preg_match('@[A-Z]@', $newPassword);
+    $lowercase = preg_match('@[a-z]@', $newPassword);
+    $number    = preg_match('@[0-9]@', $newPassword);
+    $length    = strlen($newPassword) >= 8;
 
-    $data = [
-        'first_name'   => $request->getPost('first_name') ?? null,
-        'last_name'    => $request->getPost('last_name') ?? null,
-        'gender'       => $request->getPost('gender') ?? null,
-        'phone'        => $request->getPost('phone') ?? null,
-        'email'        => $request->getPost('email') ?? null,
-        'purok'        => $request->getPost('purok') ?? null,
-        'street'       => $request->getPost('street') ?? null,
-        'barangay'     => $request->getPost('barangay') ?? null,
-        'municipality' => $request->getPost('municipality') ?? null,
-        'province'     => $request->getPost('province') ?? null,
-    ];
-
-    // ✅ Save profile picture to /public/uploads/
-    $file = $request->getFile('profile_picture');
-    if ($file && $file->isValid() && !$file->hasMoved()) {
-        $uploadPath = FCPATH . 'uploads/'; // <--- changed from WRITEPATH
-        if (!is_dir($uploadPath)) {
-            mkdir($uploadPath, 0777, true);
-        }
-
-        $newName = $file->getRandomName();
-        $file->move($uploadPath, $newName);
-        $data['profile_picture'] = $newName;
-
-        // Delete old file if it exists
-        if ($existing && !empty($existing['profile_picture']) && file_exists($uploadPath . $existing['profile_picture'])) {
-            unlink($uploadPath . $existing['profile_picture']);
-        }
+    if (!$uppercase || !$lowercase || !$number || !$length) {
+        return $this->response->setJSON([
+            'status' => 'error',
+            'message' => 'Password must be at least 8 characters and include 1 uppercase letter, 1 lowercase letter, and 1 number.'
+        ]);
     }
 
-    // Save to database
-    if ($existing) {
-        $updated = $userModel->update($user_id, $data);
-    } else {
-        $data['user_id'] = $user_id;
-        $updated = $userModel->insert($data);
+    // Load the model
+    $usersModel = new \App\Models\UsersModel();
+
+    // Get user data
+    $user = $usersModel->find($userId);
+
+    // Check current password
+    if (!$user || !password_verify($currentPassword, $user['password'])) {
+        return $this->response->setJSON([
+            'status' => 'error',
+            'message' => 'Current password is incorrect.'
+        ]);
     }
+
+    // Update password
+    $usersModel->update($userId, [
+        'password' => password_hash($newPassword, PASSWORD_DEFAULT)
+    ]);
 
     return $this->response->setJSON([
-        'status'  => $updated ? 'success' : 'error',
-        'message' => $updated ? 'Profile saved successfully' : 'Failed to save profile'
+        'status' => 'success',
+        'message' => 'Password changed successfully.'
     ]);
 }
+
+
+
+
+
+
+ 
+    // Update or insert profile info AJAX - Done
+    public function updateProfile()
+        {
+            try {
+                $userId = session()->get('user_id');
+                $userModel = new \App\Models\UsersModel();
+
+                if (!$userModel->find($userId)) {
+                    return $this->response->setJSON([
+                        'status' => 'error',
+                        'message' => 'User does not exist'
+                    ]);
+                }
+
+                $data = [
+                    'first_name'    => $this->request->getPost('first_name'),
+                    'last_name'     => $this->request->getPost('last_name'),
+                    'phone'         => $this->request->getPost('phone'),
+                    'gender'        => $this->request->getPost('gender'),
+                    'age'           => $this->request->getPost('age'),
+                    'family_number' => $this->request->getPost('family_number'),
+                    'purok'         => $this->request->getPost('purok'),
+                    'barangay'      => $this->request->getPost('barangay'),
+                    'municipality'  => $this->request->getPost('municipality'),
+                    'province'      => $this->request->getPost('province'),
+                    'zipcode'       => $this->request->getPost('zipcode'),
+                ];
+
+                $file = $this->request->getFile('profile_picture');
+                if ($file && $file->isValid() && !$file->hasMoved()) {
+                    $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+                    $maxSize = 5 * 1024 * 1024;
+                    $uploadDir = 'uploads/profile_pictures';
+
+                    if (!in_array($file->getMimeType(), $allowedMimes)) {
+                        return $this->response->setJSON([
+                            'status' => 'error',
+                            'message' => 'Invalid file type.'
+                        ]);
+                    }
+
+                    if ($file->getSize() > $maxSize) {
+                        return $this->response->setJSON([
+                            'status' => 'error',
+                            'message' => 'File size exceeds 5MB.'
+                        ]);
+                    }
+
+                    $extension = strtolower($file->getClientExtension());
+                    $validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+                    if (!in_array($extension, $validExtensions)) {
+                        return $this->response->setJSON([
+                            'status' => 'error',
+                            'message' => 'Invalid file extension.'
+                        ]);
+                    }
+
+                    if (!is_dir($uploadDir)) {
+                        mkdir($uploadDir, 0755, true);
+                    }
+
+                    $newName = time() . '_' . uniqid() . '.' . $extension;
+                    $file->move($uploadDir, $newName);
+                    $data['profile_picture'] = $newName;
+                }
+
+                $userInfoModel = model('UserInformationModel');
+                $result = $userInfoModel->saveUserInfo($userId, $data);
+
+                if (isset($result['success']) && $result['success'] === true) {
+                    return $this->response->setJSON([
+                        'status' => 'success',
+                        'message' => 'Profile updated successfully'
+                    ]);
+                }
+
+                return $this->response->setJSON([
+                    'status' => 'error',
+                    'message' => 'Failed to update profile'
+                ]);
+
+            } catch (\Exception $e) {
+                log_message('error', 'UpdateProfile Exception: ' . $e->getMessage());
+                return $this->response->setJSON([
+                    'status' => 'error',
+                    'message' => 'An unexpected error occurred'
+                ]);
+            }
+        }
+
+
+    //Change email - Done
+    public function changeEmail()
+    {
+        $userId = session()->get('user_id');
+        log_message('debug', 'User ID from session: ' . $userId);
+
+        if (!$userId) {
+            log_message('error', 'No user is logged in.');
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'User not logged in.'
+            ]);
+        }
+
+        $currentEmail = $this->request->getPost('current_email');
+        $newEmail = $this->request->getPost('new_email');
+        $confirmEmail = $this->request->getPost('confirm_email');
+        $password = $this->request->getPost('password');
+
+        log_message('debug', 'POST data: ' . json_encode([
+            'currentEmail' => $currentEmail,
+            'newEmail' => $newEmail,
+            'confirmEmail' => $confirmEmail
+        ]));
+
+        if ($newEmail !== $confirmEmail) {
+            log_message('error', 'New emails do not match.');
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'New emails do not match.'
+            ]);
+        }
+
+        $userModel = new \App\Models\UsersModel();
+        $user = $userModel->find($userId);
+
+        if (!$user) {
+            log_message('error', 'User not found in database.');
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'User not found.'
+            ]);
+        }
+
+        if (!password_verify($password, $user['password'])) {
+            log_message('error', 'Incorrect password.');
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'Incorrect password.'
+            ]);
+        }
+
+        if ($user['email'] === $newEmail) {
+            log_message('error', 'New email is the same as current.');
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'New email is the same as the current email.'
+            ]);
+        }
+
+        $userModel->update($userId, ['email' => $newEmail]);
+        log_message('debug', 'Email updated for user ID: ' . $userId);
+
+        return $this->response->setJSON([
+            'status' => 'success',
+            'message' => 'Email updated successfully.'
+        ]);
+    }
+
+
+
 
 
 
@@ -181,39 +295,66 @@ public function updateProfile()
         return $this->response->setJSON($data);
     }
 
-    // Return profile info via AJAX
-public function getProfileInfo()
-{
-    $user_id = session()->get('user_id');
 
-    if (!$user_id) {
+    // Return profile info via AJAX - Done
+    public function getProfileInfo()
+    {
+        $user_id = session()->get('user_id');
+        if (!$user_id) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'No session user_id'
+            ]);
+        }
+
+        $userModel = new \App\Models\UsersModel();
+        $userInfoModel = new \App\Models\UserInformationModel();
+
+        // Get account info including email
+        $account = $userModel
+            ->select('email, created_at, status')
+            ->where('id', $user_id)
+            ->first();
+
+        // Get profile info
+        $profile = $userInfoModel
+            ->select('first_name, last_name, gender, age, family_number, phone, purok, barangay, municipality, province, zipcode, profile_picture')
+            ->where('user_id', $user_id)
+            ->first();
+
+        if (!$profile) {
+            $profile = [
+                'first_name' => '',
+                'last_name' => '',
+                'gender' => '',
+                'age' => '',
+                'family_number' => '',
+                'phone' => '',
+                'purok' => '',
+                'barangay' => 'Borlongan',
+                'municipality' => 'Dipaculao',
+                'province' => 'Aurora',
+                'zipcode' => '3203',
+                'profile_picture' => null
+            ];
+        }
+
+        // Merge email and account info
+        $profile['email'] = $account['email'] ?? '';
+        $profile['created_at'] = $account['created_at'] ?? null;
+        $profile['account_status'] = (!empty($account['status']) && $account['status'] === 'verified') ? 'Verified' : 'Pending';
+
         return $this->response->setJSON([
-            'status' => 'error',
-            'message' => 'No session user_id'
+            'status' => 'success',
+            'data' => $profile
         ]);
     }
 
-    $userModel = new UserInformationModel();
 
-    $user = $userModel
-        ->select('user_information.first_name, user_information.last_name, user_information.gender, user_information.phone, user_information.email, user_information.purok, user_information.barangay, user_information.municipality, user_information.province, user_information.profile_picture')
-        ->where('user_information.user_id', $user_id)
-        ->first();
 
-    if (!$user) {
-        return $this->response->setJSON([
-            'status' => 'error',
-            'message' => 'User not found'
-        ]);
-    }
 
-    return $this->response->setJSON([
-        'status' => 'success',
-        'data' => $user
-    ]);
-}
 
-//Profile controller
+    //Profile controller - Done?
     public function getProfilePicture($filename)
     {
         $filePath = FCPATH . 'uploads/' . $filename;
@@ -224,6 +365,8 @@ public function getProfileInfo()
             return $this->response->setStatusCode(404)->setBody('File not found');
         }
     }
+
+
 
 
 

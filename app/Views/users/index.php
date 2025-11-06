@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE html> 
 <html lang="en">
 
 <head>
@@ -25,11 +25,13 @@
 
   <?= $this->include('Users/header') ?>
 
-  <?php if (isset($_GET['payment']) && $_GET['payment'] === 'success'): ?>
-    <div class="alert alert-success text-center">
+<?php if (isset($_GET['payment']) && $_GET['payment'] === 'success'): ?>
+  <div class="d-flex justify-content-center my-3">
+    <div class="alert alert-success text-center w-50">
       Payment successful! 💧
     </div>
-  <?php endif; ?>
+  </div>
+<?php endif; ?>
 
   <main class="main">
 
@@ -83,17 +85,16 @@
       </div>
     </section>
 
-       <!-- About Section -->
+    <!-- About Section -->
     <section id="about" class="about section">
 
       <!-- Section Title -->
       <div class="container section-title" data-aos="fade-up">
         <h2>About Us<br></h2>
         <p>Necessitatibus eius consequatur ex aliquid fuga eum quidem sint consectetur velit</p>
-      </div><!-- End Section Title -->
+      </div>
 
       <div class="container">
-
         <div class="row gy-4">
           <div class="col-lg-6" data-aos="fade-up" data-aos-delay="100">
             <h3>Voluptatem dignissimos provident laboris nisi ut aliquip ex ea commodo</h3>
@@ -116,19 +117,16 @@
                 Ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate
                 velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident
               </p>
-
-          
             </div>
           </div>
         </div>
-
       </div>
 
-    </section><!-- /About Section -->
+    </section>
   </main>
 
   <!-- Payment Modal -->
-  <div class="modal fade" id="paymentModal" tabindex="-1" aria-labelledby="paymentModalLabel" aria-hidden="true">
+  <div class="modal fade" id="paymentModal" tabindex="-1" aria-labelledby="paymentModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
     <div class="modal-dialog modal-lg modal-dialog-centered">
       <div class="modal-content">
         <div class="modal-header">
@@ -167,7 +165,6 @@
     });
   </script>
 
-
   <?php if (session()->getFlashdata('success')): ?>
   <div class="modal fade" id="successModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -184,7 +181,22 @@
   </script>
   <?php endif; ?>
 
+  <!-- New User Profile Completion Modal -->
+  <?php if (session()->get('new_user') && !session()->get('profile_complete')): ?>
+  <div class="modal fade" id="profileModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content text-center p-4">
+        <h5 class="text-warning mb-3">Complete Your Profile</h5>
+        <p>You need to complete your profile before accessing the whole website.</p>
+        <a href="<?= base_url('users/profile') ?>" class="btn btn-primary mt-2">Go to Profile</a>
+      </div>
+    </div>
+  </div>
+  <script>
+    var profileModal = new bootstrap.Modal(document.getElementById('profileModal'));
+    profileModal.show();
+  </script>
+  <?php endif; ?>
 
 </body>
-
 </html>

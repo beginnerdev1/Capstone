@@ -100,6 +100,21 @@
         </div>
       </div>
 
+      <!-- Amount Input -->
+      <div class="mb-3">
+        <label for="amount" class="form-label">Amount (₱)</label>
+        <input
+          type="number"
+          name="amount"
+          id="amount"
+          class="form-control"
+          placeholder="Enter amount"
+          min="0"
+          step="0.01"
+          required
+        />
+      </div>
+
       <!-- Submit -->
       <button type="submit" class="btn btn-primary w-100 fw-semibold">
         <i class="bi bi-send-fill me-1"></i>Submit Proof

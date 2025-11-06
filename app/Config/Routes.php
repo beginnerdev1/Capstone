@@ -45,6 +45,9 @@ $routes->group('users', ['filter' => 'userauth'], function ($routes) {
     $routes->get('getBillingsAjax', 'Users::getBillingsAjax');
     $routes->get('getProfileInfo', 'Users::getProfileInfo');
     $routes->post('updateProfile', 'Users::updateProfile');
+    $routes->post('changeEmail', 'Users::changeEmail');
+    $routes->post('changePassword', 'Users::changePassword');
+
     $routes->get('getProfilePicture/(:any)', 'Users::getProfilePicture/$1');
     $routes->post('createCheckout', 'Users::createCheckout');
 

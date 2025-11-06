@@ -115,6 +115,7 @@
 
     .amount-credit { color: #2f855a; }
     .amount-debit { color: #c53030; }
+    .amount-pending { color: #d69e2e; }
 
     @media (max-width: 576px) {
       .modal-dialog {
@@ -130,124 +131,147 @@
   </style>
 </head>
 <body>
+<?= $this->include('Users/header') ?>
 
-  <?= $this->include('Users/header') ?>
+<main id="main">
+  <div class="container-fluid p-0">
+    <div class="history-header bg-dark text-light rounded-top-4 d-flex justify-content-between align-items-center p-3">
+      <span>As of <?= date('M d, Y') ?></span>
 
-  <main id="main">
-    <div class="container-fluid p-0">
-      <div class="history-header">
-        <span>As of <?= date('M d, Y') ?></span>
-
-        <div class="dropdown status-dropdown">
-          <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="statusDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-            Select Status
-          </button>
-          <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="statusDropdown">
-            <li><a class="dropdown-item" href="#">Successful</a></li>
-            <li><a class="dropdown-item" href="#">Unsuccessful</a></li>
-            <li><a class="dropdown-item" href="#">Waiting for Payment</a></li>
-          </ul>
-        </div>
-      </div>
-
-      <!-- Scrollable List -->
-      <div class="transaction-list">
-
-        <!-- Sticky "Today" -->
-        <div class="history-subheader">Today</div>
-        <?php
-        $payments = [
-          ['id' => 1, 'time' => '9:20 AM', 'name' => 'Cash-in', 'amount' => 300.00, 'is_credit' => true, 'ref_id' => 'CSH-920-A'],
-          ['id' => 2, 'time' => '8:51 AM', 'name' => 'Cashin from Security Bank Co...', 'amount' => 1074.00, 'is_credit' => true, 'ref_id' => 'CSH-851-B'],
-          ['id' => 3, 'time' => '7:15 AM', 'name' => 'Send Money', 'amount' => 100.00, 'is_credit' => false, 'ref_id' => 'SND-715-C'],
-          ['id' => 4, 'time' => '7:06 AM', 'name' => 'Send Money', 'amount' => 1666.00, 'is_credit' => false, 'ref_id' => 'SND-706-D'],
-          ['id' => 5, 'time' => '7:05 AM', 'name' => 'Cashin from Security Bank Co...', 'amount' => 500.00, 'is_credit' => true, 'ref_id' => 'CSH-705-E'],
-          ['id' => 8, 'time' => '6:30 AM', 'name' => 'Online Payment - Web Pay', 'amount' => 875.00, 'is_credit' => false, 'ref_id' => 'PAY-630-G'],
-          ['id' => 9, 'time' => '6:15 AM', 'name' => 'Cashin from Metrobank', 'amount' => 1500.00, 'is_credit' => true, 'ref_id' => 'CSH-615-H'],
-          ['id' => 10, 'time' => '5:50 AM', 'name' => 'Send Money', 'amount' => 200.00, 'is_credit' => false, 'ref_id' => 'SND-550-I'],
-          ['id' => 11, 'time' => '5:30 AM', 'name' => 'Online Refund', 'amount' => 300.00, 'is_credit' => true, 'ref_id' => 'REF-530-J'],
-          ['id' => 12, 'time' => '5:15 AM', 'name' => 'Purchase Load', 'amount' => 100.00, 'is_credit' => false, 'ref_id' => 'LD-515-K'],
-        ];
-
-        foreach ($payments as $payment):
-          $amount_prefix = $payment['is_credit'] ? '+' : '-';
-          $amount_class = $payment['is_credit'] ? 'amount-credit' : 'amount-debit';
-          $modalId = 'modalT' . $payment['id'];
-        ?>
-          <div class="transaction-item" data-bs-toggle="modal" data-bs-target="#<?= $modalId ?>">
-            <div class="transaction-details">
-              <div class="transaction-time"><?= esc($payment['time']) ?></div>
-              <div class="transaction-name"><?= esc($payment['name']) ?></div>
-            </div>
-            <div class="transaction-amount <?= $amount_class ?>">
-              ₱<?= $amount_prefix . number_format($payment['amount'], 2) ?>
-            </div>
-          </div>
-        <?php endforeach; ?>
-
-        <!-- Sticky "October 26, 2025" -->
-        <div class="history-subheader">October 26, 2025</div>
-        <?php
-        $past_payments = [
-          ['id' => 6, 'time' => '5:30 PM', 'name' => 'Send Money', 'amount' => 750.00, 'is_credit' => false, 'ref_id' => 'SND-530-H'],
-          ['id' => 7, 'time' => '4:12 PM', 'name' => 'Cashin from Security Bank Co...', 'amount' => 1200.00, 'is_credit' => true, 'ref_id' => 'CSH-412-I'],
-          ['id' => 13, 'time' => '3:45 PM', 'name' => 'Online Purchase', 'amount' => 599.00, 'is_credit' => false, 'ref_id' => 'BUY-345-L'],
-          ['id' => 14, 'time' => '3:20 PM', 'name' => 'Send Money', 'amount' => 120.00, 'is_credit' => false, 'ref_id' => 'SND-320-M'],
-          ['id' => 15, 'time' => '2:45 PM', 'name' => 'Refund Received', 'amount' => 350.00, 'is_credit' => true, 'ref_id' => 'REF-245-N'],
-          ['id' => 16, 'time' => '1:55 PM', 'name' => 'Cashin from Metrobank', 'amount' => 700.00, 'is_credit' => true, 'ref_id' => 'CSH-155-O'],
-          ['id' => 17, 'time' => '1:20 PM', 'name' => 'Utility Payment', 'amount' => 400.00, 'is_credit' => false, 'ref_id' => 'UTL-120-P'],
-          ['id' => 18, 'time' => '12:30 PM', 'name' => 'Send Money', 'amount' => 250.00, 'is_credit' => false, 'ref_id' => 'SND-123-Q'],
-          ['id' => 19, 'time' => '11:50 AM', 'name' => 'Online Refund', 'amount' => 550.00, 'is_credit' => true, 'ref_id' => 'REF-115-R'],
-          ['id' => 20, 'time' => '10:40 AM', 'name' => 'Purchase Load', 'amount' => 100.00, 'is_credit' => false, 'ref_id' => 'LD-104-S'],
-        ];
-
-        foreach ($past_payments as $payment):
-          $amount_prefix = $payment['is_credit'] ? '+' : '-';
-          $amount_class = $payment['is_credit'] ? 'amount-credit' : 'amount-debit';
-          $modalId = 'modalT' . $payment['id'];
-        ?>
-          <div class="transaction-item" data-bs-toggle="modal" data-bs-target="#<?= $modalId ?>">
-            <div class="transaction-details">
-              <div class="transaction-time"><?= esc($payment['time']) ?></div>
-              <div class="transaction-name"><?= esc($payment['name']) ?></div>
-            </div>
-            <div class="transaction-amount <?= $amount_class ?>">
-              ₱<?= $amount_prefix . number_format($payment['amount'], 2) ?>
-            </div>
-          </div>
-        <?php endforeach; ?>
-
+      <div class="dropdown status-dropdown">
+        <button class="btn btn-outline-light dropdown-toggle" type="button" id="statusDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+          Select Status
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="statusDropdown">
+          <li><a class="dropdown-item" href="#">All</a></li>
+          <li><a class="dropdown-item" href="#">Successful</a></li>
+          <li><a class="dropdown-item" href="#">Unsuccessful</a></li>
+          <li><a class="dropdown-item" href="#">Pending</a></li>
+        </ul>
       </div>
     </div>
-  </main>
 
-  <?= $this->include('Users/footer') ?>
-  <a href="#" id="scrollTop" class="scroll-top">↑</a>
+    <div class="transaction-list">
+      <?php
+      $currentDate = '';
+      foreach ($payments as $payment):
+          // Use paid_at if available, else created_at
+          $paymentDate = date('F d, Y', strtotime($payment['paid_at'] ?? $payment['created_at']));
+          $time = date('h:i A', strtotime($payment['paid_at'] ?? $payment['created_at']));
+          
+          // Show date subheader if date changes
+          if ($paymentDate !== $currentDate):
+              $currentDate = $paymentDate;
+      ?>
+        <div class="history-subheader"><?= $currentDate ?></div>
+      <?php endif;
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+          // Determine amount prefix and class
+          if ($payment['status'] === 'paid') {
+              $amount_class = 'amount-credit';
+              $amount_prefix = '+';
+          } elseif ($payment['status'] === 'pending') {
+              $amount_class = 'amount-pending';
+              $amount_prefix = '-';
+          } else {
+              $amount_class = 'amount-debit';
+              $amount_prefix = '-';
+          }
 
-  <script>
-  document.querySelectorAll('.status-dropdown .dropdown-item').forEach(item => {
-    item.addEventListener('click', function (e) {
-      e.preventDefault();
+          $modalId = 'modalT' . $payment['id'];
+      ?>
+        <div class="transaction-item" data-bs-toggle="modal" data-bs-target="#<?= $modalId ?>">
+          <div class="transaction-details">
+            <div class="transaction-time"><?= esc($time) ?></div>
+            <div class="transaction-name">
+                <?= esc($payment['method'] === 'manual' ? 'Manual Payment' : 'Online Payment') ?>
+                - <span class="<?= $amount_class ?>"><?= ucfirst($payment['status']) ?></span>
+            </div>
+          </div>
+          <div class="transaction-amount <?= $amount_class ?>">
+            ₱<?= $amount_prefix . number_format($payment['amount'], 2) ?>
+          </div>
+        </div>
 
-      const selected = this.textContent.trim();
-      document.getElementById('statusDropdown').textContent = selected;
+        <!-- Modal -->
+        <div class="modal fade" id="<?= $modalId ?>" tabindex="-1" aria-labelledby="<?= $modalId ?>Label" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+          <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg rounded-4">
+              <div class="modal-header bg-dark text-light rounded-top-4">
+                <h5 class="modal-title" id="<?= $modalId ?>Label">Receipt - <?= esc($payment['reference_number']) ?></h5>
+              </div>
+              <div class="modal-body bg-light" id="receiptContent<?= $payment['id'] ?>">
+                <p><strong>Time:</strong> <?= esc($time) ?></p>
+                <p><strong>Transaction:</strong> <?= esc($payment['method'] === 'manual' ? 'Manual Payment' : 'Online Payment') ?></p>
+                <p><strong>Amount:</strong> ₱<?= number_format($payment['amount'], 2) ?></p>
+                <p><strong>Status:</strong> <?= ucfirst($payment['status']) ?></p>
+                <p><strong>Reference ID:</strong> <?= esc($payment['reference_number']) ?></p>
+              </div>
+              <div class="modal-footer bg-light border-top-0">
+                <button type="button" class="btn btn-dark px-4" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary px-4" onclick="downloadReceipt(<?= $payment['id'] ?>)">Download</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      <?php endforeach; ?>
+    </div>
+  </div>
+</main>
 
-      // Reset visibility
-      document.querySelectorAll('.transaction-item').forEach(el => el.style.display = 'flex');
+<?= $this->include('Users/footer') ?>
+<a href="#" id="scrollTop" class="scroll-top">↑</a>
 
-      // Filtering logic
-      if (selected === 'Successful') {
-        document.querySelectorAll('.amount-debit').forEach(el => el.closest('.transaction-item').style.display = 'none');
-      } else if (selected === 'Unsuccessful') {
-        document.querySelectorAll('.amount-credit').forEach(el => el.closest('.transaction-item').style.display = 'none');
-      } else if (selected === 'Waiting for Payment') {
-        document.querySelectorAll('.transaction-item').forEach(el => el.style.display = 'none');
-      }
-    });
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<script>
+document.querySelectorAll('.status-dropdown .dropdown-item').forEach(item => {
+  item.addEventListener('click', function(e) {
+    e.preventDefault();
+
+    const selected = this.textContent.trim();
+    const dropdownBtn = document.getElementById('statusDropdown');
+    dropdownBtn.textContent = selected;
+
+    // Reset visibility
+    document.querySelectorAll('.transaction-item').forEach(el => el.style.display = 'flex');
+
+    // Filtering logic
+    if (selected === 'Successful') {
+      document.querySelectorAll('.transaction-item').forEach(el => {
+        if (el.querySelector('.transaction-amount').classList.contains('amount-debit') || 
+            el.querySelector('.transaction-amount').classList.contains('amount-pending')) {
+          el.style.display = 'none';
+        }
+      });
+    } else if (selected === 'Unsuccessful') {
+      document.querySelectorAll('.transaction-item').forEach(el => {
+        if (el.querySelector('.transaction-amount').classList.contains('amount-credit') || 
+            el.querySelector('.transaction-amount').classList.contains('amount-pending')) {
+          el.style.display = 'none';
+        }
+      });
+    } else if (selected === 'Pending') {
+      document.querySelectorAll('.transaction-item').forEach(el => {
+        if (!el.querySelector('.transaction-amount').classList.contains('amount-pending')) {
+          el.style.display = 'none';
+        }
+      });
+    } 
   });
-  </script>
+});
+
+function downloadReceipt(id) {
+    const element = document.getElementById('receiptContent' + id);
+    html2canvas(element).then(canvas => {
+        const link = document.createElement('a');
+        link.download = 'Receipt-' + id + '.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+    });
+}
+</script>
 
 </body>
 </html>
