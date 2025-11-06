@@ -11,6 +11,7 @@ class BillingModel extends Model
 
     protected $allowedFields = [
         'user_id',
+        'payment_id',
         'bill_no',
         'amount_due',
         'status',
@@ -25,7 +26,7 @@ class BillingModel extends Model
     protected $useTimestamps = true;
 
     /**
-     * ✅ Get all bills with user info
+     * Get all bills with user info
      */
     public function getAllWithUsers()
     {
@@ -33,32 +34,37 @@ class BillingModel extends Model
                 billings.*,
                 user_information.first_name,
                 user_information.last_name,
-                users.email
+                users.email,
+                payments.amount as payment_amount,
+                payments.status as payment_status,
+                payments.method as payment_method
             ')
             ->join('users', 'users.id = billings.user_id', 'left')
             ->join('user_information', 'user_information.user_id = users.id', 'left')
+            ->join('payments', 'payments.id = billings.payment_id', 'left')
             ->orderBy('billings.billing_month', 'DESC')
             ->findAll();
     }
 
     /**
-     * 🧾 Get bills for a specific user
+     * Get bills for a specific user
      */
     public function getBillsByUser($userId)
     {
         return $this->select('
                 billings.*,
-                user_information.first_name,
-                user_information.last_name
+                payments.amount as payment_amount,
+                payments.status as payment_status,
+                payments.method as payment_method
             ')
-            ->join('user_information', 'user_information.user_id = billings.user_id', 'left')
+            ->join('payments', 'payments.id = billings.payment_id', 'left')
             ->where('billings.user_id', $userId)
             ->orderBy('billings.billing_month', 'DESC')
             ->findAll();
     }
 
     /**
-     * 📊 Count total bills by status
+     * Count total bills by status
      */
     public function countByStatus($status)
     {
@@ -66,7 +72,7 @@ class BillingModel extends Model
     }
 
     /**
-     * 💸 Get total amount collected (Paid only)
+     * Get total amount collected (Paid only)
      */
     public function getTotalCollected()
     {

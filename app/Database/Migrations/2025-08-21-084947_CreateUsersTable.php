@@ -29,17 +29,21 @@ class CreateUsersTable extends Migration
             'active' => [
                 'type'       => 'TINYINT',
                 'constraint' => 1,
-                'default'    => 1, // 1 = active, 0 = inactive -1 = suspended 
+                'default'    => 1, // 1 = active, 0 = inactive, -1 = suspended
             ],
             'status' => [
-                'type'       => 'ENUM',
-                'constraint' => ['pending', 'approved', 'rejected', 'inactive', 'suspended'],
-                'default'    => 'pending',
+                'type'       => "ENUM('pending','approved','rejected','inactive','suspended')",
+                'default'    => 'pending', // default: waiting for admin review
             ],
             'is_verified' => [
                 'type'       => 'TINYINT',
                 'constraint' => 1,
                 'default'    => 0, // 0 = not verified, 1 = verified
+            ],
+            'profile_complete' => [
+                'type'       => 'TINYINT',
+                'constraint' => 1,
+                'default'    => 0, // 0 = incomplete, 1 = complete (ready for admin review)
             ],
             'otp_code' => [
                 'type'       => 'VARCHAR',
@@ -60,16 +64,12 @@ class CreateUsersTable extends Migration
             ],
         ]);
 
-        // Primary key
         $this->forge->addKey('id', true);
-
-        // Create the table
         $this->forge->createTable('users');
     }
 
     public function down()
     {
-        // Drop the table if it exists
         $this->forge->dropTable('users', true);
     }
 }

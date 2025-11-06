@@ -88,14 +88,15 @@
           <div class="row gy-2 small">
             <div class="col-12 d-flex align-items-center">
               <i class="bi bi-calendar3 text-warning me-2"></i>
-              <span><strong>Created:</strong> —</span>
+              <span><strong>Created:</strong> <span class="account-created">—</span></span>
             </div>
             <div class="col-12 d-flex align-items-center">
               <i class="bi bi-shield-check text-warning me-2"></i>
-              <span><strong>Status:</strong> Active</span>
+              <span><strong>Status:</strong> <span class="account-status">Active</span></span>
             </div>
           </div>
         </div>
+
 
       </div>
 
@@ -378,6 +379,17 @@
   </script>
   <?php endif; ?>
 
+  <?php if (session()->getFlashdata('profile_alert')): ?>
+<script>
+Swal.fire({
+  icon: 'info',
+  title: 'Profile Incomplete',
+  text: 'Your account is still pending. Some features may be restricted.',
+  confirmButtonText: 'Ok'
+});
+</script>
+<?php endif; ?>
+
 <script>
 $(document).ready(function () {
 
@@ -406,9 +418,11 @@ $(document).ready(function () {
                     $(".profile-province").text(data.province || "-");
                     $(".profile-zipcode").text(data.zipcode || "-");
 
-                    // Account info
-                    $(".account-created").text(data.created_at || "");
+                   
+                    // Account info card
+                    $(".account-created").text(data.created_at || "—");
                     $(".account-status").text(data.account_status || "Pending");
+
 
                     // Profile picture
                     if (data.profile_picture) {

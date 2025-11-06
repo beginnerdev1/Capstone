@@ -12,24 +12,23 @@ class UsersModel extends Model
     protected $allowedFields = [
         'email',
         'password',
+        'active',
+        'status',
         'is_verified',
+        'profile_complete',
         'otp_code',
         'otp_expires',
         'created_at',
         'updated_at',
-        'status',
-        
     ];
 
     protected $useTimestamps = true;
     protected $returnType = 'array';
 
-    /**
-     * ✅ Get all verified users (with optional info join)
-     */
-    public function getVerifiedUsers($withInfo = false)
+    // Get all approved users (optionally join with user_information)
+    public function getApprovedUsers($withInfo = false)
     {
-        $builder = $this->where('is_verified', 1);
+        $builder = $this->where('status', 'approved');
 
         if ($withInfo) {
             $builder = $builder
@@ -40,29 +39,31 @@ class UsersModel extends Model
         return $builder->orderBy('email', 'ASC')->findAll();
     }
 
-    /**
-     * 🧭 Find user by email
-     */
+    // Find user by email
     public function findByEmail($email)
     {
         return $this->where('email', $email)->first();
     }
 
-    /**
-     * 🔐 Verify user login credentials
-     */
+    // Verify login (only for approved, active, and verified users)
     public function verifyLogin($email, $password)
     {
         $user = $this->where('email', $email)->first();
-        if ($user && password_verify($password, $user['password'])) {
+
+        if (
+            $user &&
+            $user['active'] == 1 &&
+            $user['status'] == 'approved' &&
+            $user['is_verified'] == 1 &&
+            password_verify($password, $user['password'])
+        ) {
             return $user;
         }
+
         return null;
     }
 
-    /**
-     * 👤 Get user with information (joined)
-     */
+    // Get user with joined info
     public function getUserWithInfo($userId)
     {
         return $this->select('users.*, user_information.*')

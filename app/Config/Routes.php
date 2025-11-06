@@ -37,7 +37,7 @@ $routes->group('users', ['filter' => 'userauth'], function ($routes) {
     $routes->get('profile', 'Users::profile');
     $routes->get('edit-profile', 'Users::editProfile');
     $routes->get('getProfileInfo', 'Users::getProfileInfo');
-
+    $routes->get('getAccountStatus', 'Users::getAccountStatus');
     $routes->get('getProfilePicture/(:any)', 'Users::getProfilePicture/$1');
 
     $routes->post('updateProfile', 'Users::updateProfile');

@@ -40,6 +40,7 @@ class Filters extends BaseFilters
         'superadminauth' => \App\Filters\SuperadminAuth::class,
         'superadminguest' => \App\Filters\SuperadminGuest::class,
         'forcepasswordchange' => \App\Filters\ForcePasswordChange::class,
+        'profilecomplete' => \App\Filters\ProfileCompleteFilter::class,
 
 
     ];

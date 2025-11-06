@@ -14,6 +14,15 @@ class CreatePaymentsTable extends Migration
                 'unsigned'       => true,
                 'auto_increment' => true,
             ],
+            'billing_id' => [
+                'type'       => 'INT',
+                'unsigned'   => true,
+                'null'       => true,
+            ],
+            'user_id' => [
+                'type'       => 'INT',
+                'unsigned'   => true,
+            ],
             'payment_intent_id' => [
                 'type'       => 'VARCHAR',
                 'constraint' => 255,
@@ -56,10 +65,6 @@ class CreatePaymentsTable extends Migration
                 'constraint' => 50,
                 'default'    => 'pending',
             ],
-            'user_id' => [
-                'type'     => 'INT',
-                'unsigned' => true,
-            ],
             'paid_at' => [
                 'type' => 'DATETIME',
                 'null' => true,
@@ -80,6 +85,7 @@ class CreatePaymentsTable extends Migration
 
         $this->forge->addKey('id', true);
         $this->forge->addForeignKey('user_id', 'users', 'id', 'CASCADE', 'CASCADE');
+        $this->forge->addForeignKey('billing_id', 'billings', 'id', 'SET NULL', 'CASCADE');
         $this->forge->createTable('payments');
     }
 

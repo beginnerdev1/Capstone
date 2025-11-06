@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -25,13 +25,13 @@
 
   <?= $this->include('Users/header') ?>
 
-<?php if (isset($_GET['payment']) && $_GET['payment'] === 'success'): ?>
+  <?php if (isset($_GET['payment']) && $_GET['payment'] === 'success'): ?>
   <div class="d-flex justify-content-center my-3">
     <div class="alert alert-success text-center w-50">
       Payment successful! 💧
     </div>
   </div>
-<?php endif; ?>
+  <?php endif; ?>
 
   <main class="main">
 
@@ -87,8 +87,6 @@
 
     <!-- About Section -->
     <section id="about" class="about section">
-
-      <!-- Section Title -->
       <div class="container section-title" data-aos="fade-up">
         <h2>About Us<br></h2>
         <p>Necessitatibus eius consequatur ex aliquid fuga eum quidem sint consectetur velit</p>
@@ -99,29 +97,20 @@
           <div class="col-lg-6" data-aos="fade-up" data-aos-delay="100">
             <h3>Voluptatem dignissimos provident laboris nisi ut aliquip ex ea commodo</h3>
             <img src="<?= base_url('assets/img/about.jpg') ?>" class="img-fluid rounded-4 mb-4" alt="">
-            <p>Ut fugiat ut sunt quia veniam. Voluptate perferendis perspiciatis quod nisi et. Placeat debitis quia recusandae odit et consequatur voluptatem. Dignissimos pariatur consectetur fugiat voluptas ea.</p>
-            <p>Temporibus nihil enim deserunt sed ea. Provident sit expedita aut cupiditate nihil vitae quo officia vel. Blanditiis eligendi possimus et in cum. Quidem eos ut sint rem veniam qui. Ut ut repellendus nobis tempore doloribus debitis explicabo similique sit. Accusantium sed ut omnis beatae neque deleniti repellendus.</p>
+            <p>Ut fugiat ut sunt quia veniam. Voluptate perferendis perspiciatis quod nisi et. Placeat debitis quia recusandae odit et consequatur voluptatem.</p>
           </div>
           <div class="col-lg-6" data-aos="fade-up" data-aos-delay="250">
             <div class="content ps-0 ps-lg-5">
-              <p class="fst-italic">
-                Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore
-                magna aliqua.
-              </p>
+              <p class="fst-italic">Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
               <ul>
                 <li><i class="bi bi-check-circle-fill"></i> <span>Ullamco laboris nisi ut aliquip ex ea commodo consequat.</span></li>
                 <li><i class="bi bi-check-circle-fill"></i> <span>Duis aute irure dolor in reprehenderit in voluptate velit.</span></li>
-                <li><i class="bi bi-check-circle-fill"></i> <span>Ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate trideta storacalaperda mastiro dolore eu fugiat nulla pariatur.</span></li>
               </ul>
-              <p>
-                Ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate
-                velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident
-              </p>
+              <p>Excepteur sint occaecat cupidatat non proident.</p>
             </div>
           </div>
         </div>
       </div>
-
     </section>
   </main>
 
@@ -147,24 +136,44 @@
 
   <!-- Bootstrap JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-
   <!-- jQuery (for Payment Modal AJAX) -->
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-
   <!-- Your Local JS -->
   <script src="<?= base_url('assets/Users/js/main.js') ?>"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
+
+
+  <!-- Payment Modal Trigger -->
   <script>
-    $(function () {
-      $("#openPaymentBtn").on("click", function (e) {
+$(function () {
+    $("#openPaymentBtn").on("click", function (e) {
         e.preventDefault();
-        $("#paymentModalBody").load("<?= base_url('users/payments') ?>", function () {
-          new bootstrap.Modal(document.getElementById("paymentModal")).show();
-        });
-      });
+
+        $.get("<?= base_url('users/getAccountStatus') ?>", function(data) {
+            if (data.account_status !== 'approved') {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Account Pending',
+                    text: 'Your account is still pending approval. Payments are not accessible yet.',
+                    confirmButtonText: 'OK',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    allowEnterKey: false
+                });
+                return;
+            }
+
+            $("#paymentModalBody").load("<?= base_url('users/payments') ?>", function () {
+                new bootstrap.Modal(document.getElementById("paymentModal")).show();
+            });
+        }, "json");
     });
+});
+
   </script>
 
+  <!-- Flashdata Notifications -->
   <?php if (session()->getFlashdata('success')): ?>
   <div class="modal fade" id="successModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -181,7 +190,7 @@
   </script>
   <?php endif; ?>
 
-  <!-- New User Profile Completion Modal -->
+  <!-- Profile Completion Modal -->
   <?php if (session()->get('new_user') && !session()->get('profile_complete')): ?>
   <div class="modal fade" id="profileModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
     <div class="modal-dialog modal-dialog-centered">
@@ -195,6 +204,37 @@
   <script>
     var profileModal = new bootstrap.Modal(document.getElementById('profileModal'));
     profileModal.show();
+  </script>
+  <?php endif; ?>
+
+  <!-- Profile / Account Status Alerts -->
+  <?php if (isset($profile_complete) && $profile_complete == 0): ?>
+  <script>
+    Swal.fire({
+      icon: 'info',
+      title: 'Complete Your Profile',
+      text: 'Please complete your profile before using the system.',
+      confirmButtonText: 'Go to Profile',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      allowEnterKey: false
+    }).then((result) => {
+      if (result.isConfirmed) {
+        window.location.href = "<?= base_url('users/profile') ?>";
+      }
+    });
+  </script>
+  <?php elseif (isset($account_status) && $account_status === 'Pending'): ?>
+  <script>
+    Swal.fire({
+      icon: 'warning',
+      title: 'Account Pending',
+      text: 'Your account is still pending approval. You cannot access some features yet.',
+      confirmButtonText: 'OK',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      allowEnterKey: false
+    });
   </script>
   <?php endif; ?>
 

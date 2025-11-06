@@ -14,6 +14,8 @@ class PaymentsModel extends Model
     protected $useSoftDeletes   = true;
 
     protected $allowedFields = [
+        'billing_id',
+        'user_id',
         'payment_intent_id',
         'payment_method_id',
         'method',
@@ -23,7 +25,6 @@ class PaymentsModel extends Model
         'amount',
         'currency',
         'status',
-        'user_id',
         'paid_at',
         'created_at',
         'updated_at',
@@ -35,27 +36,49 @@ class PaymentsModel extends Model
     protected $updatedField  = 'updated_at';
     protected $deletedField  = 'deleted_at';
 
-    // 🔍 Filter payments by user
+    /**
+     * Get all payments for a specific user
+     */
     public function forUser(int $userId)
     {
-        return $this->where('user_id', $userId)->findAll();
+        return $this->where('user_id', $userId)
+                    ->orderBy('created_at', 'DESC')
+                    ->findAll();
     }
 
-    // ✅ Mark payment as paid
+    /**
+     * Get all payments for a specific billing
+     */
+    public function forBilling(int $billingId)
+    {
+        return $this->where('billing_id', $billingId)
+                    ->orderBy('created_at', 'DESC')
+                    ->findAll();
+    }
+
+    /**
+     * Mark payment as paid
+     */
     public function markAsPaid(string $intentId)
     {
-        return $this->where('payment_intent_id', $intentId)->set([
-            'status'   => 'paid',
-            'paid_at'  => date('Y-m-d H:i:s'),
-        ])->update();
+        return $this->where('payment_intent_id', $intentId)
+                    ->set([
+                        'status'   => 'Paid',
+                        'paid_at'  => date('Y-m-d H:i:s'),
+                    ])
+                    ->update();
     }
 
-    // ❌ Mark payment as failed
+    /**
+     * Mark payment as failed
+     */
     public function markAsFailed(string $intentId)
     {
-        return $this->where('payment_intent_id', $intentId)->set([
-            'status'     => 'failed',
-            'updated_at' => date('Y-m-d H:i:s'),
-        ])->update();
+        return $this->where('payment_intent_id', $intentId)
+                    ->set([
+                        'status'     => 'Failed',
+                        'updated_at' => date('Y-m-d H:i:s'),
+                    ])
+                    ->update();
     }
 }
