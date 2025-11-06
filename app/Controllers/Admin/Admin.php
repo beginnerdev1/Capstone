@@ -95,52 +95,65 @@ class Admin extends BaseController
     public function page500() { return view('admin/500'); }
     public function tables() { return view('admin/tables'); }
 
-    public function registeredUsers()
-    {
-        $puroks = ['1', '2', '3', '4', '5'];
-        $selectedPurok = $this->g('purok');
-        $search = $this->g('search');
 
-        $builder = $this->usersModel
-            ->select('
-                users.id,
-                users.status,
-                users.email,
-                user_information.first_name,
-                user_information.last_name,
-                user_information.barangay,
-                user_information.municipality,
-                user_information.purok,
-                users.active
-            ')
-            ->join('user_information', 'user_information.user_id = users.id', 'left');
+    //show Registered user
+// Show Registered Users
+public function registeredUsers()
+{
+    $puroks = ['1', '2', '3', '4', '5'];
+    $selectedPurok = $this->g('purok');
+    $search = $this->g('search');
 
-        if ($selectedPurok) {
-            $builder->where('user_information.purok', $selectedPurok);
-        }
+    // Use the model method with join
+    $builder = $this->usersModel
+        ->select('
+            users.id,
+            users.status,
+            users.email,
+            user_information.first_name,
+            user_information.last_name,
+            user_information.barangay,
+            user_information.municipality,
+            user_information.purok,
+            users.active
+        ')
+        ->join('user_information', 'user_information.user_id = users.id', 'left');
 
-        if ($search) {
-            $builder->groupStart()
-                    ->like('user_information.first_name', $search)
-                    ->orLike('user_information.last_name', $search)
-                    ->orLike('user_information.email', $search)
-                ->groupEnd();
-        }
-
-        $users = $builder->paginate(10);
-        $pager = $this->usersModel->pager;
-
-        $data = [
-            'title' => 'Registered Users',
-            'users' => $users,
-            'pager' => $pager,
-            'puroks' => $puroks,
-            'selectedPurok' => $selectedPurok,
-            'search' => $search
-        ];
-
-        return view('admin/registeredUsers', $data);
+    if ($selectedPurok) {
+        $builder->where('user_information.purok', $selectedPurok);
     }
+
+    if ($search) {
+        $builder->groupStart()
+            ->like('user_information.first_name', $search)
+            ->orLike('user_information.last_name', $search)
+            ->orLike('users.email', $search)
+            ->groupEnd();
+    }
+
+    // Fetch all users for AJAX
+    $users = $builder->orderBy('users.id', 'DESC')->findAll();
+
+    // Pagination for normal page load
+    $pager = $this->usersModel->pager;
+
+    // Return JSON if AJAX
+    if ($this->request->isAJAX()) {
+        return $this->response->setJSON($users);
+    }
+
+    // Normal page load
+    $data = [
+        'title' => 'Registered Users',
+        'users' => $builder->paginate(10),
+        'pager' => $pager,
+        'puroks' => $puroks,
+        'selectedPurok' => $selectedPurok,
+        'search' => $search
+    ];
+
+    return view('admin/registeredUsers', $data);
+}
 
     /**
      * Display pending accounts for approval/rejection
@@ -156,27 +169,22 @@ class Admin extends BaseController
         return view('admin/pendingAccounts', ['users' => $users]);
     }
 
-    /**
-     * Activate a user (status = 2)
-     */
+    //Activate a user (status = 2)
     public function activateUser($id)
     {
         $this->usersModel->update($id, ['active' => 2,'status' => 'approved']);
         return redirect()->back()->with('success', 'User activated successfully.');
     }
 
-    /**
-     * Deactivate a user (status = 1)
-     */
+
+    // Deactivate a user (status = 1)
     public function deactivateUser($id)
     {
         $this->usersModel->update($id, ['active' => 1, 'status' => 'inactive']);
         return redirect()->back()->with('success', 'User deactivated successfully.');
     }
 
-    /**
-     * Suspend a user (status = -1)
-     */
+    //Suspend a user (status = -1)
     public function suspendUser($id)
     {
         $this->usersModel->update($id, [
@@ -186,9 +194,7 @@ class Admin extends BaseController
         return redirect()->back()->with('success', 'User suspended successfully.');
     }
 
-    /**
-     * Approve a pending user
-     */
+    // Approve a pending user
     public function approve($id)
     {
         if (!$id) return redirect()->back()->with('error', 'No user ID provided.');
@@ -200,9 +206,7 @@ class Admin extends BaseController
         return redirect()->back()->with('error', 'Failed to approve user.');
     }
 
-    /**
-     * Reject a pending user
-     */
+    // Reject a pending user
     public function reject($id)
     {
         if (!$id) return redirect()->back()->with('error', 'No user ID provided.');
@@ -214,9 +218,7 @@ class Admin extends BaseController
         return redirect()->back()->with('error', 'Failed to reject user.');
     }
 
-    /**
-     * View single user details
-     */
+    //View single user details
     public function viewUser($id)
     {
         $user = $this->usersModel
@@ -235,9 +237,7 @@ class Admin extends BaseController
         ]);
     }
 
-    /**
-     * Toggle user active status
-     */
+    // Toggle user active status
     public function toggleUserStatus($id)
     {
         $user = $this->usersModel->find($id);
@@ -249,9 +249,7 @@ class Admin extends BaseController
         return redirect()->back()->with('success', 'User status updated.');
     }
 
-    /**
-     * Manage user accounts with billing info
-     */
+    //Manage user accounts with billing info
     public function manageAccounts()
     {
         $status = $this->g('status', ['Pending', 'Paid', 'Rejected', 'Over the Counter', 'All'], 'all');
@@ -298,17 +296,13 @@ class Admin extends BaseController
         ]);
     }
 
-    /**
-     * Display announcements page
-     */
+    //Display announcements page
     public function announcements()
     {
         return view('admin/announcements', ['title' => 'Announcements']);
     }
 
-    /**
-     * Display reports page
-     */
+    // Display reports page
     public function reports()
     {
         return view('admin/layouts/main', [
@@ -317,9 +311,7 @@ class Admin extends BaseController
         ]);
     }
 
-    /**
-     * Display payment settings
-     */
+    //Display payment settings
     public function paymentSettings()
     {
         $data = [
@@ -330,9 +322,8 @@ class Admin extends BaseController
         return view('admin/paymentSettings', $data);
     }
 
-    /**
-     * Update QR code and payment details
-     */
+    //Update QR code and payment details
+
     public function updateQR()
     {
         $file = $this->request->getFile('qr_image');
@@ -358,9 +349,7 @@ class Admin extends BaseController
         return redirect()->back()->with('error', 'QR upload failed!');
     }
 
-    /**
-     * Display admin profile
-     */
+    //Display admin profile
     public function profile()
     {
         $adminId = session()->get('admin_id');
@@ -372,9 +361,7 @@ class Admin extends BaseController
         return view('admin/profile', ['admin' => $admin]);
     }
 
-    /**
-     * Update admin profile
-     */
+    //Update admin profile
     public function updateProfile()
     {
         helper(['form', 'url']);
