@@ -26,35 +26,39 @@ $routes->post('/reset-password', 'Auth::processResetPassword', ['filter' => 'gue
 $routes->post('/logout', 'Auth::logout', ['filter' => 'userauth']);
 
 
-// =====================================================
-// 👥 USER DASHBOARD & PROFILE (Protected by userauth)
-// =====================================================
+
+// ======================================================
+// 👑 USER ROUTES
+// ======================================================
 $routes->group('users', ['filter' => 'userauth'], function ($routes) {
-    // Page routes
-    $routes->get('/', 'Users::index');
-    $routes->get('history', 'Users::history');  // Bill History page
-    $routes->get('payments', 'Users::payments');
+
+    // Routes accessible even if profile is incomplete
+    $routes->get('/', 'Users::index'); // index is now accessible
     $routes->get('profile', 'Users::profile');
     $routes->get('edit-profile', 'Users::editProfile');
-    $routes->get('paymentProof', 'Users::paymentProof');
-    $routes->post('uploadProof', 'Users::uploadProof');
-    $routes->post('checkReference', 'Users::checkReference');
-
-
-    // AJAX routes
-    $routes->get('getBillingsAjax', 'Users::getBillingsAjax');
     $routes->get('getProfileInfo', 'Users::getProfileInfo');
+
+    $routes->get('getProfilePicture/(:any)', 'Users::getProfilePicture/$1');
+
     $routes->post('updateProfile', 'Users::updateProfile');
     $routes->post('changeEmail', 'Users::changeEmail');
     $routes->post('changePassword', 'Users::changePassword');
+    $routes->post('uploadProof', 'Users::uploadProof');
+    $routes->post('checkReference', 'Users::checkReference');
 
-    $routes->get('getProfilePicture/(:any)', 'Users::getProfilePicture/$1');
-    $routes->post('createCheckout', 'Users::createCheckout');
+    // Routes that require profile completion and/or admin approval
+    $routes->group('', ['filter' => 'profilecomplete'], function ($routes) {
+        $routes->get('history', 'Users::history');
+        $routes->get('payments', 'Users::payments');
+        $routes->get('paymentProof', 'Users::paymentProof');
+        $routes->get('getBillingsAjax', 'Users::getBillingsAjax');
+        $routes->post('createCheckout', 'Users::createCheckout');
+        $routes->get('payment-success', 'Users::paymentSuccess');
+        $routes->get('payment-failed', 'Users::paymentFailed');
+    });
 
-    // Payment results
-    $routes->get('payment-success', 'Users::paymentSuccess');
-    $routes->get('payment-failed', 'Users::paymentFailed');
 });
+
 
 
 // ======================================================
