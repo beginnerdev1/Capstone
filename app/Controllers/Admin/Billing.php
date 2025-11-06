@@ -29,13 +29,14 @@ class Billing extends BaseController
     public function view($id)
     {
         $bill = $this->billingModel
-            ->select('billings.*, 
-                      CONCAT(user_information.first_name, " ", user_information.last_name) AS user_name, 
-                      users.email')
-            ->join('users', 'users.id = billings.user_id', 'left')
-            ->join('user_information', 'user_information.user_id = users.id', 'left')
-            ->where('billings.id', $id)
-            ->first();
+        ->select('billings.*, 
+                CONCAT(user_information.first_name, " ", user_information.last_name) AS user_name, 
+                users.email,
+                users.status')
+        ->join('users', 'users.id = billings.user_id', 'left')
+        ->join('user_information', 'user_information.user_id = users.id', 'left')
+        ->where('billings.id', $id)
+        ->first();
 
         if (!$bill) {
             throw new PageNotFoundException("Bill ID {$id} not found.");
@@ -81,6 +82,17 @@ class Billing extends BaseController
             return redirect()->back()->with('error', 'Amount and due date are required.');
         }
 
+        // Get the user
+        $user = $this->usersModel->find($d);
+        if (!$user) {
+            return redirect()->back()->with('error', 'User not found.');
+        }
+
+        // Block Pending users
+        if ($user['status'] === 'pending') {
+            return redirect()->back()->with('error', 'Cannot add bills for pending users.');
+        }
+
         // Check if there is already a bill for this user in the same month/year
         $existing = $this->billingModel
             ->where('user_id', $userId)
@@ -112,7 +124,6 @@ class Billing extends BaseController
 
         return redirect()->back()->with('error', 'Failed to add bill. Please try again.');
     }
-
     /**
      * Edit an existing billing record
      */

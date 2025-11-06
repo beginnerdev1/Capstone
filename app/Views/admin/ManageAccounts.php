@@ -211,11 +211,14 @@
                 <?php else: ?>
                     <p class="text-muted">No bills found.</p>
                 <?php endif; ?>
-
-                <!-- Add Bill -->
-                <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addBillModal<?= $user['id'] ?>">
-                    + Add Bill
-                </button>
+                
+                <?php if ($user['status'] !== 'pending'): ?>
+                    <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addBillModal<?= $user['id'] ?>">
+                        + Add Bill
+                    </button>
+                <?php else: ?>
+                    <button class="btn btn-sm btn-secondary" disabled>Cannot add bill (Pending)</button>
+                <?php endif; ?>
 
                 <!-- Add Bill Modal -->
                 <div class="modal fade" id="addBillModal<?= $user['id'] ?>" tabindex="-1" aria-labelledby="addBillLabel<?= $user['id'] ?>" aria-hidden="true">

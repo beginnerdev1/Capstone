@@ -36,8 +36,8 @@
     <div class="col-12 col-sm-6 col-md-3">
         <div class="card text-white bg-danger shadow h-100 rounded-4">
             <div class="card-body d-flex flex-column justify-content-between">
-                <h5 class="card-title mb-3">Announcements</h5>
-                <a href="<?= base_url('admin/reports') ?>" class="text-white fw-bold text-decoration-none">Reports →</a>
+                <h5 class="card-title mb-3">Inactive Users</h5>
+                <a href="<?= base_url('admin/inactiveList') ?>" class="text-white fw-bold text-decoration-none">View →</a>
             </div>
         </div>
     </div>

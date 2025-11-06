@@ -10,6 +10,7 @@ class UsersModel extends Model
     protected $primaryKey = 'id';
 
     protected $allowedFields = [
+        'active',
         'email',
         'password',
         'is_verified',

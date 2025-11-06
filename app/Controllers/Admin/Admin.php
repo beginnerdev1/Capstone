@@ -26,63 +26,66 @@ class Admin extends BaseController
         $this->paymentModel = new PaymentSettingsModel();
     }
 
+    /**
+     * Display admin dashboard
+     */
     public function index()
     {
-       // === Billing data ===
-    $totalCollected = $this->billingModel
-        ->whereIn('status', ['Paid', 'Over the Counter'])
-        ->selectSum('amount_due')
-        ->get()->getRow()->amount_due ?? 0;
+        // === Billing data ===
+        $totalCollected = $this->billingModel
+            ->whereIn('status', ['Paid', 'Over the Counter'])
+            ->selectSum('amount_due')
+            ->get()->getRow()->amount_due ?? 0;
 
-    $unpaidCount = $this->billingModel
-        ->where('status', 'Pending')
-        ->countAllResults();
+        $unpaidCount = $this->billingModel
+            ->where('status', 'Pending')
+            ->countAllResults();
 
-    $monthlyTotal = $this->billingModel
-        ->whereIn('status', ['Paid', 'Over the Counter'])
-        ->where('MONTH(updated_at)', date('m'))
-        ->where('YEAR(updated_at)', date('Y'))
-        ->selectSum('amount_due')
-        ->get()->getRow()->amount_due ?? 0;
+        $monthlyTotal = $this->billingModel
+            ->whereIn('status', ['Paid', 'Over the Counter'])
+            ->where('MONTH(updated_at)', date('m'))
+            ->where('YEAR(updated_at)', date('Y'))
+            ->selectSum('amount_due')
+            ->get()->getRow()->amount_due ?? 0;
 
-    // === User counts ===
-    $active = $this->usersModel->where('status', 'approved')->countAllResults();
-    $pending = $this->usersModel->where('status', 'pending')->countAllResults();
-    $inactive = $this->usersModel->where('status', 'inactive')->countAllResults();
-    $activeUsers = $active;
+        // === User counts ===
+        $active = $this->usersModel->where('status', 'approved')->countAllResults();
+        $pending = $this->usersModel->where('status', 'pending')->countAllResults();
+        $inactive = $this->usersModel->where('status', 'inactive')->countAllResults();
+        $activeUsers = $active;
 
-    // === Monthly income data (for charts) ===
-    $query = $this->billingModel->select("
-            DATE_FORMAT(updated_at, '%b') AS month,
-            SUM(amount_due) AS total
-        ")
-        ->whereIn('status', ['Paid', 'Over the Counter'])
-        ->groupBy('MONTH(updated_at)')
-        ->orderBy('MONTH(updated_at)', 'ASC')
-        ->get();
+        // === Monthly income data (for charts) ===
+        $query = $this->billingModel->select("
+                DATE_FORMAT(updated_at, '%b') AS month,
+                SUM(amount_due) AS total
+            ")
+            ->whereIn('status', ['Paid', 'Over the Counter'])
+            ->groupBy('MONTH(updated_at)')
+            ->orderBy('MONTH(updated_at)', 'ASC')
+            ->get();
 
-    $months = [];
-    $incomeData = [];
+        $months = [];
+        $incomeData = [];
 
-    foreach ($query->getResultArray() as $row) {
-        $months[] = $row['month'];
-        $incomeData[] = (float) $row['total'];
-    }
+        foreach ($query->getResultArray() as $row) {
+            $months[] = $row['month'];
+            $incomeData[] = (float) $row['total'];
+        }
 
-    // === Pass data to view ===
-    $data = [
-        'title'          => 'Dashboard',
-        'totalCollected' => $totalCollected,
-        'unpaidCount'    => $unpaidCount,
-        'activeUsers'    => $activeUsers,
-        'monthlyTotal'   => $monthlyTotal,
-        'months'         => json_encode($months),
-        'incomeData'     => json_encode($incomeData),
-        'active'         => $active,
-        'pending'        => $pending,
-        'inactive'       => $inactive,
-    ];
-        return view('admin/index', $data);
+        // === Pass data to view ===
+        $data = [
+            'title'          => 'Dashboard',
+            'totalCollected' => $totalCollected,
+            'unpaidCount'    => $unpaidCount,
+            'activeUsers'    => $activeUsers,
+            'monthlyTotal'   => $monthlyTotal,
+            'months'         => json_encode($months),
+            'incomeData'     => json_encode($incomeData),
+            'active'         => $active,
+            'pending'        => $pending,
+            'inactive'       => $inactive,
+        ];
+            return view('admin/index', $data);
     }
 
     public function layoutStatic() { return view('admin/layout-static'); }
@@ -102,9 +105,9 @@ class Admin extends BaseController
             ->select('
                 users.id,
                 users.status,
+                users.email,
                 user_information.first_name,
                 user_information.last_name,
-                user_information.email,
                 user_information.barangay,
                 user_information.municipality,
                 user_information.purok,
@@ -139,6 +142,9 @@ class Admin extends BaseController
         return view('admin/registeredUsers', $data);
     }
 
+    /**
+     * Display pending accounts for approval/rejection
+     */
     public function pendingAccounts()
     {
         $users = $this->usersModel
@@ -150,17 +156,53 @@ class Admin extends BaseController
         return view('admin/pendingAccounts', ['users' => $users]);
     }
 
+    /**
+     * Activate a user (status = 2)
+     */
+    public function activateUser($id)
+    {
+        $this->usersModel->update($id, ['active' => 2,'status' => 'approved']);
+        return redirect()->back()->with('success', 'User activated successfully.');
+    }
+
+    /**
+     * Deactivate a user (status = 1)
+     */
+    public function deactivateUser($id)
+    {
+        $this->usersModel->update($id, ['active' => 1, 'status' => 'inactive']);
+        return redirect()->back()->with('success', 'User deactivated successfully.');
+    }
+
+    /**
+     * Suspend a user (status = -1)
+     */
+    public function suspendUser($id)
+    {
+        $this->usersModel->update($id, [
+    'active' => -1, 
+    'status' => 'suspended'
+    ]);;
+        return redirect()->back()->with('success', 'User suspended successfully.');
+    }
+
+    /**
+     * Approve a pending user
+     */
     public function approve($id)
     {
         if (!$id) return redirect()->back()->with('error', 'No user ID provided.');
 
-        if ($this->usersModel->update($id, ['status' => 'approved'])) {
+        if ($this->usersModel->update($id, ['status' => 'approved'] && ['active' => 2])) {
             return redirect()->back()->with('success', 'User approved successfully.');
         }
 
         return redirect()->back()->with('error', 'Failed to approve user.');
     }
 
+    /**
+     * Reject a pending user
+     */
     public function reject($id)
     {
         if (!$id) return redirect()->back()->with('error', 'No user ID provided.');
@@ -172,6 +214,9 @@ class Admin extends BaseController
         return redirect()->back()->with('error', 'Failed to reject user.');
     }
 
+    /**
+     * View single user details
+     */
     public function viewUser($id)
     {
         $user = $this->usersModel
@@ -190,6 +235,9 @@ class Admin extends BaseController
         ]);
     }
 
+    /**
+     * Toggle user active status
+     */
     public function toggleUserStatus($id)
     {
         $user = $this->usersModel->find($id);
@@ -201,15 +249,17 @@ class Admin extends BaseController
         return redirect()->back()->with('success', 'User status updated.');
     }
 
+    /**
+     * Manage user accounts with billing info
+     */
     public function manageAccounts()
     {
         $status = $this->g('status', ['Pending', 'Paid', 'Rejected', 'Over the Counter', 'All'], 'all');
         $search = $this->g('search', null, '');
 
         $users = $this->usersModel
-            ->select('users.id, users.email, users.is_verified, user_information.first_name, user_information.last_name, user_information.phone, user_information.barangay, user_information.purok')
-            ->join('user_information', 'user_information.user_id = users.id', 'left');
-
+        ->select('users.id, users.email, users.status, users.is_verified, user_information.first_name, user_information.last_name, user_information.phone, user_information.barangay, user_information.purok')
+        ->join('user_information', 'user_information.user_id = users.id', 'left');
         if (!empty($search)) {
             $users->groupStart()
                 ->like('user_information.first_name', $search)
@@ -248,11 +298,17 @@ class Admin extends BaseController
         ]);
     }
 
+    /**
+     * Display announcements page
+     */
     public function announcements()
     {
         return view('admin/announcements', ['title' => 'Announcements']);
     }
 
+    /**
+     * Display reports page
+     */
     public function reports()
     {
         return view('admin/layouts/main', [
@@ -261,6 +317,9 @@ class Admin extends BaseController
         ]);
     }
 
+    /**
+     * Display payment settings
+     */
     public function paymentSettings()
     {
         $data = [
@@ -271,6 +330,9 @@ class Admin extends BaseController
         return view('admin/paymentSettings', $data);
     }
 
+    /**
+     * Update QR code and payment details
+     */
     public function updateQR()
     {
         $file = $this->request->getFile('qr_image');
@@ -296,6 +358,9 @@ class Admin extends BaseController
         return redirect()->back()->with('error', 'QR upload failed!');
     }
 
+    /**
+     * Display admin profile
+     */
     public function profile()
     {
         $adminId = session()->get('admin_id');
@@ -307,6 +372,9 @@ class Admin extends BaseController
         return view('admin/profile', ['admin' => $admin]);
     }
 
+    /**
+     * Update admin profile
+     */
     public function updateProfile()
     {
         helper(['form', 'url']);

@@ -12,7 +12,7 @@ class UsersSeeder extends Seeder
             [
                 'email'        => 'user1@example.com',
                 'password'     => password_hash('user123', PASSWORD_DEFAULT),
-                'active'       => 1,
+                'active'       => 0,
                 'is_verified'  => 1,
                 'status'        => 'pending',
                 'created_at'   => date('Y-m-d H:i:s'),
@@ -21,7 +21,7 @@ class UsersSeeder extends Seeder
             [
                 'email'        => 'user2@example.com',
                 'password'     => password_hash('user123', PASSWORD_DEFAULT),
-                'active'       => 1,
+                'active'       => 2,
                 'is_verified'  => 0,
                 'status'        => 'approved',
                 'created_at'   => date('Y-m-d H:i:s'),
