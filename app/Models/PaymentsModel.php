@@ -1,19 +1,15 @@
 <?php
-
 namespace App\Models;
 
 use CodeIgniter\Model;
 
 class PaymentsModel extends Model
 {
-    protected $table            = 'payments';
-    protected $primaryKey       = 'id';
-    protected $useAutoIncrement = true;
-
-    protected $returnType       = 'array';
-    protected $useSoftDeletes   = true;
-
+    protected $table = 'payments';
+    protected $primaryKey = 'id';
     protected $allowedFields = [
+        'user_id',
+        'billing_id',
         'payment_intent_id',
         'payment_method_id',
         'method',
@@ -26,57 +22,116 @@ class PaymentsModel extends Model
         'paid_at',
         'created_at',
         'updated_at',
-        'deleted_at',
+        'deleted_at'
     ];
+    protected $useTimestamps = false;
 
-    protected $useTimestamps = true;
-    protected $createdField  = 'created_at';
-    protected $updatedField  = 'updated_at';
-    protected $deletedField  = 'deleted_at';
-
-    /**
-     * Get all payments for a specific user
-     */
-    public function forUser(int $userId)
+    public function getMonthlyPayments($filters = [])
     {
-        return $this->where('user_id', $userId)
-                    ->orderBy('created_at', 'DESC')
-                    ->findAll();
+        $builder = $this->db->table('payments p');
+        $builder->select('
+            p.id,
+            p.amount,
+            p.method,
+            p.status,
+            p.reference_number,
+            p.admin_reference,
+            p.receipt_image,
+            p.created_at,
+            p.paid_at,
+            u.id as user_id,
+            ui.first_name,
+            ui.last_name,
+            u.email,
+            CONCAT(ui.first_name, " ", ui.last_name) as user_name,
+            CONCAT(SUBSTRING(ui.first_name, 1, 1), SUBSTRING(ui.last_name, 1, 1)) as avatar
+        ');
+        $builder->join('users u', 'u.id = p.user_id', 'left');
+        $builder->join('user_information ui', 'ui.user_id = u.id', 'left');
+
+        if (!empty($filters['month'])) {
+            $builder->where('DATE_FORMAT(p.created_at, "%Y-%m")', $filters['month']);
+        }
+
+        if (!empty($filters['method'])) {
+            $builder->where('p.method', $filters['method']);
+        }
+
+        if (!empty($filters['search'])) {
+            $builder->groupStart();
+            $builder->like('ui.first_name', $filters['search']);
+            $builder->orLike('ui.last_name', $filters['search']);
+            $builder->orLike('u.email', $filters['search']);
+            $builder->groupEnd();
+        }
+
+        $builder->orderBy('p.created_at', 'DESC');
+
+        return $builder->get()->getResultArray();
     }
 
-    /**
-     * Get all payments for a specific billing
-     */
-    public function forBilling(int $billingId)
+    public function getMonthlyStats($filters = [])
     {
-        return $this->where('billing_id', $billingId)
-                    ->orderBy('created_at', 'DESC')
-                    ->findAll();
+        $builder = $this->db->table('payments p');
+        $builder->select('
+            COUNT(DISTINCT p.user_id) as total_users,
+            SUM(CASE WHEN p.status = "Confirmed" THEN p.amount ELSE 0 END) as total_amount,
+            SUM(CASE WHEN p.method = "gateway" THEN 1 ELSE 0 END) as gateway,
+            SUM(CASE WHEN p.method = "manual" THEN 1 ELSE 0 END) as gcash,
+            SUM(CASE WHEN p.method = "offline" THEN 1 ELSE 0 END) as counter,
+            SUM(CASE WHEN p.status = "Confirmed" THEN 1 ELSE 0 END) as confirmed_count
+        ');
+
+        if (!empty($filters['month'])) {
+            $builder->where('DATE_FORMAT(p.created_at, "%Y-%m")', $filters['month']);
+        }
+
+        if (!empty($filters['method'])) {
+            $builder->where('p.method', $filters['method']);
+        }
+
+        if (!empty($filters['search'])) {
+            $builder->join('users u', 'u.id = p.user_id', 'left');
+            $builder->join('user_information ui', 'ui.user_id = u.id', 'left');
+            $builder->groupStart();
+            $builder->like('ui.first_name', $filters['search']);
+            $builder->orLike('ui.last_name', $filters['search']);
+            $builder->orLike('u.email', $filters['search']);
+            $builder->groupEnd();
+        }
+
+        $result = $builder->get()->getRowArray();
+
+        $totalUsersQuery = $this->db->table('users')
+            ->where('status', 'approved')
+            ->countAllResults();
+
+        $collectionRate = 0;
+        if ($totalUsersQuery > 0 && isset($result['confirmed_count'])) {
+            $collectionRate = round(($result['confirmed_count'] / $totalUsersQuery) * 100);
+        }
+
+        return [
+            'total_users' => $result['total_users'] ?? 0,
+            'total_amount' => $result['total_amount'] ?? 0,
+            'gateway' => $result['gateway'] ?? 0,
+            'gcash' => $result['gcash'] ?? 0,
+            'counter' => $result['counter'] ?? 0,
+            'collection_rate' => $collectionRate
+        ];
     }
 
-    /**
-     * Mark payment as paid
-     */
-    public function markAsPaid(string $intentId)
+    public function confirmGCashPayment($paymentId, $adminReference = null)
     {
-        return $this->where('payment_intent_id', $intentId)
-                    ->set([
-                        'status'   => 'Paid',
-                        'paid_at'  => date('Y-m-d H:i:s'),
-                    ])
-                    ->update();
-    }
+        $data = [
+            'status' => 'Confirmed',
+            'paid_at' => date('Y-m-d H:i:s')
+        ];
 
-    /**
-     * Mark payment as failed
-     */
-    public function markAsFailed(string $intentId)
-    {
-        return $this->where('payment_intent_id', $intentId)
-                    ->set([
-                        'status'     => 'Failed',
-                        'updated_at' => date('Y-m-d H:i:s'),
-                    ])
-                    ->update();
+        if ($adminReference) {
+            $data['admin_reference'] = $adminReference;
+        }
+
+        return $this->update($paymentId, $data);
     }
 }

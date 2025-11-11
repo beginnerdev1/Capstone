@@ -65,6 +65,19 @@ class BillingModel extends Model
     }
 
     /**
+     * Update billing status when payment is confirmed
+     */
+    public function updateBillingStatus($paymentId, $status = 'Paid')
+    {
+        return $this->where('payment_id', $paymentId)
+            ->set([
+                'status' => $status,
+                'paid_date' => date('Y-m-d')
+            ])
+            ->update();
+    }
+
+    /**
      * Count total bills by status
      */
     public function countByStatus($status)

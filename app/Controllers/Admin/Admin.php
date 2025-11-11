@@ -7,8 +7,8 @@ use App\Models\BillingModel;
 use App\Models\AdminModel;
 use App\Models\UsersModel;
 use App\Models\UserInformationModel;
-use App\Models\PaymentSettingsModel;
 use App\Models\GcashSettingsModel;
+use App\Models\PaymentsModel; // plural, renamed
 
 class Admin extends BaseController
 {
@@ -16,7 +16,7 @@ class Admin extends BaseController
     protected $userInfoModel;
     protected $billingModel;
     protected $adminModel;
-    protected $paymentModel;
+    protected $paymentsModel; // match property name
 
     public function __construct()
     {
@@ -24,9 +24,8 @@ class Admin extends BaseController
         $this->userInfoModel = new UserInformationModel();
         $this->billingModel = new BillingModel();
         $this->adminModel = new AdminModel();
-        $this->paymentModel = new PaymentSettingsModel();
+         $this->paymentsModel = new PaymentsModel();
     }
-
     /**
      * Display admin dashboard
      */
@@ -252,13 +251,154 @@ public function saveGcashSettings()
     }
 }
 
+// ---------------- Transaction Records ----------------
 
-
-//Display transaction records page
+// Display transaction records page
 public function transactionRecords()
 {
-    return view('admin/transaction_records'); // Page to show transactions
+    $data = [
+        'current_month' => date('Y-m-d') // today
+    ];
+    return view('admin/transaction_records', $data);
 }
+
+// ---------------- Payments Functions ----------------
+
+// Display monthly payments page
+public function monthlyPayments()
+{
+    $month = $this->request->getGet('month') ?? date('Y-m');
+    $method = $this->request->getGet('method') ?? '';
+    $search = $this->request->getGet('search') ?? '';
+
+    $filters = [
+        'month' => $month,
+        'method' => $method,
+        'search' => $search
+    ];
+
+    // Use the renamed model
+    $payments = $this->paymentsModel->getMonthlyPayments($filters);
+    $stats = $this->paymentsModel->getMonthlyStats($filters);
+
+    $formattedPayments = [];
+    foreach ($payments as $payment) {
+        $formattedPayments[] = [
+            'id' => $payment['id'],
+            'user_name' => $payment['user_name'] ?? 'Unknown',
+            'email' => $payment['email'] ?? 'N/A',
+            'amount' => $payment['amount'] ?? 0,
+            'method' => $payment['method'] ?? 'Unknown',
+            'status' => $payment['status'] ?? 'Pending',
+            'reference' => $payment['reference_number'] ?? 'N/A',
+            'admin_reference' => $payment['admin_reference'] ?? '',
+            'receipt' => $payment['receipt_image'] ? base_url($payment['receipt_image']) : null,
+            'created_at' => $payment['created_at'] ?? date('Y-m-d H:i:s'),
+            'paid_at' => $payment['paid_at'] ?? null,
+            'avatar' => $payment['avatar'] ?? 'NA'
+        ];
+    }
+
+    $data = [
+        'title' => 'Monthly Payments',
+        'payments' => $formattedPayments,
+        'stats' => $stats,
+        'current_month' => $month,
+        'filters' => $filters
+    ];
+
+    return view('admin/monthly_payments', $data);
+}
+
+// Fetch payments data for AJAX
+    public function getPaymentsData()
+    {
+        $month = $this->request->getGet('month');
+        $method = $this->request->getGet('method');
+        $search = $this->request->getGet('search');
+
+        $filters = [
+            'month' => $month,
+            'method' => $method,
+            'search' => $search
+        ];
+
+        $payments = $this->paymentsModel->getMonthlyPayments($filters);
+        $stats = $this->paymentsModel->getMonthlyStats($filters);
+
+        return $this->response->setJSON([
+            'success' => true,
+            'payments' => $payments,
+            'stats' => $stats
+        ]);
+    }
+
+
+    // Confirm GCash payment (AJAX)
+  public function confirmGCashPayment()
+    {
+        $data = $this->request->getJSON(true);
+        $paymentId = $data['payment_id'] ?? null;
+        $adminRef = $data['admin_reference'] ?? null;
+
+        if (!$paymentId) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Payment ID is required']);
+        }
+
+        $updated = $this->paymentsModel->confirmGCashPayment($paymentId, $adminRef);
+
+        return $this->response->setJSON([
+            'success' => (bool)$updated,
+            'message' => $updated ? 'Payment confirmed successfully' : 'Failed to confirm payment'
+        ]);
+    }
+
+public function exportPayments()
+{
+    $month = $this->request->getGet('month') ?? date('Y-m');
+    $method = $this->request->getGet('method') ?? '';
+    $search = $this->request->getGet('search') ?? '';
+
+    $filters = [
+        'month' => $month,
+        'method' => $method,
+        'search' => $search
+    ];
+
+    $payments = $this->paymentModel->getMonthlyPayments($filters);
+
+    header('Content-Type: text/csv');
+    header('Content-Disposition: attachment; filename="payments_' . date('Y-m-d') . '.csv"');
+
+    $output = fopen('php://output', 'w');
+    fputcsv($output, ['Name', 'Email', 'Amount', 'Method', 'Status', 'Reference', 'Admin Reference', 'Date']);
+
+    foreach ($payments as $payment) {
+        fputcsv($output, [
+            $payment['user_name'] ?? 'Unknown',
+            $payment['email'] ?? 'N/A',
+            number_format($payment['amount'] ?? 0, 2),
+            $payment['method'] ?? 'Unknown',
+            $payment['status'] ?? 'Pending',
+            $payment['reference_number'] ?? 'N/A',
+            $payment['admin_reference'] ?? 'N/A',
+            date('Y-m-d', strtotime($payment['created_at'] ?? 'now'))
+        ]);
+    }
+
+    fclose($output);
+    exit;
+}
+
+
+
+
+
+
+
+
+
+
 
 // Edit user/admin profile
 public function editProfile()
@@ -272,9 +412,9 @@ public function reports()
     return view('admin/reports'); // Loads the reports.php view
 }
 
-// ======================================================
-// 💳 UTILITIES
-// ======================================================
+
+
+
 
 
     //Activate a user (status = 2)

@@ -684,7 +684,9 @@
         <div class="py-2 collapse-inner">
           <h6 class="collapse-header">Custom Utilities:</h6>
             <a href="<?= base_url('admin/gcash-settings') ?>" class="collapse-item ajax-link">Gcash Settings</a>
-           <a href="<?= base_url('admin/transaction-records') ?>" class="collapse-item ajax-link">Transaction</a>
+            <a href="<?= base_url('admin/transactionRecords') ?>" class="collapse-item ajax-link">Transactions</a>
+
+
            <a href="<?= base_url('admin/edit-profile') ?>" class="collapse-item ajax-link">Edit Profile</a>
            <a href="<?= base_url('admin/reports') ?>" class="collapse-item ajax-link">Reports</a>
         </div>
@@ -860,40 +862,52 @@
             }
         });
     </script>
+<script>
+    // 1. AJAX Link Handler (The Main Fix)
+    $(document).on("click", ".ajax-link", function(e) {
+        e.preventDefault();
+        var url = $(this).attr("href");
 
-    <script>
-        $(document).on("click", ".ajax-link", function(e) {
-            e.preventDefault();
-            var url = $(this).attr("href");
+        $.ajax({
+            url: url,
+            type: "GET",
+            success: function(data) {
+                // 1. Insert the new content
+                $("#mainContent").html(data);
 
-            $.ajax({
-                url: url,
-                type: "GET",
-                success: function(data) {
-                    $("#mainContent").html(data);
-                },
-                error: function(xhr, status, error) {
-                    console.error("AJAX Error:", status, error);
-                    $("#mainContent").html("<p class='text-danger p-3'>Failed to load content.</p>");
+                // 2. CHECK & INITIALIZE: This is the critical step for AJAX loads.
+                // It checks if the function exists (script must be loaded in the main layout)
+                // AND if the required element is in the newly loaded HTML.
+                if (typeof initTransactionPage === 'function' && $("#mainContent").find('#paymentTableBody').length) {
+                    initTransactionPage();
+                    console.log("Transaction page initialized via AJAX success.");
                 }
-            });
+                
+                // You might add checks for other specific page init functions here as well.
+            },
+            error: function(xhr, status, error) {
+                console.error("AJAX Error:", status, error);
+                $("#mainContent").html("<p class='text-danger p-3'>Failed to load content.</p>");
+            }
         });
+    });
 
-        $(document).ready(function() {
-            $.ajax({
-                url: "<?= base_url('admin/dashboard-content') ?>",
-                type: "GET",
-                success: function(data) {
-                    $("#mainContent").html(data);
-                },
-                error: function(xhr, status, error) {
-                    console.error("Dashboard Load Error:", status, error);
-                    $("#mainContent").html("<p class='text-danger p-3'>Failed to load dashboard.</p>");
-                }
-            });
+    // 2. Initial Dashboard Load (No changes needed here unless the dashboard also needs a specific init function)
+    $(document).ready(function() {
+        $.ajax({
+            url: "<?= base_url('admin/dashboard-content') ?>",
+            type: "GET",
+            success: function(data) {
+                $("#mainContent").html(data);
+                // If your dashboard has a specific init function, call it here.
+            },
+            error: function(xhr, status, error) {
+                console.error("Dashboard Load Error:", status, error);
+                $("#mainContent").html("<p class='text-danger p-3'>Failed to load dashboard.</p>");
+            }
         });
-    </script>
-
+    });
+</script>
 </body>
 
 </html>

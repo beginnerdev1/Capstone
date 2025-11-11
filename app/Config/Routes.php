@@ -98,9 +98,13 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
 $routes->get('getUser/(:num)', 'Admin::getUser/$1');//get user info for verify user
 $routes->get('gcash-settings', 'Admin::gcashsettings');// GCash Settings Page
 $routes->post('saveGcashSettings', 'Admin::saveGcashSettings'); // Save GCash Settings
-$routes->get('transaction-records', 'Admin::transactionRecords');// Transaction Records Page
+$routes->get('transactionRecords', 'Admin::transactionRecords');// Transaction Records Page
 $routes->get('edit-profile', 'Admin::editProfile'); // Edit Profile Page
 $routes->get('reports', 'Admin::reports'); // Reports Page
+$routes->get('monthlyPayments', 'Admin::monthlyPayments'); // Monthly Payments Page
+$routes->get('getPaymentsData', 'Admin::getPaymentsData');// Get Payments Data for Monthly Payments Page
+$routes->post('confirmGCashPayment', 'Admin::confirmGCashPayment');// Confirm GCash Payment
+$routes->get('exportPayments', 'Admin::exportPayments');// Export Payments Data
 
 
 
