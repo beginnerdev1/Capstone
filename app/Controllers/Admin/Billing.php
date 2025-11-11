@@ -83,7 +83,7 @@ class Billing extends BaseController
         }
 
         // Get the user
-        $user = $this->usersModel->find($d);
+        $user = $this->usersModel->find($userId);
         if (!$user) {
             return redirect()->back()->with('error', 'User not found.');
         }
