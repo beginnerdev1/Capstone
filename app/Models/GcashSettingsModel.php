@@ -4,7 +4,7 @@ namespace App\Models;
 
 use CodeIgniter\Model;
 
-class GcashSettingModel extends Model
+class GcashSettingsModel extends Model
 {
     protected $table          = 'gcash_settings';
     protected $primaryKey     = 'id';
