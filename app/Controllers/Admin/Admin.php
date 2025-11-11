@@ -8,6 +8,7 @@ use App\Models\AdminModel;
 use App\Models\UsersModel;
 use App\Models\UserInformationModel;
 use App\Models\PaymentSettingsModel;
+use App\Models\GcashSettingsModel;
 
 class Admin extends BaseController
 {
@@ -88,6 +89,16 @@ class Admin extends BaseController
             return view('admin/index', $data);
     }
 
+    public function dashboard()
+{
+    return view('admin/Dashboard');
+}
+
+ public function content()
+    {
+        return view('admin/dashboard-content'); // no .php
+    }
+
     public function layoutStatic() { return view('admin/layout-static'); }
     public function charts() { return view('admin/charts'); }
     public function page404() { return view('admin/404'); }
@@ -96,78 +107,156 @@ class Admin extends BaseController
     public function tables() { return view('admin/tables'); }
 
 
-    //show Registered user
-// Show Registered Users
+// ======================================================
+// 💳 USER MANAGEMENT
+// ======================================================
+
+// Show Registered Users - Ajax Done
 public function registeredUsers()
 {
-    $puroks = ['1', '2', '3', '4', '5'];
-    $selectedPurok = $this->g('purok');
-    $search = $this->g('search');
+    // Pass empty arrays so the view doesn’t throw errors
+    $data = [
+        'users' => [],
+        'puroks' => ['1','2','3','4','5'],
+        'selectedPurok' => null,
+        'search' => null
+    ];
 
-    // Use the model method with join
-    $builder = $this->usersModel
-        ->select('
-            users.id,
-            users.status,
-            users.email,
-            user_information.first_name,
-            user_information.last_name,
-            user_information.barangay,
-            user_information.municipality,
-            user_information.purok,
-            users.active
-        ')
-        ->join('user_information', 'user_information.user_id = users.id', 'left');
+    return view('admin/registeredUsers', $data); // no .php
+}
 
-    if ($selectedPurok) {
-        $builder->where('user_information.purok', $selectedPurok);
-    }
+//Display  VERIFY USER  accounts for approval/rejection
+public function pendingAccounts()
+{
+    $usersModel = new \App\Models\UsersModel();
+    $users = $usersModel
+        ->select('users.id, users.email, users.status, user_information.first_name, user_information.last_name, user_information.purok, user_information.barangay')
+        ->join('user_information', 'user_information.user_id = users.id', 'left')
+        ->where('users.status', 'Pending')
+        ->orderBy('users.created_at', 'DESC')
+        ->findAll();
 
-    if ($search) {
-        $builder->groupStart()
-            ->like('user_information.first_name', $search)
-            ->orLike('user_information.last_name', $search)
-            ->orLike('users.email', $search)
-            ->groupEnd();
-    }
-
-    // Fetch all users for AJAX
-    $users = $builder->orderBy('users.id', 'DESC')->findAll();
-
-    // Pagination for normal page load
-    $pager = $this->usersModel->pager;
-
-    // Return JSON if AJAX
-    if ($this->request->isAJAX()) {
+    // Return JSON if Ajax
+    if ($this->request->getGet('ajax')) {
         return $this->response->setJSON($users);
     }
 
-    // Normal page load
-    $data = [
-        'title' => 'Registered Users',
-        'users' => $builder->paginate(10),
-        'pager' => $pager,
-        'puroks' => $puroks,
-        'selectedPurok' => $selectedPurok,
-        'search' => $search
-    ];
-
-    return view('admin/registeredUsers', $data);
+    return view('admin/pendingAccounts', ['users' => $users]);
 }
 
-    /**
-     * Display pending accounts for approval/rejection
-     */
-    public function pendingAccounts()
-    {
-        $users = $this->usersModel
-            ->select('users.id, users.email, users.status, user_information.first_name, user_information.last_name, user_information.purok, user_information.barangay')
-            ->join('user_information', 'user_information.user_id = users.id', 'left')
-            ->where('users.status', 'Pending')
-            ->findAll();
+//Get user info for modal (AJAX) for Verify User
+public function getUser($id)
+{
+    $userModel = new \App\Models\UsersModel();
+    $userInfoModel = new \App\Models\UserInformationModel();
 
-        return view('admin/pendingAccounts', ['users' => $users]);
+    $user = $userModel->find($id);
+    $info = $userInfoModel->getByUserId($id);
+
+    if (!$user) return $this->response->setJSON([]);
+
+    return $this->response->setJSON([
+        'id'            => $user['id'],
+        'email'         => $user['email'],
+        'first_name'    => $info['first_name'] ?? '',
+        'last_name'     => $info['last_name'] ?? '',
+        'gender'        => $info['gender'] ?? '',
+        'age'           => $info['age'] ?? '',
+        'family_number' => $info['family_number'] ?? '',
+        'phone'         => $info['phone'] ?? '',
+        'purok'         => $info['purok'] ?? '',
+        'barangay'      => $info['barangay'] ?? '',
+        'municipality'  => $info['municipality'] ?? '',
+        'province'      => $info['province'] ?? '',
+        'zipcode'       => $info['zipcode'] ?? '',
+        'profile_picture' => $info['profile_picture'] ?? ''
+    ]);
+}
+
+
+// ======================================================
+// 💳 UTILITIES
+// ======================================================
+
+
+//Display GCash settings page
+public function gcashsettings() {
+        return view('admin/gcash_settings');
+}
+
+// Save GCash settings
+public function saveGcashSettings()
+    {
+        // Ensure request is POST
+        if (!$this->request->is('post')) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Invalid request method']);
+        }
+
+        $model = new GcashSettingModel();
+
+        // Validation rules
+        $rules = [
+            'gcash_number' => 'required|regex_match[/^[0-9]{11}$/]',
+            'gcash_qr'     => 'if_exist|max_size[gcash_qr,5000]|is_image[gcash_qr]|mime_in[gcash_qr,image/png,image/jpg,image/jpeg]',
+        ];
+
+        if (!$this->validate($rules)) {
+            return $this->response->setJSON(['success' => false, 'message' => $this->validator->getErrors()]);
+        }
+
+        // Handle file upload (to public/uploads/qrcodes)
+        $file = $this->request->getFile('gcash_qr');
+        $qrCodePath = null;
+
+        if ($file && $file->isValid() && !$file->hasMoved()) {
+            $newName = $file->getRandomName();
+            $uploadPath = FCPATH . 'uploads/qrcodes'; // public/uploads/qrcodes
+            $file->move($uploadPath, $newName);
+            $qrCodePath = 'uploads/qrcodes/' . $newName; // relative path
+        }
+
+        $gcashNumber = $this->request->getPost('gcash_number');
+        $settings = $model->find(1);
+
+        if (!$settings) {
+            $model->insert([
+                'gcash_number' => $gcashNumber,
+                'qr_code_path' => $qrCodePath,
+            ]);
+        } else {
+            $updateData = ['gcash_number' => $gcashNumber];
+            if ($qrCodePath) {
+                $updateData['qr_code_path'] = $qrCodePath;
+            }
+            $model->update(1, $updateData);
+        }
+
+        return $this->response->setJSON(['success' => true, 'message' => 'Settings saved successfully']);
     }
+
+
+//Display transaction records page
+public function transactionRecords()
+{
+    return view('admin/transaction_records'); // Page to show transactions
+}
+
+// Edit user/admin profile
+public function editProfile()
+{
+    return view('admin/edit_profile'); // Page to edit user/admin profile
+}
+
+// Display reports page
+public function reports()
+{
+    return view('admin/reports'); // Loads the reports.php view
+}
+
+// ======================================================
+// 💳 UTILITIES
+// ======================================================
+
 
     //Activate a user (status = 2)
     public function activateUser($id)
@@ -302,14 +391,7 @@ public function registeredUsers()
         return view('admin/announcements', ['title' => 'Announcements']);
     }
 
-    // Display reports page
-    public function reports()
-    {
-        return view('admin/layouts/main', [
-            'title' => 'Reports',
-            'content' => view('admin/Reports', ['title' => 'Reports'])
-        ]);
-    }
+
 
     //Display payment settings
     public function paymentSettings()

@@ -86,12 +86,25 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
     // ✅ Protected admin routes (requires both adminauth + no force password change)
     $routes->group('', ['filter' => ['adminauth', 'forcepasswordchange']], function ($routes) {
         $routes->get('/', 'Admin::index');
+        $routes->get('dashboard', 'Admin::dashboard');
+$routes->get('dashboard-content', 'Admin::content');
+
         $routes->get('logout', 'AdminAuth::logout');
         $routes->get('registeredUsers', 'Admin::registeredUsers');
         $routes->get('announcements', 'Admin::announcements');
         $routes->get('manageAccounts', 'Admin::manageAccounts');
         $routes->get('userInfo', 'Admin::getUserInfo');
         $routes->get('pendingAccounts', 'Admin::pendingAccounts');
+$routes->get('getUser/(:num)', 'Admin::getUser/$1');//get user info for verify user
+$routes->get('gcash-settings', 'Admin::gcashsettings');// GCash Settings Page
+$routes->post('saveGcashSettings', 'Admin::saveGcashSettings'); // Save GCash Settings
+$routes->get('transaction-records', 'Admin::transactionRecords');// Transaction Records Page
+$routes->get('edit-profile', 'Admin::editProfile'); // Edit Profile Page
+$routes->get('reports', 'Admin::reports'); // Reports Page
+
+
+
+
         $routes->post('approve/(:num)', 'Admin::approve/$1');
         $routes->post('reject/(:num)', 'Admin::reject/$1');;
         $routes->get('activateUser/(:num)', 'Admin::activateUser/$1');
