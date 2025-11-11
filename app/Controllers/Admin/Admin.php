@@ -186,53 +186,72 @@ public function gcashsettings() {
 
 // Save GCash settings
 public function saveGcashSettings()
-    {
+{
+    try {
         // Ensure request is POST
         if (!$this->request->is('post')) {
             return $this->response->setJSON(['success' => false, 'message' => 'Invalid request method']);
         }
 
-        $model = new GcashSettingModel();
+        // Load model
+        $model = new \App\Models\GcashSettingsModel();
 
         // Validation rules
         $rules = [
             'gcash_number' => 'required|regex_match[/^[0-9]{11}$/]',
-            'gcash_qr'     => 'if_exist|max_size[gcash_qr,5000]|is_image[gcash_qr]|mime_in[gcash_qr,image/png,image/jpg,image/jpeg]',
+            'gcash_qr'     => 'max_size[gcash_qr,5000]|is_image[gcash_qr]|mime_in[gcash_qr,image/png,image/jpg,image/jpeg]'
         ];
 
         if (!$this->validate($rules)) {
-            return $this->response->setJSON(['success' => false, 'message' => $this->validator->getErrors()]);
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => $this->validator->getErrors()
+            ]);
         }
 
-        // Handle file upload (to public/uploads/qrcodes)
+        $settings = $model->find(1);
         $file = $this->request->getFile('gcash_qr');
         $qrCodePath = null;
 
         if ($file && $file->isValid() && !$file->hasMoved()) {
+            $uploadPath = FCPATH . 'uploads/qrcodes';
+            if (!is_dir($uploadPath)) {
+                mkdir($uploadPath, 0755, true);
+            }
+
+            // Delete old QR code if exists
+            if ($settings && !empty($settings['qr_code_path']) && file_exists(FCPATH . $settings['qr_code_path'])) {
+                unlink(FCPATH . $settings['qr_code_path']);
+            }
+
             $newName = $file->getRandomName();
-            $uploadPath = FCPATH . 'uploads/qrcodes'; // public/uploads/qrcodes
             $file->move($uploadPath, $newName);
-            $qrCodePath = 'uploads/qrcodes/' . $newName; // relative path
+            $qrCodePath = 'uploads/qrcodes/' . $newName;
         }
 
         $gcashNumber = $this->request->getPost('gcash_number');
-        $settings = $model->find(1);
+
+        $updateData = ['gcash_number' => $gcashNumber];
+        if ($qrCodePath) {
+            $updateData['qr_code_path'] = $qrCodePath;
+        }
 
         if (!$settings) {
-            $model->insert([
-                'gcash_number' => $gcashNumber,
-                'qr_code_path' => $qrCodePath,
-            ]);
+            $model->insert($updateData);
         } else {
-            $updateData = ['gcash_number' => $gcashNumber];
-            if ($qrCodePath) {
-                $updateData['qr_code_path'] = $qrCodePath;
-            }
             $model->update(1, $updateData);
         }
 
         return $this->response->setJSON(['success' => true, 'message' => 'Settings saved successfully']);
+
+    } catch (\Exception $e) {
+        return $this->response->setJSON([
+            'success' => false,
+            'message' => 'Error: ' . $e->getMessage()
+        ]);
     }
+}
+
 
 
 //Display transaction records page

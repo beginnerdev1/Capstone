@@ -98,6 +98,7 @@ $routes->get('dashboard-content', 'Admin::content');
 $routes->get('getUser/(:num)', 'Admin::getUser/$1');//get user info for verify user
 $routes->get('gcash-settings', 'Admin::gcashsettings');// GCash Settings Page
 $routes->post('saveGcashSettings', 'Admin::saveGcashSettings'); // Save GCash Settings
+$routes->get('showGcashSettings', 'Admin::showGcashSettings'); // Load page with GCash settings
 $routes->get('transaction-records', 'Admin::transactionRecords');// Transaction Records Page
 $routes->get('edit-profile', 'Admin::editProfile'); // Edit Profile Page
 $routes->get('reports', 'Admin::reports'); // Reports Page
