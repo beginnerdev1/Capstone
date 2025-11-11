@@ -85,8 +85,8 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
 
     // ✅ Protected admin routes (requires both adminauth + no force password change)
     $routes->group('', ['filter' => ['adminauth', 'forcepasswordchange']], function ($routes) {
-       // $routes->get('/', 'Admin::index');
-        $routes->get('/', 'Admin::dashboard');
+        $routes->get('/', 'Admin::index');
+        $routes->get('dashboard', 'Admin::dashboard');
         $routes->get('dashboard-content', 'Admin::content');
 
         $routes->get('logout', 'AdminAuth::logout');

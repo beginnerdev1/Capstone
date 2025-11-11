@@ -35,6 +35,7 @@ class Admin extends BaseController
         // === Billing data ===
         $totalCollected = $this->billingModel
             ->whereIn('status', ['Paid', 'Over the Counter'])
+            ->where('YEAR(updated_at)', date('Y'))
             ->selectSum('amount_due')
             ->get()->getRow()->amount_due ?? 0;
 
@@ -48,6 +49,7 @@ class Admin extends BaseController
             ->where('YEAR(updated_at)', date('Y'))
             ->selectSum('amount_due')
             ->get()->getRow()->amount_due ?? 0;
+
 
         // === User counts ===
         $active = $this->usersModel->where('status', 'approved')->countAllResults();
@@ -86,7 +88,7 @@ class Admin extends BaseController
             'pending'        => $pending,
             'inactive'       => $inactive,
         ];
-            return view('admin/index', $data);
+            return view('admin/Dashboard', $data);
     }
 
     public function dashboard()

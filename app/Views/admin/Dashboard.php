@@ -894,6 +894,38 @@
         });
     </script>
 
+   <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const months = <?= $months ?>;
+        const incomeData = <?= $incomeData ?>;
+
+        const ctx = document.getElementById('myAreaChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: months,
+                datasets: [{
+                    label: "Earnings",
+                    data: incomeData,
+                    fill: true,
+                    borderColor: '#4e73df',
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { display: false } },
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+    });
+    </script>
+
 </body>
 
 </html>

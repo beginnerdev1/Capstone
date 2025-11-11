@@ -19,7 +19,8 @@
                     <div class="stat-card-body">
                         <div>
                             <div class="stat-label">Earnings (Monthly)</div>
-                            <div class="stat-value">$40,000</div>
+                            <div class="stat-value"><?= number_format($monthlyTotal, 2, 
+                            ".", ",")?></div>
                         </div>
                         <i class="fas fa-calendar stat-icon"></i>
                     </div>
@@ -30,7 +31,7 @@
                     <div class="stat-card-body">
                         <div>
                             <div class="stat-label">Earnings (Annual)</div>
-                            <div class="stat-value">$215,000</div>
+                            <div class="stat-value"><?= number_format($totalCollected, 2, ".", ",")?></div>
                         </div>
                         <i class="fas fa-dollar-sign stat-icon"></i>
                     </div>
