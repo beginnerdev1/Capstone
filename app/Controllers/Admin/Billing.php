@@ -222,3 +222,4 @@ class Billing extends BaseController
         return redirect()->back()->with('error', 'Failed to delete billing.');
     }
 }
+?>

@@ -85,8 +85,8 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
 
     // ✅ Protected admin routes (requires both adminauth + no force password change)
     $routes->group('', ['filter' => ['adminauth', 'forcepasswordchange']], function ($routes) {
-       // $routes->get('/', 'Admin::index');
-        $routes->get('/', 'Admin::dashboard');
+        $routes->get('/', 'Admin::index');
+        $routes->get('dashboard', 'Admin::dashboard');
         $routes->get('dashboard-content', 'Admin::content');
 
         $routes->get('logout', 'AdminAuth::logout');
@@ -110,7 +110,7 @@ $routes->get('exportPayments', 'Admin::exportPayments');// Export Payments Data
 
 
         $routes->post('approve/(:num)', 'Admin::approve/$1');
-        $routes->post('reject/(:num)', 'Admin::reject/$1');;
+        $routes->post('reject/(:num)', 'Admin::reject/$1');
         $routes->get('activateUser/(:num)', 'Admin::activateUser/$1');
         $routes->get('deactivateUser/(:num)', 'Admin::deactivateUser/$1');
         $routes->get('suspendUser/(:num)', 'Admin::suspendUser/$1');
