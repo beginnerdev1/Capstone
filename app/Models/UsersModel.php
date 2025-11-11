@@ -72,4 +72,11 @@ class UsersModel extends Model
                     ->where('users.id', $userId)
                     ->first();
     }
+    // Get all users with their information
+    public function getAllUsersWithInfo()
+    {
+        return $this->select('users.*, user_information.first_name, user_information.last_name, user_information.purok')
+                    ->join('user_information', 'user_information.user_id = users.id', 'left')
+                    ->findAll(); // fetch all users
+    }
 }

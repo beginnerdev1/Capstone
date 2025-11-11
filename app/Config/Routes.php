@@ -106,7 +106,7 @@ $routes->get('reports', 'Admin::reports'); // Reports Page
 
 
         $routes->post('approve/(:num)', 'Admin::approve/$1');
-        $routes->post('reject/(:num)', 'Admin::reject/$1');;
+        $routes->post('reject/(:num)', 'Admin::reject/$1');
         $routes->get('activateUser/(:num)', 'Admin::activateUser/$1');
         $routes->get('deactivateUser/(:num)', 'Admin::deactivateUser/$1');
         $routes->get('suspendUser/(:num)', 'Admin::suspendUser/$1');
