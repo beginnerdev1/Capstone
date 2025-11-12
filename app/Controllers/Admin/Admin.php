@@ -20,6 +20,7 @@ class Admin extends BaseController
 
     public function __construct()
     {
+         $this->db = \Config\Database::connect(); //Connection to the database? I dont know man...
         $this->usersModel = new UsersModel();
         $this->userInfoModel = new UserInformationModel();
         $this->billingModel = new BillingModel();
@@ -133,245 +134,197 @@ class Admin extends BaseController
         return view('admin/registeredUsers', $data);
     }
 
-    // Filter users based on search and purok - AJAX
-    public function filterUsers()
+
+    // Filter users based on search, purok, and status - AJAX
+   public function filterUsers()
     {
-        $search = $this->request->getVar('search');
-        $purok = $this->request->getVar('purok');
+        // Get filter parameters from query string
+        $search = $this->request->getGet('search');
+        $purok  = $this->request->getGet('purok');
+        $status = $this->request->getGet('status');
 
-        $builder = $this->usersModel
-                        ->select('users.*, user_information.first_name, user_information.last_name, user_information.purok')
-                        ->join('user_information', 'user_information.user_id = users.id', 'left');
+        // Build query with user and user_information tables
+        $builder = $this->db->table('users u')
+            ->select('u.id, u.email, u.status, ui.first_name, ui.last_name, ui.purok')
+            ->join('user_information ui', 'u.id = ui.user_id', 'left');
 
-        if($search) {
+        // Apply search filter (searches name and email)
+        if (!empty($search)) {
             $builder->groupStart()
-                    ->like('users.email', $search)
-                    ->orLike('user_information.first_name', $search)
-                    ->orLike('user_information.last_name', $search)
-                    ->orLike('users.id', $search)
-                    ->groupEnd();
+                ->like('ui.first_name', $search)
+                ->orLike('ui.last_name', $search)
+                ->orLike('u.email', $search)
+                ->groupEnd();
         }
 
-        if($purok) {
-            $builder->where('user_information.purok', $purok);
+        // Apply purok filter
+        if (!empty($purok)) {
+            $builder->where('ui.purok', $purok);
         }
 
-        $users = $builder->findAll();
-
-        $statusMap = [
-            'pending' => 'Pending',
-            'approved' => 'Approved',
-            'rejected' => 'Rejected',
-            'suspended' => 'Suspended',
-            'inactive' => 'Inactive'
-        ];
-
-        $result = [];
-        foreach($users as $user) {
-            $result[] = [
-                'id' => $user['id'],
-                'name' => ($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''),
-                'purok' => $user['purok'] ?? 'N/A',
-                'email' => $user['email'],
-                'status' => $statusMap[$user['status']] ?? 'Unknown'
-            ];
+        // Apply status filter
+        if (!empty($status)) {
+            $builder->where('u.status', $status);
         }
 
-        return $this->response->setJSON($result);
-    }
+        // Execute query and get results
+        $users = $builder->get()->getResultArray();
 
-//Display  VERIFY USER  accounts for approval/rejection
-public function pendingAccounts()
-{
-    $usersModel = new \App\Models\UsersModel();
-    $users = $usersModel
-        ->select('users.id, users.email, users.status, user_information.first_name, user_information.last_name, user_information.purok, user_information.barangay')
-        ->join('user_information', 'user_information.user_id = users.id', 'left')
-        ->where('users.status', 'Pending')
-        ->orderBy('users.created_at', 'DESC')
-        ->findAll();
-
-    // Return JSON if Ajax
-    if ($this->request->getGet('ajax')) {
+        // Return JSON response
         return $this->response->setJSON($users);
     }
 
-    return view('admin/pendingAccounts', ['users' => $users]);
-}
-
-//Get user info for modal (AJAX) for Verify User
-public function getUser($id)
-{
-    $userModel = new \App\Models\UsersModel();
-    $userInfoModel = new \App\Models\UserInformationModel();
-
-    $user = $userModel->find($id);
-    $info = $userInfoModel->getByUserId($id);
-
-    if (!$user) return $this->response->setJSON([]);
-
-    return $this->response->setJSON([
-        'id'            => $user['id'],
-        'email'         => $user['email'],
-        'first_name'    => $info['first_name'] ?? '',
-        'last_name'     => $info['last_name'] ?? '',
-        'gender'        => $info['gender'] ?? '',
-        'age'           => $info['age'] ?? '',
-        'family_number' => $info['family_number'] ?? '',
-        'phone'         => $info['phone'] ?? '',
-        'purok'         => $info['purok'] ?? '',
-        'barangay'      => $info['barangay'] ?? '',
-        'municipality'  => $info['municipality'] ?? '',
-        'province'      => $info['province'] ?? '',
-        'zipcode'       => $info['zipcode'] ?? '',
-        'profile_picture' => $info['profile_picture'] ?? ''
-    ]);
-}
 
 
-// ======================================================
-// 💳 UTILITIES
-// ======================================================
+    //Display  VERIFY USER  accounts for approval/rejection
+    public function pendingAccounts()
+    {
+        $usersModel = new \App\Models\UsersModel();
+        $users = $usersModel
+            ->select('users.id, users.email, users.status, user_information.first_name, user_information.last_name, user_information.purok, user_information.barangay')
+            ->join('user_information', 'user_information.user_id = users.id', 'left')
+            ->where('users.status', 'Pending')
+            ->orderBy('users.created_at', 'DESC')
+            ->findAll();
 
-
-//Display GCash settings page
-public function gcashsettings() {
-        return view('admin/gcash_settings');
-}
-
-// Save GCash settings
-public function saveGcashSettings()
-{
-    try {
-        // Ensure request is POST
-        if (!$this->request->is('post')) {
-            return $this->response->setJSON(['success' => false, 'message' => 'Invalid request method']);
+        // Return JSON if Ajax
+        if ($this->request->getGet('ajax')) {
+            return $this->response->setJSON($users);
         }
 
-        // Load model
-        $model = new \App\Models\GcashSettingsModel();
+        return view('admin/pendingAccounts', ['users' => $users]);
+    }
 
-        // Validation rules
-        $rules = [
-            'gcash_number' => 'required|regex_match[/^[0-9]{11}$/]',
-            'gcash_qr'     => 'max_size[gcash_qr,5000]|is_image[gcash_qr]|mime_in[gcash_qr,image/png,image/jpg,image/jpeg]'
-        ];
+    //Get user info for modal (AJAX) for Verify User and user details
+    public function getUser($id)
+    {
+        $userModel = $this->usersModel;
+        $userInfoModel = $this->userInfoModel;
 
-        if (!$this->validate($rules)) {
+        $user = $userModel->find($id);
+        $info = $userInfoModel->getByUserId($id);
+
+        if (!$user) return $this->response->setJSON([]);
+
+            return $this->response->setJSON([
+                'id'            => $user['id'],
+                'email'         => $user['email'],
+                'first_name'    => $info['first_name'] ?? '',
+                'last_name'     => $info['last_name'] ?? '',
+                'gender'        => $info['gender'] ?? '',
+                'age'           => $info['age'] ?? '',
+                'family_number' => $info['family_number'] ?? '',
+                'phone'         => $info['phone'] ?? '',
+                'purok'         => $info['purok'] ?? '',
+                'barangay'      => $info['barangay'] ?? '',
+                'municipality'  => $info['municipality'] ?? '',
+                'province'      => $info['province'] ?? '',
+                'zipcode'       => $info['zipcode'] ?? '',
+                'profile_picture' => $info['profile_picture'] ?? '',
+                'status'        => $user['status'] ?? '',
+                'created_at'    =>$user['created_at'] ?? '',
+                'is_verified'      =>$user['is_verified'] ?? ''
+            ]);   
+    }
+
+
+    // ======================================================
+    // 💳 UTILITIES
+    // ======================================================
+
+
+    //Display GCash settings page
+    public function gcashsettings() {
+            return view('admin/gcash_settings');
+    }
+
+    // Save GCash settings
+    public function saveGcashSettings()
+    {
+        try {
+            // Ensure request is POST
+            if (!$this->request->is('post')) {
+                return $this->response->setJSON(['success' => false, 'message' => 'Invalid request method']);
+            }
+
+            // Load model
+            $model = new \App\Models\GcashSettingsModel();
+
+            // Validation rules
+            $rules = [
+                'gcash_number' => 'required|regex_match[/^[0-9]{11}$/]',
+                'gcash_qr'     => 'max_size[gcash_qr,5000]|is_image[gcash_qr]|mime_in[gcash_qr,image/png,image/jpg,image/jpeg]'
+            ];
+
+            if (!$this->validate($rules)) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => $this->validator->getErrors()
+                ]);
+            }
+
+            $settings = $model->find(1);
+            $file = $this->request->getFile('gcash_qr');
+            $qrCodePath = null;
+
+            if ($file && $file->isValid() && !$file->hasMoved()) {
+                $uploadPath = FCPATH . 'uploads/qrcodes';
+                if (!is_dir($uploadPath)) {
+                    mkdir($uploadPath, 0755, true);
+                }
+
+                // Delete old QR code if exists
+                if ($settings && !empty($settings['qr_code_path']) && file_exists(FCPATH . $settings['qr_code_path'])) {
+                    unlink(FCPATH . $settings['qr_code_path']);
+                }
+
+                $newName = $file->getRandomName();
+                $file->move($uploadPath, $newName);
+                $qrCodePath = 'uploads/qrcodes/' . $newName;
+            }
+
+            $gcashNumber = $this->request->getPost('gcash_number');
+
+            $updateData = ['gcash_number' => $gcashNumber];
+            if ($qrCodePath) {
+                $updateData['qr_code_path'] = $qrCodePath;
+            }
+
+            if (!$settings) {
+                $model->insert($updateData);
+            } else {
+                $model->update(1, $updateData);
+            }
+
+            return $this->response->setJSON(['success' => true, 'message' => 'Settings saved successfully']);
+
+        } catch (\Exception $e) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => $this->validator->getErrors()
+                'message' => 'Error: ' . $e->getMessage()
             ]);
         }
-
-        $settings = $model->find(1);
-        $file = $this->request->getFile('gcash_qr');
-        $qrCodePath = null;
-
-        if ($file && $file->isValid() && !$file->hasMoved()) {
-            $uploadPath = FCPATH . 'uploads/qrcodes';
-            if (!is_dir($uploadPath)) {
-                mkdir($uploadPath, 0755, true);
-            }
-
-            // Delete old QR code if exists
-            if ($settings && !empty($settings['qr_code_path']) && file_exists(FCPATH . $settings['qr_code_path'])) {
-                unlink(FCPATH . $settings['qr_code_path']);
-            }
-
-            $newName = $file->getRandomName();
-            $file->move($uploadPath, $newName);
-            $qrCodePath = 'uploads/qrcodes/' . $newName;
-        }
-
-        $gcashNumber = $this->request->getPost('gcash_number');
-
-        $updateData = ['gcash_number' => $gcashNumber];
-        if ($qrCodePath) {
-            $updateData['qr_code_path'] = $qrCodePath;
-        }
-
-        if (!$settings) {
-            $model->insert($updateData);
-        } else {
-            $model->update(1, $updateData);
-        }
-
-        return $this->response->setJSON(['success' => true, 'message' => 'Settings saved successfully']);
-
-    } catch (\Exception $e) {
-        return $this->response->setJSON([
-            'success' => false,
-            'message' => 'Error: ' . $e->getMessage()
-        ]);
-    }
-}
-
-// ---------------- Transaction Records ----------------
-
-// Display transaction records page
-public function transactionRecords()
-{
-    $data = [
-        'current_month' => date('Y-m-d') // today
-    ];
-    return view('admin/transaction_records', $data);
-}
-
-// ---------------- Payments Functions ----------------
-
-// Display monthly payments page
-public function monthlyPayments()
-{
-    $month = $this->request->getGet('month') ?? date('Y-m');
-    $method = $this->request->getGet('method') ?? '';
-    $search = $this->request->getGet('search') ?? '';
-
-    $filters = [
-        'month' => $month,
-        'method' => $method,
-        'search' => $search
-    ];
-
-    // Use the renamed model
-    $payments = $this->paymentsModel->getMonthlyPayments($filters);
-    $stats = $this->paymentsModel->getMonthlyStats($filters);
-
-    $formattedPayments = [];
-    foreach ($payments as $payment) {
-        $formattedPayments[] = [
-            'id' => $payment['id'],
-            'user_name' => $payment['user_name'] ?? 'Unknown',
-            'email' => $payment['email'] ?? 'N/A',
-            'amount' => $payment['amount'] ?? 0,
-            'method' => $payment['method'] ?? 'Unknown',
-            'status' => $payment['status'] ?? 'Pending',
-            'reference' => $payment['reference_number'] ?? 'N/A',
-            'admin_reference' => $payment['admin_reference'] ?? '',
-            'receipt' => $payment['receipt_image'] ? base_url($payment['receipt_image']) : null,
-            'created_at' => $payment['created_at'] ?? date('Y-m-d H:i:s'),
-            'paid_at' => $payment['paid_at'] ?? null,
-            'avatar' => $payment['avatar'] ?? 'NA'
-        ];
     }
 
-    $data = [
-        'title' => 'Monthly Payments',
-        'payments' => $formattedPayments,
-        'stats' => $stats,
-        'current_month' => $month,
-        'filters' => $filters
-    ];
+    // ---------------- Transaction Records ----------------
 
-    return view('admin/monthly_payments', $data);
-}
-
-// Fetch payments data for AJAX
-    public function getPaymentsData()
+    // Display transaction records page
+    public function transactionRecords()
     {
-        $month = $this->request->getGet('month');
-        $method = $this->request->getGet('method');
-        $search = $this->request->getGet('search');
+        $data = [
+            'current_month' => date('Y-m-d') // today
+        ];
+        return view('admin/transaction_records', $data);
+    }
+
+    // ---------------- Payments Functions ----------------
+
+    // Display monthly payments page
+    public function monthlyPayments()
+    {
+        $month = $this->request->getGet('month') ?? date('Y-m');
+        $method = $this->request->getGet('method') ?? '';
+        $search = $this->request->getGet('search') ?? '';
 
         $filters = [
             'month' => $month,
@@ -379,99 +332,130 @@ public function monthlyPayments()
             'search' => $search
         ];
 
+        // Use the renamed model
         $payments = $this->paymentsModel->getMonthlyPayments($filters);
         $stats = $this->paymentsModel->getMonthlyStats($filters);
 
-        return $this->response->setJSON([
-            'success' => true,
-            'payments' => $payments,
-            'stats' => $stats
-        ]);
+        $formattedPayments = [];
+        foreach ($payments as $payment) {
+            $formattedPayments[] = [
+                'id' => $payment['id'],
+                'user_name' => $payment['user_name'] ?? 'Unknown',
+                'email' => $payment['email'] ?? 'N/A',
+                'amount' => $payment['amount'] ?? 0,
+                'method' => $payment['method'] ?? 'Unknown',
+                'status' => $payment['status'] ?? 'Pending',
+                'reference' => $payment['reference_number'] ?? 'N/A',
+                'admin_reference' => $payment['admin_reference'] ?? '',
+                'receipt' => $payment['receipt_image'] ? base_url($payment['receipt_image']) : null,
+                'created_at' => $payment['created_at'] ?? date('Y-m-d H:i:s'),
+                'paid_at' => $payment['paid_at'] ?? null,
+                'avatar' => $payment['avatar'] ?? 'NA'
+            ];
+        }
+
+        $data = [
+            'title' => 'Monthly Payments',
+            'payments' => $formattedPayments,
+            'stats' => $stats,
+            'current_month' => $month,
+            'filters' => $filters
+        ];
+
+        return view('admin/monthly_payments', $data);
+    }
+
+    // Fetch payments data for AJAX
+    public function getPaymentsData()
+    {
+            $month = $this->request->getGet('month');
+            $method = $this->request->getGet('method');
+            $search = $this->request->getGet('search');
+
+            $filters = [
+                'month' => $month,
+                'method' => $method,
+                'search' => $search
+            ];
+
+            $payments = $this->paymentsModel->getMonthlyPayments($filters);
+            $stats = $this->paymentsModel->getMonthlyStats($filters);
+
+            return $this->response->setJSON([
+                'success' => true,
+                'payments' => $payments,
+                'stats' => $stats
+            ]);
     }
 
 
     // Confirm GCash payment (AJAX)
-  public function confirmGCashPayment()
+    public function confirmGCashPayment()
     {
-        $data = $this->request->getJSON(true);
-        $paymentId = $data['payment_id'] ?? null;
-        $adminRef = $data['admin_reference'] ?? null;
+            $data = $this->request->getJSON(true);
+            $paymentId = $data['payment_id'] ?? null;
+            $adminRef = $data['admin_reference'] ?? null;
 
-        if (!$paymentId) {
-            return $this->response->setJSON(['success' => false, 'message' => 'Payment ID is required']);
+            if (!$paymentId) {
+                return $this->response->setJSON(['success' => false, 'message' => 'Payment ID is required']);
+            }
+
+            $updated = $this->paymentsModel->confirmGCashPayment($paymentId, $adminRef);
+
+            return $this->response->setJSON([
+                'success' => (bool)$updated,
+                'message' => $updated ? 'Payment confirmed successfully' : 'Failed to confirm payment'
+            ]);
+    }
+
+    public function exportPayments()
+    {
+        $month = $this->request->getGet('month') ?? date('Y-m');
+        $method = $this->request->getGet('method') ?? '';
+        $search = $this->request->getGet('search') ?? '';
+
+        $filters = [
+            'month' => $month,
+            'method' => $method,
+            'search' => $search
+        ];
+
+        $payments = $this->paymentModel->getMonthlyPayments($filters);
+
+        header('Content-Type: text/csv');
+        header('Content-Disposition: attachment; filename="payments_' . date('Y-m-d') . '.csv"');
+
+        $output = fopen('php://output', 'w');
+        fputcsv($output, ['Name', 'Email', 'Amount', 'Method', 'Status', 'Reference', 'Admin Reference', 'Date']);
+
+        foreach ($payments as $payment) {
+            fputcsv($output, [
+                $payment['user_name'] ?? 'Unknown',
+                $payment['email'] ?? 'N/A',
+                number_format($payment['amount'] ?? 0, 2),
+                $payment['method'] ?? 'Unknown',
+                $payment['status'] ?? 'Pending',
+                $payment['reference_number'] ?? 'N/A',
+                $payment['admin_reference'] ?? 'N/A',
+                date('Y-m-d', strtotime($payment['created_at'] ?? 'now'))
+            ]);
         }
 
-        $updated = $this->paymentsModel->confirmGCashPayment($paymentId, $adminRef);
-
-        return $this->response->setJSON([
-            'success' => (bool)$updated,
-            'message' => $updated ? 'Payment confirmed successfully' : 'Failed to confirm payment'
-        ]);
+        fclose($output);
+        exit;
     }
 
-public function exportPayments()
-{
-    $month = $this->request->getGet('month') ?? date('Y-m');
-    $method = $this->request->getGet('method') ?? '';
-    $search = $this->request->getGet('search') ?? '';
-
-    $filters = [
-        'month' => $month,
-        'method' => $method,
-        'search' => $search
-    ];
-
-    $payments = $this->paymentModel->getMonthlyPayments($filters);
-
-    header('Content-Type: text/csv');
-    header('Content-Disposition: attachment; filename="payments_' . date('Y-m-d') . '.csv"');
-
-    $output = fopen('php://output', 'w');
-    fputcsv($output, ['Name', 'Email', 'Amount', 'Method', 'Status', 'Reference', 'Admin Reference', 'Date']);
-
-    foreach ($payments as $payment) {
-        fputcsv($output, [
-            $payment['user_name'] ?? 'Unknown',
-            $payment['email'] ?? 'N/A',
-            number_format($payment['amount'] ?? 0, 2),
-            $payment['method'] ?? 'Unknown',
-            $payment['status'] ?? 'Pending',
-            $payment['reference_number'] ?? 'N/A',
-            $payment['admin_reference'] ?? 'N/A',
-            date('Y-m-d', strtotime($payment['created_at'] ?? 'now'))
-        ]);
+    // Edit user/admin profile
+    public function editProfile()
+    {
+        return view('admin/edit_profile'); // Page to edit user/admin profile
     }
 
-    fclose($output);
-    exit;
-}
-
-
-
-
-
-
-
-
-
-
-
-// Edit user/admin profile
-public function editProfile()
-{
-    return view('admin/edit_profile'); // Page to edit user/admin profile
-}
-
-// Display reports page
-public function reports()
-{
-    return view('admin/reports'); // Loads the reports.php view
-}
-
-
-
-
-
+    // Display reports page
+    public function reports()
+    {
+        return view('admin/reports'); // Loads the reports.php view
+    }
 
     //Activate a user (status = 2)
     public function activateUser($id)
@@ -492,9 +476,9 @@ public function reports()
     public function suspendUser($id)
     {
         $this->usersModel->update($id, [
-    'active' => -1, 
-    'status' => 'suspended'
-    ]);;
+        'active' => -1, 
+        'status' => 'suspended'
+        ]);;
         return redirect()->back()->with('success', 'User suspended successfully.');
     }
 
@@ -522,7 +506,7 @@ public function reports()
         return redirect()->back()->with('error', 'Failed to reject user.');
     }
 
-    //View single user details
+    /* //View single user details
     public function viewUser($id)
     {
         $user = $this->usersModel
@@ -540,8 +524,9 @@ public function reports()
             'user'  => $user
         ]);
     }
+    */
 
-    // Toggle user active status
+    /* // Toggle user active status
     public function toggleUserStatus($id)
     {
         $user = $this->usersModel->find($id);
@@ -552,6 +537,7 @@ public function reports()
 
         return redirect()->back()->with('success', 'User status updated.');
     }
+    */
 
     //Manage user accounts with billing info
     public function manageAccounts()
@@ -596,7 +582,7 @@ public function reports()
             'users' => $users,
             'search' => $search,
             'selectedStatus' => $status,
-            'payment' => $this->paymentModel->first(),
+            'payment' => $this->paymentsModel->first(),
         ]);
     }
 
@@ -608,7 +594,7 @@ public function reports()
 
 
 
-    //Display payment settings
+   /*  //Display payment settings
     public function paymentSettings()
     {
         $data = [
@@ -617,11 +603,11 @@ public function reports()
         ];
 
         return view('admin/paymentSettings', $data);
-    }
+    } */
 
     //Update QR code and payment details
 
-    public function updateQR()
+    /* public function updateQR()
     {
         $file = $this->request->getFile('qr_image');
 
@@ -645,7 +631,7 @@ public function reports()
 
         return redirect()->back()->with('error', 'QR upload failed!');
     }
-
+    */
     //Display admin profile
     public function profile()
     {

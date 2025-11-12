@@ -88,14 +88,15 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
         $routes->get('/', 'Admin::index');
         $routes->get('dashboard', 'Admin::dashboard');
         $routes->get('dashboard-content', 'Admin::content');
-
         $routes->get('logout', 'AdminAuth::logout');
         $routes->get('registeredUsers', 'Admin::registeredUsers');
+        $routes->get('getUserDetails/(:num)', 'Admin::getUserDetails/$1'); // Fetch user details for admin view
         $routes->get('announcements', 'Admin::announcements');
         $routes->get('manageAccounts', 'Admin::manageAccounts');
         $routes->get('userInfo', 'Admin::getUserInfo');
         $routes->get('pendingAccounts', 'Admin::pendingAccounts');
 $routes->get('getUser/(:num)', 'Admin::getUser/$1');//get user info for verify user
+$routes->get('filterUsers', 'Admin::filterUsers'); //filter users in User Management (registeredUsers.php) by name/purok
 $routes->get('gcash-settings', 'Admin::gcashsettings');// GCash Settings Page
 $routes->post('saveGcashSettings', 'Admin::saveGcashSettings'); // Save GCash Settings
 $routes->get('transactionRecords', 'Admin::transactionRecords');// Transaction Records Page
@@ -123,11 +124,11 @@ $routes->get('exportPayments', 'Admin::exportPayments');// Export Payments Data
         $routes->get('profile', 'Admin::profile');
         $routes->post('updateProfile', 'Admin::updateProfile');
 
-        // View single user details
+       /*  // View single user details
         $routes->get('viewUser/(:num)', 'Admin::viewUser/$1');
 
         // Deactivate / activate user
-        $routes->get('toggleUserStatus/(:num)', 'Admin::toggleUserStatus/$1');
+        $routes->get('toggleUserStatus/(:num)', 'Admin::toggleUserStatus/$1'); */
 
         // Billing Controller Routes
         $routes->get('view/(:num)', 'Billing::view/$1');

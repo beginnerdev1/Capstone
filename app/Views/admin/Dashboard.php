@@ -883,7 +883,12 @@
                     console.log("Transaction page initialized via AJAX success.");
                 }
                 
-                // You might add checks for other specific page init functions here as well.
+    
+                 // Initialize Registered Users page when loaded
+                if (typeof initRegisteredUsersPage === 'function' && $("#mainContent").find('#usersTable').length) {
+                    initRegisteredUsersPage();
+                    console.log("✅ Registered Users page initialized after AJAX load.");
+                }
             },
             error: function(xhr, status, error) {
                 console.error("AJAX Error:", status, error);
