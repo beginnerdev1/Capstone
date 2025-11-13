@@ -83,8 +83,22 @@ body {
         </div>
         <div class="col-md-3">
             <select id="filterPurok" class="form-select">
-                <option value="">All</option>
+                <option value="">All Puroks</option>
             </select>
+        </div>
+        <div class="col-md-3">
+            <select id="filterStatus" class="form-select">
+                <option value="">All Status</option>
+                <option value="approved">Approved</option>
+                <option value="pending">Pending</option>
+                <option value="suspended">Suspended</option>
+                <option value="rejected">Rejected</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <button id="resetFilters" class="btn btn-outline-secondary w-100">
+                <i class="fas fa-redo me-1"></i> Reset
+            </button>
         </div>
     </div>
 
@@ -133,42 +147,63 @@ body {
             </div>
             <div class="modal-body">
                 <form id="addUserForm">
+                    <?= csrf_field() ?>
+                    <div class="alert alert-info" role="alert">
+                        <i class="fas fa-info-circle me-1"></i>
+                        <strong>Note:</strong> A default password will be sent to the user's email if account is approved.
+                    </div>
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <label class="form-label">First Name</label>
-                            <input type="text" class="form-control" name="first_name" required>
+                            <label class="form-label">First Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="first_name" minlength="2" maxlength="50" required>
+                            <div class="invalid-feedback">Please enter a valid first name (2-50 characters)</div>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Last Name</label>
-                            <input type="text" class="form-control" name="last_name" required>
+                            <label class="form-label">Last Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="last_name" minlength="2" maxlength="50" required>
+                            <div class="invalid-feedback">Please enter a valid last name (2-50 characters)</div>
                         </div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Email</label>
+                        <label class="form-label">Email Address <span class="text-danger">*</span></label>
                         <input type="email" class="form-control" name="email" required>
+                        <div class="invalid-feedback">Please enter a valid email address</div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Password</label>
-                        <input type="password" class="form-control" name="password" required>
+                        <label class="form-label">Password <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" name="password" id="addUserPassword" minlength="6" required>
+                            <button class="btn btn-outline-secondary" type="button" id="togglePassword">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                        <div class="form-text">Minimum 6 characters</div>
+                        <div class="invalid-feedback">Password must be at least 6 characters</div>
                     </div>
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <label class="form-label">Purok</label>
+                            <label class="form-label">Purok <span class="text-danger">*</span></label>
                             <select class="form-select" name="purok" id="addUserPurok" required>
                                 <option value="">Select Purok</option>
                             </select>
+                            <div class="invalid-feedback">Please select a purok</div>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Status</label>
+                            <label class="form-label">Initial Status <span class="text-danger">*</span></label>
                             <select class="form-select" name="status" required>
                                 <option value="pending">Pending</option>
-                                <option value="approved">Approved</option>
+                                <option value="approved" selected>Approved</option>
                                 <option value="suspended">Suspended</option>
                             </select>
                         </div>
                     </div>
                     <div class="text-end">
-                        <button type="submit" class="btn btn-primary"><i class="fas fa-plus me-1"></i>Add User</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="fas fa-times me-1"></i>Cancel
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-plus me-1"></i>Add User
+                        </button>
                     </div>
                 </form>
             </div>
@@ -250,12 +285,33 @@ function initRegisteredUsersPage() {
 
     loadUsers();
 
-    // Filters
-    $(document).on('input','#filterInput',function(){
-        loadUsers($(this).val(), $('#filterPurok').val());
+    // Debounce for search input (wait 500ms after user stops typing)
+    let searchTimeout;
+    $('#filterInput').on('input', function(){
+        clearTimeout(searchTimeout);
+        const searchVal = $(this).val();
+        const purokVal = $('#filterPurok').val();
+        const statusVal = $('#filterStatus').val();
+        searchTimeout = setTimeout(function(){
+            loadUsers(searchVal, purokVal, statusVal);
+        }, 500);
     });
-    $(document).on('change','#filterPurok',function(){
-        loadUsers($('#filterInput').val(), $(this).val());
+
+    // Filters - only run when explicitly changed
+    $('#filterPurok').on('change', function(){
+        loadUsers($('#filterInput').val(), $(this).val(), $('#filterStatus').val());
+    });
+    
+    $('#filterStatus').on('change', function(){
+        loadUsers($('#filterInput').val(), $('#filterPurok').val(), $(this).val());
+    });
+    
+    // Reset filters
+    $('#resetFilters').on('click', function(){
+        $('#filterInput').val('');
+        $('#filterPurok').val('');
+        $('#filterStatus').val('');
+        loadUsers();
     });
 
     // View user
@@ -315,10 +371,35 @@ function initRegisteredUsersPage() {
     // Show Add User Modal
     $('#addUserBtn').on('click',function(){ $('#addUserModal').modal('show'); });
 
-    // Add User / Account Submission
+    // Toggle password visibility
+    $('#togglePassword').on('click', function(){
+        const passwordField = $('#addUserPassword');
+        const icon = $(this).find('i');
+        if(passwordField.attr('type') === 'password'){
+            passwordField.attr('type', 'text');
+            icon.removeClass('fa-eye').addClass('fa-eye-slash');
+        } else {
+            passwordField.attr('type', 'password');
+            icon.removeClass('fa-eye-slash').addClass('fa-eye');
+        }
+    });
+
+    // Add User / Account Submission with validation
     $('#addUserForm').on('submit',function(e){
         e.preventDefault();
+        
+        // Client-side validation
+        const form = this;
+        if (!form.checkValidity()) {
+            e.stopPropagation();
+            $(form).addClass('was-validated');
+            return;
+        }
+
         const formData = $(this).serialize();
+        const submitBtn = $(this).find('button[type="submit"]');
+        submitBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Adding...');
+        
         $.ajax({
             url: baseUrl+'/admin/addUser',
             type:'POST',
@@ -326,13 +407,47 @@ function initRegisteredUsersPage() {
             dataType:'json',
             success:function(res){
                 if(res.success){
-                    alert('User account added successfully!');
+                    // Show success message
+                    const successAlert = $('<div class="alert alert-success alert-dismissible fade show" role="alert">' +
+                        '<i class="fas fa-check-circle me-2"></i>' + res.message +
+                        '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                        '</div>');
+                    $('.container-fluid').prepend(successAlert);
+                    
+                    // Auto-dismiss after 5 seconds
+                    setTimeout(function(){ successAlert.fadeOut(); }, 5000);
+                    
                     $('#addUserForm')[0].reset();
+                    $('#addUserForm').removeClass('was-validated');
                     $('#addUserModal').modal('hide');
                     loadUsers();
-                } else { alert('Failed to add user.'); }
+                } else {
+                    let errorMsg = res.message || 'Failed to add user.';
+                    if(res.errors){
+                        errorMsg += '<ul class="mb-0 mt-2">';
+                        for(let field in res.errors){
+                            errorMsg += '<li>' + res.errors[field] + '</li>';
+                        }
+                        errorMsg += '</ul>';
+                    }
+                    const errorAlert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
+                        '<i class="fas fa-exclamation-triangle me-2"></i>' + errorMsg +
+                        '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                        '</div>');
+                    $('#addUserForm').prepend(errorAlert);
+                }
             },
-            error:function(err){ console.error(err); alert('Error adding user.'); }
+            error:function(xhr, status, err){
+                console.error('AJAX Error:', xhr.responseText);
+                const errorAlert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
+                    '<i class="fas fa-exclamation-triangle me-2"></i>Error adding user. Please try again.' +
+                    '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                    '</div>');
+                $('#addUserForm').prepend(errorAlert);
+            },
+            complete: function(){
+                submitBtn.prop('disabled', false).html('<i class="fas fa-plus me-1"></i>Add User');
+            }
         });
     });
 }

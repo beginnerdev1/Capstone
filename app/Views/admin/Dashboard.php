@@ -790,6 +790,8 @@
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
     <script>
         const sidebar = document.getElementById('sidebar');
@@ -897,21 +899,146 @@
         });
     });
 
-    // 2. Initial Dashboard Load (No changes needed here unless the dashboard also needs a specific init function)
+    // 2. Initial Dashboard Load
     $(document).ready(function() {
         $.ajax({
             url: "<?= base_url('admin/dashboard-content') ?>",
             type: "GET",
             success: function(data) {
                 $("#mainContent").html(data);
-                // If your dashboard has a specific init function, call it here.
+                // Initialize dashboard charts after content loads
+                setTimeout(initializeDashboardCharts, 100);
             },
             error: function(xhr, status, error) {
-                console.error("Dashboard Load Error:", status, error);
-                $("#mainContent").html("<p class='text-danger p-3'>Failed to load dashboard.</p>");
+                console.error("Dashboard Load Error:", status, error, xhr.responseText);
+                $("#mainContent").html("<p class='text-danger p-3'>Failed to load dashboard. Error: " + error + "</p>");
             }
         });
     });
+
+    // 3. Initialize Dashboard Charts
+    function initializeDashboardCharts() {
+        const incomeChartCanvas = document.getElementById('incomeChart');
+        const pieChartCanvas = document.getElementById('myPieChart');
+        
+        if (!incomeChartCanvas) {
+            console.error('Income chart canvas not found');
+            return;
+        }
+
+        // Get data from window object (set by dashboard-content.php)
+        const months = window.dashboardData?.months || ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const incomeData = window.dashboardData?.incomeData || [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+
+        console.log('Initializing charts with data:', { months, incomeData });
+
+        // Income Line Chart
+        const incomeCtx = incomeChartCanvas.getContext('2d');
+        new Chart(incomeCtx, {
+            type: 'line',
+            data: {
+                labels: months,
+                datasets: [{
+                    label: 'Monthly Earnings (₱)',
+                    data: incomeData,
+                    backgroundColor: 'rgba(78, 115, 223, 0.05)',
+                    borderColor: 'rgba(78, 115, 223, 1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4,
+                    pointBackgroundColor: 'rgba(78, 115, 223, 1)',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    pointRadius: 4,
+                    pointHoverRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: {
+                            font: { size: 12, family: 'Poppins' }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        padding: 12,
+                        titleFont: { size: 14, family: 'Poppins' },
+                        bodyFont: { size: 13, family: 'Poppins' },
+                        callbacks: {
+                            label: function(context) {
+                                return 'Earnings: ₱' + context.parsed.y.toLocaleString('en-PH', {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2
+                                });
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return '₱' + value.toLocaleString();
+                            },
+                            font: { size: 11, family: 'Poppins' }
+                        },
+                        grid: { color: 'rgba(0, 0, 0, 0.05)' }
+                    },
+                    x: {
+                        ticks: { font: { size: 11, family: 'Poppins' } },
+                        grid: { display: false }
+                    }
+                }
+            }
+        });
+
+        // Pie Chart
+        if (pieChartCanvas) {
+            const pieCtx = pieChartCanvas.getContext('2d');
+            new Chart(pieCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Direct', 'Social', 'Referral'],
+                    datasets: [{
+                        data: [55, 30, 15],
+                        backgroundColor: [
+                            'rgba(78, 115, 223, 0.8)',
+                            'rgba(28, 200, 138, 0.8)',
+                            'rgba(54, 185, 204, 0.8)'
+                        ],
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            padding: 12,
+                            titleFont: { size: 14, family: 'Poppins' },
+                            bodyFont: { size: 13, family: 'Poppins' },
+                            callbacks: {
+                                label: function(context) {
+                                    return context.label + ': ' + context.parsed + '%';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        console.log('Charts initialized successfully');
+    }
 </script>
 </body>
 

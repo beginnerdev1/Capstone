@@ -1,6 +1,19 @@
 <?php
 // app/Views/admin/Dashboard-content.php
 ?>
+<script>
+// Pass PHP data to JavaScript
+window.dashboardData = {
+    months: <?= $months ?? '[]' ?>,
+    incomeData: <?= $incomeData ?? '[]' ?>,
+    totalCollected: <?= $totalCollected ?? 0 ?>,
+    monthlyTotal: <?= $monthlyTotal ?? 0 ?>,
+    active: <?= $active ?? 0 ?>,
+    pending: <?= $pending ?? 0 ?>,
+    inactive: <?= $inactive ?? 0 ?>
+};
+console.log('Dashboard data loaded:', window.dashboardData);
+</script>
 
 <!-- Main Content -->
 <div class="container-fluid">
@@ -40,10 +53,10 @@
                 <div class="stat-card info">
                     <div class="stat-card-body">
                         <div>
-                            <div class="stat-label">Tasks</div>
-                            <div class="stat-value">50%</div>
+                            <div class="stat-label">Active Users</div>
+                            <div class="stat-value"><?= number_format($active ?? 0) ?></div>
                         </div>
-                        <i class="fas fa-clipboard-list stat-icon"></i>
+                        <i class="fas fa-users stat-icon"></i>
                     </div>
                 </div>
             </div>

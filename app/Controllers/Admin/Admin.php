@@ -35,18 +35,22 @@ class Admin extends BaseController
             return view('admin/Dashboard');
     }
 
+    /**
+     * Load dashboard content with statistics (AJAX)
+     * @return string
+     */
     public function content()
-    {   try {
- 
-        // === Billing data ===
-        $row = $this->billingModel
-            ->whereIn('status', ['Paid', 'Over the Counter'])
-            ->where('YEAR(updated_at)', date('Y'))
-            ->selectSum('amount_due')
-            ->get()
-            ->getRow();
+    {   
+        try {
+            // === Billing data ===
+            $row = $this->billingModel
+                ->whereIn('status', ['Paid', 'Over the Counter'])
+                ->where('YEAR(updated_at)', date('Y'))
+                ->selectSum('amount_due')
+                ->get()
+                ->getRow();
 
-        $totalCollected = $row ? $row->amount_due : 0;
+            $totalCollected = $row ? $row->amount_due : 0;
         $unpaidCount = $this->billingModel
             ->where('status', 'Pending')
             ->countAllResults();
@@ -63,8 +67,8 @@ class Admin extends BaseController
        
         // === User counts ===
         $active = $this->usersModel->where('status', 'Approved')->countAllResults();
-        $pending = $this->usersModel->where('status', 'ending')->countAllResults();
-        $inactive = $this->usersModel->where('status', 'inactive')->countAllResults();
+        $pending = $this->usersModel->where('status', 'Pending')->countAllResults();
+        $inactive = $this->usersModel->where('status', 'Inactive')->countAllResults();
 
         // === Monthly income data (for charts) ===
         $query = $this->billingModel->select("
@@ -420,7 +424,7 @@ class Admin extends BaseController
             'search' => $search
         ];
 
-        $payments = $this->paymentModel->getMonthlyPayments($filters);
+        $payments = $this->paymentsModel->getMonthlyPayments($filters);
 
         header('Content-Type: text/csv');
         header('Content-Disposition: attachment; filename="payments_' . date('Y-m-d') . '.csv"');
@@ -448,13 +452,168 @@ class Admin extends BaseController
     // Edit user/admin profile
     public function editProfile()
     {
-        return view('admin/edit_profile'); // Page to edit user/admin profile
+        $adminId = session()->get('admin_id');
+        if (!$adminId) {
+            return redirect()->to(base_url('admin/login'))->with('error', 'Please login first.');
+        }
+
+        $admin = $this->adminModel->find($adminId);
+        if (!$admin) {
+            return redirect()->back()->with('error', 'Admin profile not found.');
+        }
+
+        $data = [
+            'admin' => $admin,
+            'title' => 'Edit Profile'
+        ];
+
+        return view('admin/edit_profile', $data);
     }
 
-    // Display reports page
+    /**
+     * Get admin profile info (AJAX endpoint)
+     */
+    public function getProfileInfo()
+    {
+        $adminId = session()->get('admin_id');
+        if (!$adminId) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Not authenticated']);
+        }
+
+        $admin = $this->adminModel->find($adminId);
+        if (!$admin) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Profile not found']);
+        }
+
+        // Remove sensitive data
+        unset($admin['password']);
+        unset($admin['otp_code']);
+        unset($admin['otp_expire']);
+
+        return $this->response->setJSON(['success' => true, 'data' => $admin]);
+    }
+
+    /**
+     * Display reports page with dynamic data
+     * @return string
+     */
     public function reports()
     {
-        return view('admin/reports'); // Loads the reports.php view
+        // Get filter parameters
+        $startDate = $this->request->getGet('start_date') ?? date('Y-01-01');
+        $endDate = $this->request->getGet('end_date') ?? date('Y-m-d');
+        $reportType = $this->request->getGet('report_type') ?? 'all';
+
+        // Define rate structure
+        $RATE_NORMAL = 60;
+        $RATE_SENIOR = 48;
+        $RATE_ALONE = 30;
+
+        // Get all approved users with their information
+        $totalHouseholds = $this->usersModel->where('status', 'Approved')->countAllResults();
+        
+        // Count users by type (using age >= 60 for seniors, family_number = 1 for living alone)
+        $seniorCount = $this->db->table('users')
+            ->join('user_information', 'users.id = user_information.user_id')
+            ->where('users.status', 'Approved')
+            ->where('user_information.age >=', 60)
+            ->countAllResults();
+            
+        $aloneCount = $this->db->table('users')
+            ->join('user_information', 'users.id = user_information.user_id')
+            ->where('users.status', 'Approved')
+            ->where('user_information.family_number', 1)
+            ->where('user_information.age <', 60) // Not senior
+            ->countAllResults();
+            
+        $normalCount = $totalHouseholds - $seniorCount - $aloneCount;
+        
+        // Calculate expected monthly collection based on user types
+        $monthlyExpected = ($normalCount * $RATE_NORMAL) + ($seniorCount * $RATE_SENIOR) + ($aloneCount * $RATE_ALONE);
+        $averageRate = $totalHouseholds > 0 ? round($monthlyExpected / $totalHouseholds, 2) : 0;
+        
+        // Get actual collection for current month
+        $currentMonthCollected = $this->billingModel
+            ->whereIn('status', ['Paid', 'Over the Counter'])
+            ->where('MONTH(updated_at)', date('m'))
+            ->where('YEAR(updated_at)', date('Y'))
+            ->selectSum('amount_due')
+            ->get()
+            ->getRow()
+            ->amount_due ?? 0;
+
+        // Get paid households count for current month
+        $paidHouseholds = $this->billingModel
+            ->whereIn('status', ['Paid', 'Over the Counter'])
+            ->where('MONTH(due_date)', date('m'))
+            ->where('YEAR(due_date)', date('Y'))
+            ->countAllResults();
+
+        // Pending payments
+        $pendingCount = $this->billingModel
+            ->where('status', 'Pending')
+            ->where('MONTH(due_date)', date('m'))
+            ->where('YEAR(due_date)', date('Y'))
+            ->countAllResults();
+
+        // Calculate pending amount (approximate using average rate)
+        $pendingAmount = $pendingCount * $averageRate;
+
+        // Calculate collection rate
+        $collectionRate = $totalHouseholds > 0 ? round(($paidHouseholds / $totalHouseholds) * 100, 1) : 0;
+
+        // Get monthly data for chart
+        $monthlyData = $this->billingModel
+            ->select("MONTH(updated_at) as month, COUNT(*) as paid_count, SUM(amount_due) as total_amount")
+            ->whereIn('status', ['Paid', 'Over the Counter'])
+            ->where('YEAR(updated_at)', date('Y'))
+            ->groupBy('MONTH(updated_at)')
+            ->orderBy('MONTH(updated_at)', 'ASC')
+            ->get()
+            ->getResultArray();
+
+        // Format monthly collection data
+        $collectionRates = array_fill(0, 12, 0);
+        $collectionAmounts = array_fill(0, 12, 0);
+        
+        foreach ($monthlyData as $data) {
+            $monthIndex = (int)$data['month'] - 1;
+            $collectionAmounts[$monthIndex] = (float)$data['total_amount'];
+            $collectionRates[$monthIndex] = $totalHouseholds > 0 ? round(((int)$data['paid_count'] / $totalHouseholds) * 100, 1) : 0;
+        }
+
+        // Get payment status breakdown
+        $latePayments = $this->billingModel
+            ->where('status', 'Pending')
+            ->where('due_date <', date('Y-m-d'))
+            ->countAllResults();
+
+        $data = [
+            'title' => 'Fixed-Rate Water Bill Reports',
+            'rateNormal' => $RATE_NORMAL,
+            'rateSenior' => $RATE_SENIOR,
+            'rateAlone' => $RATE_ALONE,
+            'averageRate' => $averageRate,
+            'normalCount' => $normalCount,
+            'seniorCount' => $seniorCount,
+            'aloneCount' => $aloneCount,
+            'totalHouseholds' => $totalHouseholds,
+            'monthlyExpected' => $monthlyExpected,
+            'currentMonthCollected' => $currentMonthCollected,
+            'paidHouseholds' => $paidHouseholds,
+            'pendingCount' => $pendingCount,
+            'pendingAmount' => $pendingAmount,
+            'collectionRate' => $collectionRate,
+            'latePayments' => $latePayments,
+            'annualTotal' => $monthlyExpected * 12,
+            'collectionRates' => json_encode($collectionRates),
+            'collectionAmounts' => json_encode($collectionAmounts),
+            'startDate' => $startDate,
+            'endDate' => $endDate,
+            'reportType' => $reportType
+        ];
+
+        return view('admin/reports', $data);
     }
 
     //Activate a user (status = 2)
@@ -539,11 +698,94 @@ class Admin extends BaseController
     }
     */
 
-    //Manage user accounts with billing info
+    /**
+     * Add a new user account (AJAX)
+     * @return \CodeIgniter\HTTP\ResponseInterface
+     */
+    public function addUser()
+    {
+        // Validate input
+        $rules = [
+            'first_name' => 'required|min_length[2]|max_length[50]',
+            'last_name'  => 'required|min_length[2]|max_length[50]',
+            'email'      => 'required|valid_email|is_unique[users.email]',
+            'password'   => 'required|min_length[6]',
+            'purok'      => 'required|in_list[1,2,3,4,5]',
+            'status'     => 'required|in_list[pending,approved,suspended,rejected]'
+        ];
+
+        if (!$this->validate($rules)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors'  => $this->validator->getErrors()
+            ]);
+        }
+
+        $db = \Config\Database::connect();
+        $db->transStart();
+
+        try {
+            // Insert into users table
+            $userData = [
+                'email'      => $this->request->getPost('email'),
+                'password'   => password_hash($this->request->getPost('password'), PASSWORD_DEFAULT),
+                'status'     => $this->request->getPost('status'),
+                'active'     => $this->request->getPost('status') === 'approved' ? 2 : 1,
+                'created_at' => date('Y-m-d H:i:s')
+            ];
+
+            $userId = $this->usersModel->insert($userData);
+
+            if (!$userId) {
+                throw new \Exception('Failed to create user account');
+            }
+
+            // Insert into user_information table
+            $userInfoData = [
+                'user_id'    => $userId,
+                'first_name' => $this->request->getPost('first_name'),
+                'last_name'  => $this->request->getPost('last_name'),
+                'purok'      => $this->request->getPost('purok'),
+                'created_at' => date('Y-m-d H:i:s')
+            ];
+
+            $this->userInfoModel->insert($userInfoData);
+
+            $db->transComplete();
+
+            if ($db->transStatus() === false) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Transaction failed'
+                ]);
+            }
+
+            return $this->response->setJSON([
+                'success' => true,
+                'message' => 'User account created successfully',
+                'user_id' => $userId
+            ]);
+
+        } catch (\Exception $e) {
+            $db->transRollback();
+            log_message('error', 'Add User Error: ' . $e->getMessage());
+            
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Error: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Manage user accounts with billing info
+     * @return string
+     */
     public function manageAccounts()
     {
-        $status = $this->g('status', ['Pending', 'Paid', 'Rejected', 'Over the Counter', 'All'], 'all');
-        $search = $this->g('search', null, '');
+        $status = $this->request->getGet('status') ?? 'all';
+        $search = $this->request->getGet('search') ?? '';
 
         $users = $this->usersModel
         ->select('users.id, users.email, users.status, users.is_verified, user_information.first_name, user_information.last_name, user_information.phone, user_information.barangay, user_information.purok')
@@ -650,16 +892,35 @@ class Admin extends BaseController
         helper(['form', 'url']);
 
         $adminId = session()->get('admin_id');
-        if (!$adminId) return redirect()->to(base_url('admin/login'))->with('error', 'You must be logged in.');
+        if (!$adminId) {
+            return $this->response->setJSON(['success' => false, 'message' => 'You must be logged in.']);
+        }
 
         $admin = $this->adminModel->find($adminId);
-        if (!$admin) return redirect()->back()->with('error', 'Admin not found.');
+        if (!$admin) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Admin not found.']);
+        }
+
+        // Validation rules
+        $rules = [
+            'first_name' => 'required|min_length[2]|max_length[50]',
+            'last_name'  => 'required|min_length[2]|max_length[50]',
+            'email'      => 'required|valid_email',
+        ];
+
+        if (!$this->validate($rules)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors'  => $this->validator->getErrors()
+            ]);
+        }
 
         $updateData = [
-            'first_name'  => $this->p('first_name'),
-            'middle_name' => $this->p('middle_name'),
-            'last_name'   => $this->p('last_name'),
-            'email'       => $this->p('email'),
+            'first_name'  => $this->request->getPost('first_name'),
+            'middle_name' => $this->request->getPost('middle_name'),
+            'last_name'   => $this->request->getPost('last_name'),
+            'email'       => $this->request->getPost('email'),
         ];
 
         $file = $this->request->getFile('profile_picture');
@@ -686,10 +947,17 @@ class Admin extends BaseController
                 'admin_picture'     => $updateData['profile_picture'] ?? $admin['profile_picture'] ?? 'default.png',
             ]);
 
-            return redirect()->back()->with('success', 'Profile updated successfully.');
+            return $this->response->setJSON([
+                'success' => true,
+                'message' => 'Profile updated successfully!',
+                'data'    => $updateData
+            ]);
         }
 
-        return redirect()->back()->with('error', 'Failed to update profile.');
+        return $this->response->setJSON([
+            'success' => false,
+            'message' => 'Failed to update profile. Please try again.'
+        ]);
     }
 }
 ?>
