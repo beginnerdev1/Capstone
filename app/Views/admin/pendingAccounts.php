@@ -59,7 +59,12 @@ body {
     <h1 class="h3 text-dark mb-4">Pending Accounts</h1>
 
     <div class="card mb-4">
-        <div class="card-header"><strong>Pending Users</strong></div>
+        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;"><strong>Pending Users</strong>
+            <div style="display:flex;gap:0.5rem;align-items:center;">
+                <button type="button" class="btn btn-primary btn-sm" id="refreshPendingBtn">Refresh</button>
+                <span class="text-muted" id="pendingStatusText" style="font-size:0.85rem;">Idle</span>
+            </div>
+        </div>
         <div class="card-body">
             <div class="table-responsive">
                 <table class="table table-hover align-middle">
@@ -158,25 +163,51 @@ function fetchPendingAccounts() {
         .then(res => res.json())
         .then(users => {
             const tbody = document.getElementById('pendingAccountsBody');
-            tbody.innerHTML = '';
+            while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
             if (!users || users.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No pending accounts.</td></tr>';
+                const tr = document.createElement('tr');
+                const td = document.createElement('td');
+                td.colSpan = 5;
+                td.className = 'text-center text-muted';
+                td.textContent = 'No pending accounts.';
+                tr.appendChild(td);
+                tbody.appendChild(tr);
+                updatePendingStatus('Idle');
                 return;
             }
             users.forEach(user => {
                 const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${user.first_name || ''} ${user.last_name || ''}</td>
-                    <td>${user.email || ''}</td>
-                    <td>${user.purok || ''}</td>
-                    <td>${user.barangay || ''}</td>
-                    <td><button class="btn btn-primary btn-sm view-user-btn" data-user-id="${user.id}">View</button></td>
-                `;
+
+                const tdName = document.createElement('td');
+                tdName.textContent = `${user.first_name || ''} ${user.last_name || ''}`.trim();
+                const tdEmail = document.createElement('td');
+                tdEmail.textContent = user.email || '';
+                const tdPurok = document.createElement('td');
+                tdPurok.textContent = user.purok || '';
+                const tdBarangay = document.createElement('td');
+                tdBarangay.textContent = user.barangay || '';
+                const tdAction = document.createElement('td');
+                const btn = document.createElement('button');
+                btn.className = 'btn btn-primary btn-sm view-user-btn';
+                btn.dataset.userId = user.id;
+                btn.textContent = 'View';
+                tdAction.appendChild(btn);
+
+                tr.appendChild(tdName);
+                tr.appendChild(tdEmail);
+                tr.appendChild(tdPurok);
+                tr.appendChild(tdBarangay);
+                tr.appendChild(tdAction);
+
                 tbody.appendChild(tr);
             });
             attachViewEvents();
+            updatePendingStatus('Idle');
         })
-        .catch(err => console.error('AJAX Error:', err));
+        .catch(err => {
+            console.error('AJAX Error:', err);
+            updatePendingStatus('Error');
+        });
 }
 
 function attachViewEvents() {
@@ -245,7 +276,41 @@ document.getElementById('userModal').addEventListener('click', e => {
     if (e.target === e.currentTarget) closeModal();
 });
 
-// Initial fetch & refresh every 3 seconds
+// Refresh controls and safer interval (visibility-aware, de-duplicated)
+function updatePendingStatus(text) {
+    const el = document.getElementById('pendingStatusText');
+    if (el) el.textContent = text;
+}
+
+function startPendingInterval() {
+    // Clear any existing interval (avoid duplicates on AJAX re-entry)
+    if (window.__pendingAccountsInterval) {
+        clearInterval(window.__pendingAccountsInterval);
+        window.__pendingAccountsInterval = null;
+    }
+    // Poll every 30s only when tab is visible
+    window.__pendingAccountsInterval = setInterval(() => {
+        if (document.visibilityState === 'visible') {
+            updatePendingStatus('Refreshing...');
+            fetchPendingAccounts();
+        }
+    }, 30000);
+}
+
+document.getElementById('refreshPendingBtn').addEventListener('click', () => {
+    updatePendingStatus('Refreshing...');
+    fetchPendingAccounts();
+});
+
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+        updatePendingStatus('Refreshing...');
+        fetchPendingAccounts();
+    }
+});
+
+// Initial fetch then start interval
+updatePendingStatus('Loading...');
 fetchPendingAccounts();
-setInterval(fetchPendingAccounts, 3000);
+startPendingInterval();
 </script>
