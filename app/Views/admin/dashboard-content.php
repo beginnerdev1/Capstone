@@ -10,9 +10,11 @@ window.dashboardData = {
     monthlyTotal: <?= $monthlyTotal ?? 0 ?>,
     active: <?= $active ?? 0 ?>,
     pending: <?= $pending ?? 0 ?>,
-    inactive: <?= $inactive ?? 0 ?>
+    inactive: <?= $inactive ?? 0 ?>,
+    normalRevenue: <?= $normalRevenue ?? 0 ?>,
+    seniorRevenue: <?= $seniorRevenue ?? 0 ?>,
+    aloneRevenue: <?= $aloneRevenue ?? 0 ?>
 };
-console.log('Dashboard data loaded:', window.dashboardData);
 </script>
 
 <!-- Main Content -->
@@ -95,35 +97,21 @@ console.log('Dashboard data loaded:', window.dashboardData);
             <div class="col-xl-4 col-lg-4 col-md-12 col-sm-12 col-12 mb-4">
                 <div class="card shadow mb-4">
                     <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-                        <h6 class="m-0 font-weight-bold text-primary">Revenue Sources</h6>
-                        <div class="dropdown no-arrow">
-                            <a class="dropdown-toggle" href="#" role="button" id="dropdownMenuLink"
-                                data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                                <i class="fas fa-ellipsis-v fa-sm fa-fw text-gray-400"></i>
-                            </a>
-                            <div class="dropdown-menu dropdown-menu-right shadow animated--fade-in"
-                                aria-labelledby="dropdownMenuLink">
-                                <div class="dropdown-header">Dropdown Header:</div>
-                                <a class="dropdown-item" href="#">Action</a>
-                                <a class="dropdown-item" href="#">Another action</a>
-                                <div class="dropdown-divider"></div>
-                                <a class="dropdown-item" href="#">Something else here</a>
-                            </div>
-                        </div>
+                        <h6 class="m-0 font-weight-bold text-primary">Revenue by Rate Category</h6>
                     </div>
                     <div class="card-body">
                         <div class="chart-pie pt-4 pb-2">
-                            <canvas id="myPieChart"></canvas>
+                            <canvas id="revenueChart"></canvas>
                         </div>
                         <div class="mt-4 text-center small">
                             <span class="mr-2">
-                                <i class="fas fa-circle text-primary"></i> Direct
+                                <i class="fas fa-circle text-primary"></i> Normal (₱60)
                             </span>
                             <span class="mr-2">
-                                <i class="fas fa-circle text-success"></i> Social
+                                <i class="fas fa-circle text-success"></i> Senior Citizen (₱48)
                             </span>
                             <span class="mr-2">
-                                <i class="fas fa-circle text-info"></i> Referral
+                                <i class="fas fa-circle text-info"></i> Living Alone (₱30)
                             </span>
                         </div>
                     </div>

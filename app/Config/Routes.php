@@ -89,6 +89,7 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
         $routes->get('dashboard', 'Admin::index');
         $routes->get('dashboard-content', 'Admin::content');
         $routes->get('content', 'Admin::content'); // Alternative route for AJAX
+        $routes->get('api/dashboard-stats', 'Admin::getDashboardStats'); // Optimized JSON API endpoint
         $routes->get('logout', 'AdminAuth::logout');
         $routes->get('registeredUsers', 'Admin::registeredUsers');
         $routes->get('getUserDetails/(:num)', 'Admin::getUserDetails/$1'); // Fetch user details for admin view
@@ -122,9 +123,10 @@ $routes->get('billingManagement', 'Admin::billingManagement');
         $routes->get('activateUser/(:num)', 'Admin::activateUser/$1');
         $routes->get('deactivateUser/(:num)', 'Admin::deactivateUser/$1');
         $routes->get('suspendUser/(:num)', 'Admin::suspendUser/$1');
-        $routes->get('reports', 'Reports::index');
-        $routes->get('charts', 'Admin::charts');
-        $routes->get('tables', 'Admin::tables');
+        // Removed duplicate/stale routes to ensure correct controller + data
+        // $routes->get('reports', 'Reports::index');
+        // $routes->get('charts', 'Admin::charts');
+        // $routes->get('tables', 'Admin::tables');
         $routes->get('404', 'Admin::page404');
         $routes->get('401', 'Admin::page401');
         $routes->get('500', 'Admin::page500');

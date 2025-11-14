@@ -37,84 +37,211 @@ class Admin extends BaseController
 
     /**
      * Load dashboard content with statistics (AJAX)
+     * Cached for 5 minutes to improve performance
      * @return string
      */
     public function content()
     {
-        try {
-            // === Billing data ===
-            $row = $this->billingModel
-                ->whereIn('status', ['Paid', 'Over the Counter'])
-                ->where('YEAR(updated_at)', date('Y'))
-                ->selectSum('amount_due')
-                ->get()
-                ->getRow();
+        $cache = \Config\Services::cache();
+        $cacheKey = 'dashboard_stats_' . date('Y-m-d-H') . '_' . floor(date('i') / 5);
+        
+        $data = $cache->get($cacheKey);
+        
+        if ($data === null) {
+            try {
+                // === Billing data (optimized with single query) ===
+                $currentYear = date('Y');
+                $currentMonth = date('m');
+                
+                // Get annual and monthly totals in one query
+                $billingStats = $this->billingModel
+                    ->select("SUM(amount_due) as annual_total,
+                             SUM(CASE WHEN MONTH(updated_at) = {$currentMonth} THEN amount_due ELSE 0 END) as monthly_total")
+                    ->whereIn('status', ['Paid', 'Over the Counter'])
+                    ->where('YEAR(updated_at)', $currentYear)
+                    ->get()
+                    ->getRow();
 
-            $totalCollected = $row ? $row->amount_due : 0;
-            $unpaidCount = $this->billingModel
-                ->where('status', 'Pending')
-                ->countAllResults();
+                $totalCollected = $billingStats ? (float)$billingStats->annual_total : 0;
+                $monthlyTotal = $billingStats ? (float)$billingStats->monthly_total : 0;
 
-            $row = $this->billingModel
-                ->whereIn('status', ['Paid', 'Over the Counter'])
-                ->where('MONTH(updated_at)', date('m'))
-                ->where('YEAR(updated_at)', date('Y'))
-                ->selectSum('amount_due')
-                ->get()->getRow();
+                // === User counts (optimized with single query) ===
+                $userStats = $this->usersModel
+                    ->select("SUM(CASE WHEN status = 'Approved' THEN 1 ELSE 0 END) as active,
+                             SUM(CASE WHEN status = 'ending' THEN 1 ELSE 0 END) as pending,
+                             SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END) as inactive")
+                    ->get()
+                    ->getRow();
 
-            $monthlyTotal = $row ? $row->amount_due : 0;
+                $active = $userStats ? (int)$userStats->active : 0;
+                $pending = $userStats ? (int)$userStats->pending : 0;
+                $inactive = $userStats ? (int)$userStats->inactive : 0;
 
-            // === User counts ===
-            $active = $this->usersModel->where('status', 'Approved')->countAllResults();
-            $pending = $this->usersModel->where('status', 'ending')->countAllResults();
-            $inactive = $this->usersModel->where('status', 'inactive')->countAllResults();
+                // === Monthly income data (for charts) ===
+                $query = $this->billingModel->select("
+                        DATE_FORMAT(updated_at, '%b') AS month,
+                        MONTH(updated_at) AS month_num,
+                        SUM(amount_due) AS total
+                    ")
+                    ->whereIn('status', ['Paid', 'Over the Counter'])
+                    ->where('YEAR(updated_at)', $currentYear)
+                    ->groupBy('MONTH(updated_at)')
+                    ->orderBy('MONTH(updated_at)', 'ASC')
+                    ->get();
 
-            // === Monthly income data (for charts) ===
-            $query = $this->billingModel->select("
-                    DATE_FORMAT(updated_at, '%b') AS month,
-                    SUM(amount_due) AS total
-                ")
-                ->whereIn('status', ['Paid', 'Over the Counter'])
-                ->where('YEAR(updated_at)', date('Y'))
-                ->groupBy('MONTH(updated_at)')
-                ->orderBy('MONTH(updated_at)', 'ASC')
-                ->get();
+                $allMonths = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                $monthlyTotals = array_fill(0, 12, 0);
 
-            $allMonths = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-            $monthlyTotals = array_fill(0, 12, 0);
-
-            foreach ($query->getResultArray() as $row) {
-                $monthName = $row['month'];
-                $total = (float) $row['total'];
-                $index = array_search($monthName, $allMonths);
-                if ($index !== false) {
-                    $monthlyTotals[$index] = $total;
+                foreach ($query->getResultArray() as $row) {
+                    $monthIndex = (int)$row['month_num'] - 1;
+                    $monthlyTotals[$monthIndex] = (float)$row['total'];
                 }
-            }
 
-            $data = [
-                'months' => json_encode($allMonths),
-                'incomeData' => json_encode($monthlyTotals),
-                'totalCollected' => $totalCollected,
-                'monthlyTotal' => $monthlyTotal,
-                'active' => $active,
-                'pending' => $pending,
-                'inactive' => $inactive,
-            ];
-        } catch (\Exception $e) {
-            echo $e->getMessage();
-            exit;
+                // === Revenue breakdown by rate category ===
+                // Normal Rate: ₱60 (default users)
+                // Senior Citizen Rate: ₱48 (age >= 60)
+                // Living Alone Rate: ₱30 (family_number = 1)
+                $revenueQuery = $this->billingModel
+                    ->select("
+                        SUM(CASE 
+                            WHEN user_information.family_number = 1 THEN billings.amount_due 
+                            ELSE 0 
+                        END) as alone_revenue,
+                        SUM(CASE 
+                            WHEN user_information.age >= 60 AND user_information.family_number != 1 THEN billings.amount_due 
+                            ELSE 0 
+                        END) as senior_revenue,
+                        SUM(CASE 
+                            WHEN (user_information.age < 60 OR user_information.age IS NULL) AND user_information.family_number != 1 THEN billings.amount_due 
+                            ELSE 0 
+                        END) as normal_revenue
+                    ")
+                    ->join('user_information', 'user_information.user_id = billings.user_id', 'left')
+                    ->whereIn('billings.status', ['Paid', 'Over the Counter'])
+                    ->where('YEAR(billings.updated_at)', $currentYear)
+                    ->get()
+                    ->getRow();
+
+                $aloneRevenue = $revenueQuery ? (float)$revenueQuery->alone_revenue : 0;
+                $seniorRevenue = $revenueQuery ? (float)$revenueQuery->senior_revenue : 0;
+                $normalRevenue = $revenueQuery ? (float)$revenueQuery->normal_revenue : 0;
+
+                $data = [
+                    'months' => json_encode($allMonths),
+                    'incomeData' => json_encode($monthlyTotals),
+                    'totalCollected' => $totalCollected,
+                    'monthlyTotal' => $monthlyTotal,
+                    'active' => $active,
+                    'pending' => $pending,
+                    'inactive' => $inactive,
+                    'normalRevenue' => $normalRevenue,
+                    'seniorRevenue' => $seniorRevenue,
+                    'aloneRevenue' => $aloneRevenue,
+                ];
+                
+                // Cache for 5 minutes
+                $cache->save($cacheKey, $data, 300);
+            } catch (\Exception $e) {
+                log_message('error', 'Dashboard content error: ' . $e->getMessage());
+                return $this->response->setStatusCode(500)->setJSON(['error' => 'Failed to load dashboard data']);
+            }
         }
 
         return view('admin/dashboard-content', $data);
     }
 
-    public function layoutStatic() { return view('admin/layout-static'); }
-    public function charts() { return view('admin/charts'); }
+    /**
+     * Get dashboard statistics as JSON (optimized API endpoint)
+     * @return \CodeIgniter\HTTP\ResponseInterface
+     */
+    public function getDashboardStats()
+    {
+        $cache = \Config\Services::cache();
+        $cacheKey = 'dashboard_json_' . date('Y-m-d-H') . '_' . floor(date('i') / 5);
+        
+        $stats = $cache->get($cacheKey);
+        
+        if ($stats === null) {
+            try {
+                $currentYear = date('Y');
+                $currentMonth = date('m');
+                
+                // Optimized billing stats
+                $billingStats = $this->billingModel
+                    ->select("SUM(amount_due) as annual_total,
+                             SUM(CASE WHEN MONTH(updated_at) = {$currentMonth} THEN amount_due ELSE 0 END) as monthly_total")
+                    ->whereIn('status', ['Paid', 'Over the Counter'])
+                    ->where('YEAR(updated_at)', $currentYear)
+                    ->get()
+                    ->getRow();
+
+                // Optimized user stats
+                $userStats = $this->usersModel
+                    ->select("SUM(CASE WHEN status = 'Approved' THEN 1 ELSE 0 END) as active,
+                             SUM(CASE WHEN status = 'ending' THEN 1 ELSE 0 END) as pending,
+                             SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END) as inactive")
+                    ->get()
+                    ->getRow();
+
+                // Monthly chart data
+                $monthlyData = $this->billingModel->select("
+                        MONTH(updated_at) AS month_num,
+                        SUM(amount_due) AS total
+                    ")
+                    ->whereIn('status', ['Paid', 'Over the Counter'])
+                    ->where('YEAR(updated_at)', $currentYear)
+                    ->groupBy('MONTH(updated_at)')
+                    ->orderBy('MONTH(updated_at)', 'ASC')
+                    ->get()
+                    ->getResultArray();
+
+                $allMonths = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                $monthlyTotals = array_fill(0, 12, 0);
+                
+                foreach ($monthlyData as $row) {
+                    $monthIndex = (int)$row['month_num'] - 1;
+                    $monthlyTotals[$monthIndex] = (float)$row['total'];
+                }
+
+                $stats = [
+                    'success' => true,
+                    'data' => [
+                        'billing' => [
+                            'annual' => $billingStats ? (float)$billingStats->annual_total : 0,
+                            'monthly' => $billingStats ? (float)$billingStats->monthly_total : 0
+                        ],
+                        'users' => [
+                            'active' => $userStats ? (int)$userStats->active : 0,
+                            'pending' => $userStats ? (int)$userStats->pending : 0,
+                            'inactive' => $userStats ? (int)$userStats->inactive : 0
+                        ],
+                        'chart' => [
+                            'months' => $allMonths,
+                            'income' => $monthlyTotals
+                        ]
+                    ],
+                    'cached' => false,
+                    'timestamp' => time()
+                ];
+                
+                $cache->save($cacheKey, $stats, 300);
+            } catch (\Exception $e) {
+                log_message('error', 'Dashboard stats error: ' . $e->getMessage());
+                return $this->response->setStatusCode(500)->setJSON([
+                    'success' => false,
+                    'error' => 'Failed to fetch dashboard statistics'
+                ]);
+            }
+        } else {
+            $stats['cached'] = true;
+        }
+
+        return $this->response->setJSON($stats);
+    }
+
     public function page404() { return view('admin/404'); }
     public function page401() { return view('admin/401'); }
     public function page500() { return view('admin/500'); }
-    public function tables() { return view('admin/tables'); }
 
     // ======================================================
     // 💳 USER MANAGEMENT
@@ -561,7 +688,175 @@ class Admin extends BaseController
 
     public function reports()
     {
-        return view('admin/reports');
+        $currentYear = date('Y');
+        $currentMonth = date('m');
+        
+        // Calculate rate-based household counts
+        $normalCount = $this->userInfoModel
+            ->where('(age < 60 OR age IS NULL)')
+            ->where('family_number !=', 1)
+            ->countAllResults();
+        
+        $seniorCount = $this->userInfoModel
+            ->where('age >=', 60)
+            ->where('family_number !=', 1)
+            ->countAllResults();
+        
+        $aloneCount = $this->userInfoModel
+            ->where('family_number', 1)
+            ->countAllResults();
+        
+        $totalHouseholds = $normalCount + $seniorCount + $aloneCount;
+        
+        // Fixed rates
+        $rateNormal = 60;
+        $rateSenior = 48;
+        $rateAlone = 30;
+        
+        // Expected monthly collection
+        $monthlyExpected = ($normalCount * $rateNormal) + ($seniorCount * $rateSenior) + ($aloneCount * $rateAlone);
+        
+        // Current month collection
+        $currentMonthCollected = $this->billingModel
+            ->whereIn('status', ['Paid', 'Over the Counter'])
+            ->where('MONTH(updated_at)', $currentMonth)
+            ->where('YEAR(updated_at)', $currentYear)
+            ->selectSum('amount_due')
+            ->get()
+            ->getRow()
+            ->amount_due ?? 0;
+        
+        // Paid households this month (distinct users), based on updated_at
+        $paidHouseholds = (int)($this->billingModel
+            ->select('COUNT(DISTINCT user_id) as c')
+            ->whereIn('status', ['Paid', 'Over the Counter'])
+            ->where('MONTH(updated_at)', $currentMonth)
+            ->where('YEAR(updated_at)', $currentYear)
+            ->get()
+            ->getRow()->c ?? 0);
+        
+        // Pending amount and count
+        $pendingAmount = (float)($this->billingModel
+            ->where('status', 'Pending')
+            ->where('MONTH(updated_at)', $currentMonth)
+            ->where('YEAR(updated_at)', $currentYear)
+            ->selectSum('amount_due')
+            ->get()
+            ->getRow()
+            ->amount_due ?? 0);
+        
+        $pendingCount = (int)($this->billingModel
+            ->where('status', 'Pending')
+            ->where('MONTH(updated_at)', $currentMonth)
+            ->where('YEAR(updated_at)', $currentYear)
+            ->countAllResults());
+        
+        // Late payments (overdue)
+        $latePayments = $this->billingModel
+            ->where('status', 'Pending')
+            ->where('due_date <', date('Y-m-d'))
+            ->countAllResults();
+        
+        // If no data for current month, fallback to Year-To-Date for status overview
+        $statusScope = 'MONTH';
+        if ((int)$paidHouseholds + (int)$pendingCount + (int)$latePayments === 0) {
+            // Recompute paid and pending within current year using updated_at
+            $paidHouseholds = (int)($this->billingModel
+                ->select('COUNT(DISTINCT user_id) as c')
+                ->whereIn('status', ['Paid', 'Over the Counter'])
+                ->where('YEAR(updated_at)', $currentYear)
+                ->get()
+                ->getRow()->c ?? 0);
+
+            $pendingCount = (int)($this->billingModel
+                ->where('status', 'Pending')
+                ->where('YEAR(updated_at)', $currentYear)
+                ->countAllResults());
+
+            // Late payments within current year and overdue (by due_date year)
+            $latePayments = (int)($this->billingModel
+                ->where('status', 'Pending')
+                ->where('YEAR(due_date)', $currentYear)
+                ->where('due_date <', date('Y-m-d'))
+                ->countAllResults());
+
+            if ((int)$paidHouseholds + (int)$pendingCount + (int)$latePayments > 0) {
+                $statusScope = 'YTD';
+            }
+        }
+
+        // Collection rate
+        $collectionRate = $totalHouseholds > 0 ? round(($paidHouseholds / $totalHouseholds) * 100, 1) : 0;
+        
+        // Monthly collection rates and amounts for chart
+        $monthlyData = $this->billingModel
+            ->select("MONTH(updated_at) as month_num, 
+                     COUNT(DISTINCT user_id) as paid_count,
+                     SUM(amount_due) as total_amount")
+            ->whereIn('status', ['Paid', 'Over the Counter'])
+            ->where('YEAR(updated_at)', $currentYear)
+            ->groupBy('MONTH(updated_at)')
+            ->orderBy('MONTH(updated_at)', 'ASC')
+            ->get()
+            ->getResultArray();
+        
+        $collectionRates = array_fill(0, 12, 0);
+        $collectionAmounts = array_fill(0, 12, 0);
+        
+        foreach ($monthlyData as $data) {
+            $monthIndex = (int)$data['month_num'] - 1;
+            $paidCount = (int)$data['paid_count'];
+            $collectionRates[$monthIndex] = $totalHouseholds > 0 ? round(($paidCount / $totalHouseholds) * 100, 1) : 0;
+            $collectionAmounts[$monthIndex] = (float)$data['total_amount'];
+        }
+
+        // If no data for current year, fallback to last 12 months rolling window
+        if (array_sum($collectionAmounts) == 0) {
+            $twelveMonthsAgo = date('Y-m-01', strtotime('-11 months'));
+            $monthlyData = $this->billingModel
+                ->select("DATE_FORMAT(updated_at, '%Y-%m') as ym, MONTH(updated_at) as month_num, COUNT(DISTINCT user_id) as paid_count, SUM(amount_due) as total_amount")
+                ->whereIn('status', ['Paid', 'Over the Counter'])
+                ->where('DATE(updated_at) >=', $twelveMonthsAgo)
+                ->groupBy('YEAR(updated_at), MONTH(updated_at)')
+                ->orderBy('YEAR(updated_at)', 'ASC')
+                ->orderBy('MONTH(updated_at)', 'ASC')
+                ->get()
+                ->getResultArray();
+
+            $collectionRates = array_fill(0, 12, 0);
+            $collectionAmounts = array_fill(0, 12, 0);
+            foreach ($monthlyData as $row) {
+                $idx = ((int)$row['month_num'] - 1) % 12;
+                $pc = (int)$row['paid_count'];
+                $collectionRates[$idx] = $totalHouseholds > 0 ? round(($pc / $totalHouseholds) * 100, 1) : 0;
+                $collectionAmounts[$idx] = (float)$row['total_amount'];
+            }
+        }
+        
+        $viewData = [
+            'normalCount' => $normalCount,
+            'seniorCount' => $seniorCount,
+            'aloneCount' => $aloneCount,
+            'totalHouseholds' => $totalHouseholds,
+            'rateNormal' => $rateNormal,
+            'rateSenior' => $rateSenior,
+            'rateAlone' => $rateAlone,
+            'monthlyExpected' => $monthlyExpected,
+            'currentMonthCollected' => $currentMonthCollected,
+            'paidHouseholds' => $paidHouseholds,
+            'pendingAmount' => $pendingAmount,
+            'pendingCount' => $pendingCount,
+            'latePayments' => $latePayments,
+            'collectionRate' => $collectionRate,
+            'collectionRates' => $collectionRates,
+            'collectionAmounts' => $collectionAmounts,
+            'statusScope' => $statusScope
+        ];
+        
+        if ($this->request->isAJAX()) {
+            return view('admin/reports-content', $viewData);
+        }
+        return view('admin/reports', $viewData);
     }
 
     public function activateUser($id)
