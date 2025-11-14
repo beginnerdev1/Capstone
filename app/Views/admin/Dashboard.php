@@ -13,6 +13,7 @@
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
 
     <style>
         /* ===================================
@@ -644,14 +645,12 @@
 
   <ul class="sidebar-nav">
 
-    <li class="nav-item">
-      <a href="#" class="nav-link active">
-        <i class="fas fa-tachometer-alt"></i>
-        
-        <span>Dashboard</span>
-      </a>
-    </li>
-
+        <li class="nav-item">
+        <a href="<?= base_url('admin/dashboard-content') ?>" class="nav-link ajax-link active">
+            <i class="fas fa-tachometer-alt"></i>
+            <span>Dashboard</span>
+        </a>
+        </li>
     <div class="sidebar-divider"></div>
 
     <div class="sidebar-heading">Management</div>
@@ -685,6 +684,7 @@
           <h6 class="collapse-header">Custom Utilities:</h6>
             <a href="<?= base_url('admin/gcash-settings') ?>" class="collapse-item ajax-link">Gcash Settings</a>
             <a href="<?= base_url('admin/transactionRecords') ?>" class="collapse-item ajax-link">Transactions</a>
+            <a href="<?= base_url('admin/billingManagement') ?>" class="collapse-item ajax-link">Billing Management</a>
 
 
            <a href="<?= base_url('admin/edit-profile') ?>" class="collapse-item ajax-link">Edit Profile</a>
@@ -790,6 +790,7 @@
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <script>
         const sidebar = document.getElementById('sidebar');
@@ -863,51 +864,44 @@
         });
     </script>
 <script>
-    // 1. AJAX Link Handler (The Main Fix)
-    $(document).on("click", ".ajax-link", function(e) {
-        e.preventDefault();
-        var url = $(this).attr("href");
+$(document).on("click", ".ajax-link", function(e) {
+    e.preventDefault();
+    const url = $(this).attr("href");
 
-        $.ajax({
-            url: url,
-            type: "GET",
-            success: function(data) {
-                // 1. Insert the new content
-                $("#mainContent").html(data);
+    // Save last visited AJAX URL to localStorage
+    localStorage.setItem("lastAjaxPage", url);
 
-                // 2. CHECK & INITIALIZE: This is the critical step for AJAX loads.
-                // It checks if the function exists (script must be loaded in the main layout)
-                // AND if the required element is in the newly loaded HTML.
-                if (typeof initTransactionPage === 'function' && $("#mainContent").find('#paymentTableBody').length) {
-                    initTransactionPage();
-                    console.log("Transaction page initialized via AJAX success.");
-                }
-                
-                // You might add checks for other specific page init functions here as well.
-            },
-            error: function(xhr, status, error) {
-                console.error("AJAX Error:", status, error);
-                $("#mainContent").html("<p class='text-danger p-3'>Failed to load content.</p>");
+    loadAjaxPage(url);
+});
+
+function loadAjaxPage(url) {
+    $.ajax({
+        url: url,
+        type: "GET",
+        success: function(data) {
+            $("#mainContent").html(data);
+
+            if (typeof initTransactionPage === 'function' && $("#mainContent").find('#paymentTableBody').length) {
+                initTransactionPage();
             }
-        });
+        },
+        error: function(xhr, status, error) {
+            console.error("AJAX Error:", status, error);
+            $("#mainContent").html("<p class='text-danger p-3'>Failed to load content.</p>");
+        }
     });
+}
 
-    // 2. Initial Dashboard Load (No changes needed here unless the dashboard also needs a specific init function)
-    $(document).ready(function() {
-        $.ajax({
-            url: "<?= base_url('admin/dashboard-content') ?>",
-            type: "GET",
-            success: function(data) {
-                $("#mainContent").html(data);
-                // If your dashboard has a specific init function, call it here.
-            },
-            error: function(xhr, status, error) {
-                console.error("Dashboard Load Error:", status, error);
-                $("#mainContent").html("<p class='text-danger p-3'>Failed to load dashboard.</p>");
-            }
-        });
-    });
+$(document).ready(function() {
+    // Load last page if exists, otherwise default to dashboard
+    const lastPage = localStorage.getItem("lastAjaxPage");
+    const defaultPage = "<?= base_url('admin/dashboard-content') ?>";
+    const urlToLoad = lastPage || defaultPage;
+
+    loadAjaxPage(urlToLoad);
+});
 </script>
+
 </body>
 
 </html>

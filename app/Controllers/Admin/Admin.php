@@ -320,6 +320,7 @@ public function transactionRecords()
 
 // ---------------- Payments Functions ----------------
 
+
 // Display monthly payments page
 public function monthlyPayments()
 {
@@ -327,33 +328,50 @@ public function monthlyPayments()
     $method = $this->request->getGet('method') ?? '';
     $search = $this->request->getGet('search') ?? '';
 
+    // Validate month format
+    if (!preg_match('/^\d{4}-\d{2}$/', $month)) {
+        $month = date('Y-m'); // Fallback to current month
+    }
+
     $filters = [
         'month' => $month,
         'method' => $method,
         'search' => $search
     ];
 
-    // Use the renamed model
-    $payments = $this->paymentsModel->getMonthlyPayments($filters);
-    $stats = $this->paymentsModel->getMonthlyStats($filters);
+    try {
+        // Fetch payments and stats from model
+        $payments = $this->paymentsModel->getMonthlyPayments($filters);
+        $stats = $this->paymentsModel->getMonthlyStats($filters);
+    } catch (\Exception $e) {
+        log_message('error', 'Error fetching payments: ' . $e->getMessage());
+        $payments = [];
+        $stats = [];
+    }
 
-    $formattedPayments = [];
-    foreach ($payments as $payment) {
-        $formattedPayments[] = [
+    $formattedPayments = array_map(function ($payment) {
+        $methodValue = strtolower($payment['method'] ?? 'unknown');
+        $validMethods = ['offline', 'manual', 'gateway'];
+
+        if (!in_array($methodValue, $validMethods)) {
+            $methodValue = 'unknown';
+        }
+
+        return [
             'id' => $payment['id'],
             'user_name' => $payment['user_name'] ?? 'Unknown',
             'email' => $payment['email'] ?? 'N/A',
             'amount' => $payment['amount'] ?? 0,
-            'method' => $payment['method'] ?? 'Unknown',
-            'status' => $payment['status'] ?? 'Pending',
-            'reference' => $payment['reference_number'] ?? 'N/A',
+            'method' => $methodValue,
+            'status' => strtolower($payment['status'] ?? 'pending'),
+            'reference_number' => $payment['reference_number'] ?? '-',
             'admin_reference' => $payment['admin_reference'] ?? '',
-            'receipt' => $payment['receipt_image'] ? base_url($payment['receipt_image']) : null,
+            'receipt_image' => $payment['receipt_image'] ? base_url($payment['receipt_image']) : null,
             'created_at' => $payment['created_at'] ?? date('Y-m-d H:i:s'),
             'paid_at' => $payment['paid_at'] ?? null,
-            'avatar' => $payment['avatar'] ?? 'NA'
+            'avatar' => $payment['avatar'] ?? base_url('assets/images/default-avatar.png')
         ];
-    }
+    }, $payments);
 
     $data = [
         'title' => 'Monthly Payments',
@@ -366,32 +384,67 @@ public function monthlyPayments()
     return view('admin/monthly_payments', $data);
 }
 
+
 // Fetch payments data for AJAX
-    public function getPaymentsData()
-    {
-        $month = $this->request->getGet('month');
-        $method = $this->request->getGet('method');
-        $search = $this->request->getGet('search');
+public function getPaymentsData()
+{
+    $month = $this->request->getGet('month');
+    $method = $this->request->getGet('method');
+    $search = $this->request->getGet('search');
+    $all = $this->request->getGet('all'); // Check for 'all' param
 
-        $filters = [
-            'month' => $month,
-            'method' => $method,
-            'search' => $search
-        ];
+    $filters = [
+        'month' => $month,
+        'method' => $method,
+        'search' => $search
+    ];
 
-        $payments = $this->paymentsModel->getMonthlyPayments($filters);
-        $stats = $this->paymentsModel->getMonthlyStats($filters);
-
-        return $this->response->setJSON([
-            'success' => true,
-            'payments' => $payments,
-            'stats' => $stats
-        ]);
+    // Only apply pagination if not requesting all records
+    if (!$all) {
+        $page = (int)$this->request->getGet('page') ?: 1;
+        $limit = 20;
+        $offset = ($page - 1) * $limit;
+        $filters['limit'] = $limit;
+        $filters['offset'] = $offset;
     }
+
+    $payments = $this->paymentsModel->getMonthlyPayments($filters);
+    $stats = $this->paymentsModel->getMonthlyStats($filters);
+
+    $formattedPayments = array_map(function ($payment) {
+        $methodValue = strtolower($payment['method'] ?? 'unknown');
+        $validMethods = ['offline', 'manual', 'gateway'];
+
+        if (!in_array($methodValue, $validMethods)) {
+            $methodValue = 'unknown';
+        }
+
+        return [
+            'id' => $payment['id'],
+            'user_name' => $payment['user_name'] ?? 'Unknown',
+            'email' => $payment['email'] ?? 'N/A',
+            'amount' => $payment['amount'] ?? 0,
+            'method' => $methodValue,
+            'status' => strtolower($payment['status'] ?? 'pending'),
+            'reference_number' => $payment['reference_number'] ?? '-',
+            'admin_reference' => $payment['admin_reference'] ?? '',
+            'receipt_image' => $payment['receipt_image'] ? base_url($payment['receipt_image']) : null,
+            'created_at' => $payment['created_at'] ?? date('Y-m-d H:i:s'),
+            'paid_at' => $payment['paid_at'] ?? null,
+            'avatar' => $payment['avatar'] ?? base_url('assets/images/default-avatar.png')
+        ];
+    }, $payments);
+
+    return $this->response->setJSON([
+        'success' => true,
+        'payments' => $formattedPayments,
+        'stats' => $stats
+    ]);
+}
 
 
     // Confirm GCash payment (AJAX)
-  public function confirmGCashPayment()
+public function confirmGCashPayment()
     {
         $data = $this->request->getJSON(true);
         $paymentId = $data['payment_id'] ?? null;
@@ -409,6 +462,89 @@ public function monthlyPayments()
         ]);
     }
 
+// Fetch users in a purok
+public function getUsersByPurok($purok)
+    {
+        $userModel = new \App\Models\UserInformationModel();
+
+        // Convert purok to integer for proper comparison
+        $purok = (int) $purok;
+
+        // Get only necessary fields for dropdown
+        $users = $userModel->select('user_id, first_name, last_name')
+                        ->where('purok', $purok)
+                        ->orderBy('first_name', 'ASC')
+                        ->findAll();
+
+        return $this->response->setJSON($users);
+    }
+
+// Fetch pending billings for a user
+public function getPendingBillings($userId)
+{
+    $month = $this->request->getGet('month'); // e.g. '2025-11'
+    $billingModel = new \App\Models\BillingModel();
+
+    // Pass month to model for filtering
+    $billings = $billingModel->getPendingBillingsByUserAndMonth($userId, $month);
+
+    return $this->response->setJSON($billings);
+}
+
+    // Add counter payment (AJAX)
+public function addCounterPayment()
+{
+    try {
+        $data = $this->request->getJSON(true);
+
+        if (!$data || empty($data['user_id']) || empty($data['billing_id']) || empty($data['amount'])) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Required fields missing']);
+        }
+
+        $billingModel = new \App\Models\BillingModel();
+        $paymentsModel = new \App\Models\PaymentsModel();
+
+        $billing = $billingModel->find($data['billing_id']);
+        if (!$billing) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Billing not found']);
+        }
+
+        if ($billing['user_id'] != $data['user_id']) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Billing does not match user']);
+        }
+
+        if (floatval($data['amount']) != floatval($billing['amount_due'])) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Amount does not match billing']);
+        }
+
+        // Use frontend value if provided, otherwise generate
+    $adminRef = $data['admin_reference'] ?? ('CNT-' . date('YmdHis') . '-' . rand(100, 999));
+
+        $paymentsModel->insert([
+            'user_id' => $data['user_id'],
+            'billing_id' => $data['billing_id'],
+            'amount' => $data['amount'],
+            'method' => 'offline',
+            'status' => 'Paid',
+            'payment_intent_id' => null,
+            'payment_method_id' => null,
+            'reference_number' => null,
+            'admin_reference' => $adminRef,
+            'paid_at' => date('Y-m-d H:i:s'),
+            'created_at' => date('Y-m-d H:i:s')
+        ]);
+
+        $billingModel->update($data['billing_id'], ['status' => 'Paid', 'paid_date' => date('Y-m-d H:i:s')]);
+
+        return $this->response->setJSON(['success' => true]);
+
+    } catch (\Exception $e) {
+        log_message('error', $e->getMessage());
+        return $this->response->setJSON(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
+    }
+}
+
+    // Export payments to CSV
 public function exportPayments()
 {
     $month = $this->request->getGet('month') ?? date('Y-m');
@@ -421,7 +557,7 @@ public function exportPayments()
         'search' => $search
     ];
 
-    $payments = $this->paymentModel->getMonthlyPayments($filters);
+    $payments = $this->paymentsModel->getMonthlyPayments($filters);
 
     header('Content-Type: text/csv');
     header('Content-Disposition: attachment; filename="payments_' . date('Y-m-d') . '.csv"');
@@ -444,6 +580,16 @@ public function exportPayments()
 
     fclose($output);
     exit;
+}
+
+
+
+// ---------------- Billing Functions ----------------
+
+// Display billing management page
+public function billingManagement()
+{
+    return view('admin/billing_management');
 }
 
 

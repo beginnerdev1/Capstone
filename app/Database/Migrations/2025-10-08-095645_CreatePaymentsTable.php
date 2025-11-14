@@ -26,6 +26,7 @@ class CreatePaymentsTable extends Migration
             'payment_intent_id' => [
                 'type'       => 'VARCHAR',
                 'constraint' => 255,
+                'null' => true,
             ],
             'payment_method_id' => [
                 'type'       => 'VARCHAR',
@@ -62,8 +63,8 @@ class CreatePaymentsTable extends Migration
             ],
             'status' => [
                 'type'       => 'ENUM',
-                'constraint' => ['Pending','Paid','Rejected','Over the Counter'],
-                'default'    => 'Pending',
+                'constraint' => ['pending','paid','rejected'],
+                'default'    => 'pending',
             ],
             'paid_at' => [
                 'type' => 'DATETIME',

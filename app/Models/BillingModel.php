@@ -11,14 +11,12 @@ class BillingModel extends Model
 
     protected $allowedFields = [
         'user_id',
-        'payment_id',
         'bill_no',
         'amount_due',
         'status',
         'billing_month',
         'due_date',
         'paid_date',
-        'proof_of_payment',
         'remarks',
         'created_at',
         'updated_at'
@@ -35,14 +33,10 @@ class BillingModel extends Model
                 billings.*,
                 user_information.first_name,
                 user_information.last_name,
-                users.email,
-                payments.amount as payment_amount,
-                payments.status as payment_status,
-                payments.method as payment_method
+                users.email
             ')
             ->join('users', 'users.id = billings.user_id', 'left')
             ->join('user_information', 'user_information.user_id = users.id', 'left')
-            ->join('payments', 'payments.id = billings.payment_id', 'left')
             ->orderBy('billings.billing_month', 'DESC')
             ->findAll();
     }
@@ -52,24 +46,18 @@ class BillingModel extends Model
      */
     public function getBillsByUser($userId)
     {
-        return $this->select('
-                billings.*,
-                payments.amount as payment_amount,
-                payments.status as payment_status,
-                payments.method as payment_method
-            ')
-            ->join('payments', 'payments.id = billings.payment_id', 'left')
+        return $this->select('billings.*')
             ->where('billings.user_id', $userId)
             ->orderBy('billings.billing_month', 'DESC')
             ->findAll();
     }
 
     /**
-     * Update billing status when payment is confirmed
+     * Update billing status
      */
-    public function updateBillingStatus($paymentId, $status = 'Paid')
+    public function updateBillingStatus($billingId, $status = 'Paid')
     {
-        return $this->where('payment_id', $paymentId)
+        return $this->where('id', $billingId)
             ->set([
                 'status' => $status,
                 'paid_date' => date('Y-m-d')
@@ -96,5 +84,22 @@ class BillingModel extends Model
             ->getRow();
 
         return $result->amount_due ?? 0;
+    }
+
+    /**
+     * Get pending billings for a specific user and month
+     */
+    public function getPendingBillingsByUserAndMonth($userId, $month = null)
+    {
+        $builder = $this->db->table('billings');
+        $builder->where('user_id', $userId);
+        $builder->where('status', 'pending');
+
+        if ($month) {
+            // billing_month should be in 'YYYY-MM' format
+            $builder->where('billing_month', $month);
+        }
+
+        return $builder->get()->getResultArray();
     }
 }

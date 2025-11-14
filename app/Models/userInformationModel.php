@@ -36,7 +36,7 @@ class UserInformationModel extends Model
         'gender'        => 'required|in_list[Male,Female,Other]',
         'age'           => 'required|integer|greater_than[0]|less_than[120]',
         'family_number' => 'required|integer|greater_than[0]|less_than[21]',
-        'purok'         => 'required|string|max_length[100]',
+        'purok'         => 'required|integer|greater_than[0]|less_than[8]', // updated for numeric purok
     ];
 
     public function getByUserId($userId)

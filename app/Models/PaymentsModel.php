@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use CodeIgniter\Model;
@@ -7,6 +8,7 @@ class PaymentsModel extends Model
 {
     protected $table = 'payments';
     protected $primaryKey = 'id';
+
     protected $allowedFields = [
         'user_id',
         'billing_id',
@@ -24,7 +26,12 @@ class PaymentsModel extends Model
         'updated_at',
         'deleted_at'
     ];
-    protected $useTimestamps = false;
+
+    protected $useTimestamps = true;
+    protected $createdField  = 'created_at';
+    protected $updatedField  = 'updated_at';
+    protected $deletedField  = 'deleted_at';
+    protected $useSoftDeletes = true;
 
     public function getMonthlyPayments($filters = [])
     {
@@ -49,6 +56,9 @@ class PaymentsModel extends Model
         $builder->join('users u', 'u.id = p.user_id', 'left');
         $builder->join('user_information ui', 'ui.user_id = u.id', 'left');
 
+        // Exclude soft-deleted records
+        $builder->where('p.deleted_at', null);
+
         if (!empty($filters['month'])) {
             $builder->where('DATE_FORMAT(p.created_at, "%Y-%m")', $filters['month']);
         }
@@ -62,7 +72,16 @@ class PaymentsModel extends Model
             $builder->like('ui.first_name', $filters['search']);
             $builder->orLike('ui.last_name', $filters['search']);
             $builder->orLike('u.email', $filters['search']);
+            $builder->orLike('p.reference_number', $filters['search']);
+            $builder->orLike('p.admin_reference', $filters['search']);
             $builder->groupEnd();
+        }
+
+        // Only apply limit/offset if set in filters
+        if (isset($filters['limit']) && isset($filters['offset'])) {
+            $limit = (int)$filters['limit'];
+            $offset = (int)$filters['offset'];
+            $builder->limit($limit, $offset);
         }
 
         $builder->orderBy('p.created_at', 'DESC');
@@ -75,12 +94,15 @@ class PaymentsModel extends Model
         $builder = $this->db->table('payments p');
         $builder->select('
             COUNT(DISTINCT p.user_id) as total_users,
-            SUM(CASE WHEN p.status = "Confirmed" THEN p.amount ELSE 0 END) as total_amount,
+            SUM(CASE WHEN p.status = "Paid" THEN p.amount ELSE 0 END) as total_amount,
             SUM(CASE WHEN p.method = "gateway" THEN 1 ELSE 0 END) as gateway,
             SUM(CASE WHEN p.method = "manual" THEN 1 ELSE 0 END) as gcash,
             SUM(CASE WHEN p.method = "offline" THEN 1 ELSE 0 END) as counter,
-            SUM(CASE WHEN p.status = "Confirmed" THEN 1 ELSE 0 END) as confirmed_count
+            SUM(CASE WHEN p.status = "Paid" THEN 1 ELSE 0 END) as paid_count
         ');
+
+        // Exclude soft-deleted records
+        $builder->where('p.deleted_at', null);
 
         if (!empty($filters['month'])) {
             $builder->where('DATE_FORMAT(p.created_at, "%Y-%m")', $filters['month']);
@@ -97,6 +119,8 @@ class PaymentsModel extends Model
             $builder->like('ui.first_name', $filters['search']);
             $builder->orLike('ui.last_name', $filters['search']);
             $builder->orLike('u.email', $filters['search']);
+            $builder->orLike('p.reference_number', $filters['search']);
+            $builder->orLike('p.admin_reference', $filters['search']);
             $builder->groupEnd();
         }
 
@@ -107,8 +131,8 @@ class PaymentsModel extends Model
             ->countAllResults();
 
         $collectionRate = 0;
-        if ($totalUsersQuery > 0 && isset($result['confirmed_count'])) {
-            $collectionRate = round(($result['confirmed_count'] / $totalUsersQuery) * 100);
+        if ($totalUsersQuery > 0 && isset($result['paid_count'])) {
+            $collectionRate = round(($result['paid_count'] / $totalUsersQuery) * 100);
         }
 
         return [
@@ -124,7 +148,7 @@ class PaymentsModel extends Model
     public function confirmGCashPayment($paymentId, $adminReference = null)
     {
         $data = [
-            'status' => 'Confirmed',
+            'status' => 'Paid',
             'paid_at' => date('Y-m-d H:i:s')
         ];
 

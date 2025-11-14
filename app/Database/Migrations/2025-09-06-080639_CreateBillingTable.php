@@ -22,7 +22,7 @@ class CreateBillingTable extends Migration
             ],
             'bill_no' => [
                 'type'           => 'VARCHAR',
-                'constraint'     => '50',
+                'constraint'     => 50,
                 'unique'         => true,
             ],
             'amount_due' => [
@@ -32,35 +32,37 @@ class CreateBillingTable extends Migration
             ],
             'status' => [
                 'type'           => 'ENUM',
-                'constraint'     => ['Pending', 'Paid', 'Rejected', 'Over the Counter'],
+                'constraint'     => ['Pending', 'Paid'],
                 'default'        => 'Pending',
             ],
             'billing_month' => [
                 'type'           => 'VARCHAR',
-                'constraint'     => '20',
+                'constraint'     => 20,
             ],
             'due_date' => [
                 'type'           => 'DATE',
                 'null'           => true,
             ],
             'paid_date' => [
-                'type' => 'DATETIME',
-                'null' => true,
-            ],
-            'proof_of_payment' => [
-                'type'           => 'VARCHAR',
-                'constraint'     => '255',
+                'type'           => 'DATETIME',
                 'null'           => true,
             ],
             'remarks' => [
                 'type'           => 'TEXT',
                 'null'           => true,
             ],
-            'created_at DATETIME DEFAULT CURRENT_TIMESTAMP',
-            'updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
+            'created_at' => [
+                'type'    => 'DATETIME',
+                'null'    => true,
+            ],
+            'updated_at' => [
+                'type'    => 'DATETIME',
+                'null'    => true,
+            ],
         ]);
 
         $this->forge->addKey('id', true);
+        $this->forge->addForeignKey('user_id', 'users', 'id', 'CASCADE', 'CASCADE');
         $this->forge->createTable('billings');
     }
 

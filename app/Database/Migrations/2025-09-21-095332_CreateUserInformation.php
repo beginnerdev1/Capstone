@@ -52,10 +52,11 @@ class CreateUserInformation extends Migration
                 'null'       => true,
             ],
             'purok' => [
-                'type'       => 'VARCHAR',
-                'constraint' => 100,
+                'type'       => 'INT',
+                'constraint' => 3,
                 'null'       => true,
             ],
+
             'barangay' => [
                 'type'       => 'VARCHAR',
                 'constraint' => 100,
