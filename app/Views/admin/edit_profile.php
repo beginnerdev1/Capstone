@@ -651,7 +651,11 @@ body {
     <div class="profile-header-content">
       <div class="profile-avatar-section">
         <div class="profile-avatar" id="profileAvatarDisplay">
-          <span>👤</span>
+          <?php if (!empty($admin['profile_picture']) && $admin['profile_picture'] !== 'default.png'): ?>
+            <img src="<?= base_url('uploads/profile/' . $admin['profile_picture']) ?>" alt="Profile">
+          <?php else: ?>
+            <span>👤</span>
+          <?php endif; ?>
         </div>
         <label class="avatar-upload-button">
           <span class="button-icon">📷</span>
@@ -660,8 +664,8 @@ body {
         </label>
       </div>
       <div class="profile-info">
-        <h1 class="profile-title" id="profileName">John Doe</h1>
-        <p class="profile-email" id="profileEmailDisplay">john@example.com</p>
+        <h1 class="profile-title" id="profileName"><?= esc($admin['first_name'] ?? '') ?> <?= esc($admin['last_name'] ?? '') ?></h1>
+        <p class="profile-email" id="profileEmailDisplay"><?= esc($admin['email'] ?? '') ?></p>
       </div>
       <div class="profile-badges">
         <div class="profile-badge">
@@ -679,6 +683,7 @@ body {
   <!-- Edit Profile Form -->
   <div class="profile-container">
     <form id="editProfileForm">
+      <?= csrf_field() ?>
       <!-- Personal Information -->
       <div class="form-section">
         <h2 class="section-title">
@@ -706,27 +711,10 @@ body {
           </div>
           <div class="form-group">
             <label class="form-label">
-              Gender
+              Position
             </label>
-            <select class="form-select" name="gender">
-              <option value="">Select Gender</option>
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">
-              Age
-            </label>
-            <input type="number" class="form-input" name="age" placeholder="Enter age" min="1" max="120">
-          </div>
-          <div class="form-group">
-            <label class="form-label">
-              Phone Number <span class="form-required">*</span>
-            </label>
-            <input type="tel" class="form-input" name="phone" placeholder="Enter phone number" required>
-            <div class="form-hint">Format: 09XXXXXXXXX</div>
+            <input type="text" class="form-input" name="position" placeholder="Enter position" readonly>
+            <div class="form-hint">Contact admin to change position</div>
           </div>
         </div>
       </div>
@@ -744,52 +732,6 @@ body {
             </label>
             <input type="email" class="form-input" name="email" placeholder="Enter email address" required>
             <div class="form-hint">We'll send confirmations to this email</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Address Information -->
-      <div class="form-section">
-        <h2 class="section-title">
-          <span class="section-icon">🏠</span>
-          Address Information
-        </h2>
-        <div class="form-grid">
-          <div class="form-group">
-            <label class="form-label">
-              Purok <span class="form-required">*</span>
-            </label>
-            <input type="text" class="form-input" name="purok" placeholder="Enter purok" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label">
-              Barangay <span class="form-required">*</span>
-            </label>
-            <input type="text" class="form-input" name="barangay" placeholder="Enter barangay" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label">
-              Municipality <span class="form-required">*</span>
-            </label>
-            <input type="text" class="form-input" name="municipality" placeholder="Enter municipality" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label">
-              Province <span class="form-required">*</span>
-            </label>
-            <input type="text" class="form-input" name="province" placeholder="Enter province" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label">
-              Zipcode <span class="form-required">*</span>
-            </label>
-            <input type="text" class="form-input" name="zipcode" placeholder="Enter zipcode" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label">
-              Family Number
-            </label>
-            <input type="text" class="form-input" name="family_number" placeholder="Enter family number">
           </div>
         </div>
       </div>
@@ -880,15 +822,22 @@ form.addEventListener('submit', async (e) => {
   }
 });
 
-// Load profile data (you can populate this with actual data)
+// Load profile data from PHP
 document.addEventListener('DOMContentLoaded', () => {
-  // TODO: Fetch and populate user data
-  // fetch('<?= base_url('admin/getProfileInfo') ?>')
-  //   .then(res => res.json())
-  //   .then(data => {
-  //     form.first_name.value = data.first_name;
-  //     form.last_name.value = data.last_name;
-  //     // ... populate other fields
-  //   });
+  const adminData = <?= json_encode($admin ?? []) ?>;
+  
+  if (adminData) {
+    // Populate form fields
+    if (form.first_name) form.first_name.value = adminData.first_name || '';
+    if (form.middle_name) form.middle_name.value = adminData.middle_name || '';
+    if (form.last_name) form.last_name.value = adminData.last_name || '';
+    if (form.email) form.email.value = adminData.email || '';
+    if (form.position && adminData.position) form.position.value = adminData.position || '';
+    
+    // Update profile picture if exists
+    if (adminData.profile_picture && adminData.profile_picture !== 'default.png') {
+      avatarDisplay.innerHTML = `<img src="<?= base_url('uploads/profile/') ?>${adminData.profile_picture}" alt="Profile">`;
+    }
+  }
 });
 </script>

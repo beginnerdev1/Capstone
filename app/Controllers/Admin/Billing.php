@@ -124,8 +124,11 @@ class Billing extends BaseController
 
         return redirect()->back()->with('error', 'Failed to add bill. Please try again.');
     }
+
     /**
      * Edit an existing billing record
+     * @param int $id Billing record ID
+     * @return \CodeIgniter\HTTP\RedirectResponse
      */
     public function editBill($id)
     {

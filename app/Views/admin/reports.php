@@ -545,25 +545,25 @@ body {
         <div class="report-icon">💰</div>
         <div class="report-info">
           <h3>Fixed Bill Summary</h3>
-          <p>Year 2024 Overview</p>
+          <p>Year <?= date('Y') ?> Overview</p>
         </div>
       </div>
       <div class="report-body">
         <div class="report-stat">
-          <span class="report-stat-label">Monthly Fixed Rate</span>
-          <span class="report-stat-value">₱150</span>
+          <span class="report-stat-label">Normal Rate (<?= $normalCount ?? 0 ?> households)</span>
+          <span class="report-stat-value">₱<?= number_format($rateNormal ?? 60, 2) ?></span>
         </div>
         <div class="report-stat">
-          <span class="report-stat-label">Total Households</span>
-          <span class="report-stat-value">45</span>
+          <span class="report-stat-label">Senior Citizen Rate (<?= $seniorCount ?? 0 ?> households)</span>
+          <span class="report-stat-value">₱<?= number_format($rateSenior ?? 48, 2) ?></span>
         </div>
         <div class="report-stat">
-          <span class="report-stat-label">Monthly Collection</span>
-          <span class="report-stat-value">₱6,750</span>
+          <span class="report-stat-label">Living Alone Rate (<?= $aloneCount ?? 0 ?> households)</span>
+          <span class="report-stat-value">₱<?= number_format($rateAlone ?? 30, 2) ?></span>
         </div>
-        <div class="report-stat">
-          <span class="report-stat-label">Annual Total</span>
-          <span class="report-stat-value">₱81,000</span>
+        <div class="report-stat" style="border-top: 2px solid var(--primary); padding-top: 1rem; margin-top: 0.5rem;">
+          <span class="report-stat-label" style="font-weight: 700;">Expected Monthly Collection</span>
+          <span class="report-stat-value" style="color: var(--primary); font-size: 1.25rem;">₱<?= number_format($monthlyExpected ?? 0, 2) ?></span>
         </div>
       </div>
       <div class="report-footer">
@@ -584,19 +584,55 @@ body {
       <div class="report-body">
         <div class="report-stat">
           <span class="report-stat-label">Collected This Month</span>
-          <span class="report-stat-value">₱6,300</span>
+          <span class="report-stat-value">₱<?= number_format($currentMonthCollected ?? 0, 2) ?></span>
         </div>
         <div class="report-stat">
           <span class="report-stat-label">Paid Households</span>
-          <span class="report-stat-value">42 of 45</span>
+          <span class="report-stat-value"><?= $paidHouseholds ?? 0 ?> of <?= $totalHouseholds ?? 0 ?></span>
         </div>
         <div class="report-stat">
           <span class="report-stat-label">Pending Collection</span>
-          <span class="report-stat-value">₱450</span>
+          <span class="report-stat-value">₱<?= number_format($pendingAmount ?? 0, 2) ?></span>
         </div>
         <div class="report-stat">
           <span class="report-stat-label">Collection Rate</span>
-          <span class="report-stat-value">93.3%</span>
+          <span class="report-stat-value"><?= $collectionRate ?? 0 ?>%</span>
+        </div>
+      </div>
+      <div class="report-footer">
+        <button class="btn-small btn-view">📄 View</button>
+        <button class="btn-small btn-export">📥 Export</button>
+      </div>
+    </div>
+
+    <!-- Rate Breakdown Card -->
+    <div class="report-card">
+      <div class="report-header">
+        <div class="report-icon">📊</div>
+        <div class="report-info">
+          <h3>Rate Distribution</h3>
+          <p>Household Categories</p>
+        </div>
+      </div>
+      <div class="report-body">
+        <div class="report-stat">
+          <span class="report-stat-label">Normal Households</span>
+          <span class="report-stat-value"><?= $normalCount ?? 0 ?> <span style="font-size: 0.85rem; color: var(--muted);">(₱<?= number_format(($normalCount ?? 0) * ($rateNormal ?? 60), 2) ?>)</span></span>
+        </div>
+        <div class="report-stat">
+          <span class="report-stat-label">Senior Citizens</span>
+          <span class="report-stat-value"><?= $seniorCount ?? 0 ?> <span style="font-size: 0.85rem; color: var(--muted);">(₱<?= number_format(($seniorCount ?? 0) * ($rateSenior ?? 48), 2) ?>)</span></span>
+        </div>
+        <div class="report-stat">
+          <span class="report-stat-label">Living Alone</span>
+          <span class="report-stat-value"><?= $aloneCount ?? 0 ?> <span style="font-size: 0.85rem; color: var(--muted);">(₱<?= number_format(($aloneCount ?? 0) * ($rateAlone ?? 30), 2) ?>)</span></span>
+        </div>
+        <div class="report-stat" style="border-top: 2px solid var(--primary); padding-top: 1rem; margin-top: 0.5rem;">
+          <span class="report-stat-label" style="font-weight: 700;">Total Households</span>
+          <span class="report-stat-value" style="color: var(--primary);"><?= $totalHouseholds ?? 0 ?></span>
+        </div>
+        <div style="margin-top: 1rem; padding: 1rem; background: var(--light); border-radius: 8px;">
+          <canvas id="rateDistributionChart" style="max-height: 150px;"></canvas>
         </div>
       </div>
       <div class="report-footer">
@@ -618,21 +654,21 @@ body {
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
           <div class="report-stat" style="flex-direction: column; align-items: flex-start; padding: 0.5rem; border: none;">
             <span class="report-stat-label">Active Households</span>
-            <span class="report-stat-value">45</span>
+            <span class="report-stat-value"><?= $totalHouseholds ?? 0 ?></span>
           </div>
           <div class="report-stat" style="flex-direction: column; align-items: flex-start; padding: 0.5rem; border: none;">
-            <span class="report-stat-label">Avg Payment Time</span>
-            <span class="report-stat-value">On Time</span>
+            <span class="report-stat-label">Pending Payments</span>
+            <span class="report-stat-value"><?= $pendingCount ?? 0 ?></span>
           </div>
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
           <div class="report-stat" style="flex-direction: column; align-items: flex-start; padding: 0.5rem; border: none;">
             <span class="report-stat-label">Payment Compliance</span>
-            <span class="report-stat-value">97.8%</span>
+            <span class="report-stat-value"><?= $collectionRate ?? 0 ?>%</span>
           </div>
           <div class="report-stat" style="flex-direction: column; align-items: flex-start; padding: 0.5rem; border: none;">
-            <span class="report-stat-label">Outstanding Balance</span>
-            <span class="report-stat-value">₱750</span>
+            <span class="report-stat-label">Late Payments</span>
+            <span class="report-stat-value"><?= $latePayments ?? 0 ?></span>
           </div>
         </div>
         <div style="padding-top: 1rem;">
@@ -705,7 +741,7 @@ const collectionChart = new Chart(collectionCtx, {
     labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
     datasets: [{
       label: 'Collection Rate (%)',
-      data: [95, 98, 93, 97, 100, 96, 94, 98, 93, 97, 95, 93],
+      data: <?= $collectionRates ?? '[0,0,0,0,0,0,0,0,0,0,0,0]' ?>,
       borderColor: '#3b82f6',
       backgroundColor: 'rgba(59, 130, 246, 0.1)',
       borderWidth: 3,
@@ -718,7 +754,7 @@ const collectionChart = new Chart(collectionCtx, {
       pointHoverRadius: 7
     }, {
       label: 'Amount Collected (₱)',
-      data: [6400, 6600, 6300, 6550, 6750, 6480, 6350, 6600, 6300, 6550, 6400, 6300],
+      data: <?= $collectionAmounts ?? '[0,0,0,0,0,0,0,0,0,0,0,0]' ?>,
       borderColor: '#10b981',
       backgroundColor: 'rgba(16, 185, 129, 0.1)',
       borderWidth: 3,
@@ -830,7 +866,7 @@ const paymentStatusChart = new Chart(statusCtx, {
   data: {
     labels: ['Paid Households', 'Pending Payment', 'Late Payment'],
     datasets: [{
-      data: [42, 2, 1],
+      data: [<?= $paidHouseholds ?? 0 ?>, <?= $pendingCount ?? 0 ?>, <?= $latePayments ?? 0 ?>],
       backgroundColor: [
         '#10b981',
         '#f59e0b',
@@ -883,6 +919,49 @@ const paymentStatusChart = new Chart(statusCtx, {
     }
   }
 });
+
+// Rate Distribution Chart (Pie Chart)
+const rateDistCtx = document.getElementById('rateDistributionChart');
+if (rateDistCtx) {
+  new Chart(rateDistCtx.getContext('2d'), {
+    type: 'pie',
+    data: {
+      labels: ['Normal (₱<?= $rateNormal ?? 60 ?>)', 'Senior (₱<?= $rateSenior ?? 48 ?>)', 'Alone (₱<?= $rateAlone ?? 30 ?>)'],
+      datasets: [{
+        data: [<?= $normalCount ?? 0 ?>, <?= $seniorCount ?? 0 ?>, <?= $aloneCount ?? 0 ?>],
+        backgroundColor: ['#3b82f6', '#10b981', '#f59e0b'],
+        borderWidth: 0,
+        hoverOffset: 8
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: {
+          display: true,
+          position: 'bottom',
+          labels: {
+            padding: 10,
+            usePointStyle: true,
+            font: { size: 10, weight: 600, family: 'Poppins' }
+          }
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              const label = context.label || '';
+              const value = context.parsed || 0;
+              const total = context.dataset.data.reduce((a, b) => a + b, 0);
+              const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+              return `${label}: ${value} households (${percentage}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
 
 // Export functionality
 document.querySelectorAll('.export-btn').forEach(btn => {
