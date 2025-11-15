@@ -114,8 +114,10 @@ $routes->get('exportPayments', 'Admin::exportPayments');// Export Payments Data
 $routes->get('getUsersByPurok/(:any)', 'Admin::getUsersByPurok/$1'); // Get Users by Purok for Counter Payment
 $routes->get('getPendingBillings/(:num)', 'Admin::getPendingBillings/$1');// Get Pending Billings for Counter Payment
 $routes->post('addCounterPayment', 'Admin::addCounterPayment'); // Add Counter Payment
-$routes->get('billingManagement', 'Admin::billingManagement');
-
+$routes->get('billingManagement', 'Admin::billingManagement'); // Billing Management Page
+$routes->post('synchronizeBillings', 'Admin::synchronizeBillings'); // Synchronize Billings
+$routes->get('getAllBillings', 'Admin::getAllBillings'); // Get All Billings (AJAX for Billing Management Page)
+$routes->post('synchronizeBillings', 'Admin::synchronizeBillings'); // Synchronize Billings
 
 
 
