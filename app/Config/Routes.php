@@ -123,6 +123,10 @@ $routes->get('billingManagement', 'Admin::billingManagement'); // Billing Manage
 $routes->post('synchronizeBillings', 'Admin::synchronizeBillings'); // Synchronize Billings
 $routes->get('getAllBillings', 'Admin::getAllBillings'); // Get All Billings (AJAX for Billing Management Page)
 $routes->post('synchronizeBillings', 'Admin::synchronizeBillings'); // Synchronize Billings
+$routes->get('getBillingStatistics', 'Admin::getBillingStatistics'); // Get Billing Statistics
+$routes->post('createManualBilling', 'Admin::createManualBilling'); // Create Manual Billing
+
+
 
 
 

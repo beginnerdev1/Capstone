@@ -23,6 +23,7 @@ use PhpOffice\PhpSpreadsheet\Chart\PlotArea;
 use PhpOffice\PhpSpreadsheet\Chart\Title;
 use PhpOffice\PhpSpreadsheet\Chart\Legend;
 
+
 class Admin extends BaseController
 {
     protected $usersModel;
@@ -604,6 +605,7 @@ class Admin extends BaseController
     // 💳 UTILITIES
     // ======================================================
 
+    // GCash Settings Page
     public function gcashsettings() { return view('admin/gcash_settings'); }
 
     // Save GCash Settings (AJAX)
@@ -670,6 +672,8 @@ class Admin extends BaseController
         }
     }
 
+
+    // =======================Transaction Payments===============================
     // Show transaction records
     public function transactionRecords()
     {
@@ -679,7 +683,7 @@ class Admin extends BaseController
         return view('admin/transaction_records', $data);
     }
 
-    // Show monthly payments with filters
+    // Show monthly payments with filters - Transaction Records
     public function monthlyPayments()
     {
         $month = $this->request->getGet('month') ?? date('Y-m');
@@ -740,7 +744,7 @@ class Admin extends BaseController
         return view('admin/monthly_payments', $data);
     }
 
-    // Fetch payments data (AJAX)
+    // Fetch payments data (AJAX) - Transaction Payments
     public function getPaymentsData()
     {
         $month = $this->request->getGet('month');
@@ -796,7 +800,7 @@ class Admin extends BaseController
         ]);
     }
 
-    // Confirm GCash Payment (AJAX)
+    // Confirm GCash Payment (AJAX) - Transaction Payments
     public function confirmGCashPayment()
     {
         $data = $this->request->getJSON(true);
@@ -815,21 +819,50 @@ class Admin extends BaseController
         ]);
     }
 
-    // Get users by Purok (AJAX)
+    // Get users by Purok (AJAX) - Transaction Payments
     public function getUsersByPurok($purok)
     {
         $userModel = new \App\Models\UserInformationModel();
         $purok = (int) $purok;
-
-        $users = $userModel->select('user_id, first_name, last_name')
-            ->where('purok', $purok)
-            ->orderBy('first_name', 'ASC')
-            ->findAll();
-
+        
+        // Check if we should exclude users with existing billings
+        $excludeBilled = $this->request->getGet('exclude_billed');
+        $month = $this->request->getGet('month');
+        
+        // Debug logging
+        log_message('info', "getUsersByPurok Debug - Purok: {$purok}, Exclude Billed: {$excludeBilled}, Month: {$month}");
+        
+        $builder = $userModel->select('user_information.user_id, user_information.first_name, user_information.last_name')
+            ->join('users', 'users.id = user_information.user_id', 'inner')
+            ->where('user_information.purok', $purok)
+            ->whereIn('users.status', ['approved', 'Approved']) // Handle both status values
+            ->orderBy('user_information.first_name', 'ASC');
+        
+        // If exclude_billed is set and month is provided, filter out users with existing billings
+        if ($excludeBilled && $month) {
+            // Ensure month is in YYYY-MM format
+            if (preg_match('/^\d{4}-\d{2}$/', $month)) {
+                $builder->whereNotExists(function($subquery) use ($month) {
+                    $subquery->select('1')
+                        ->from('billings')
+                        ->where('billings.user_id = user_information.user_id')
+                        ->where('DATE_FORMAT(billings.billing_month, "%Y-%m") = "' . $month . '"');
+                });
+            }
+        }
+        
+        $users = $builder->findAll();
+        
+        // More detailed debug logging
+        log_message('info', "getUsersByPurok Result - Found " . count($users) . " users");
+        foreach ($users as $user) {
+            log_message('info', "User: ID {$user['user_id']}, Name: {$user['first_name']} {$user['last_name']}");
+        }
+        
         return $this->response->setJSON($users);
     }
 
-    // Get pending billings for a user (AJAX)
+    // Get pending billings for a user (AJAX) - transaction Payments
     public function getPendingBillings($userId)
     {
         $month = $this->request->getGet('month');
@@ -840,7 +873,7 @@ class Admin extends BaseController
         return $this->response->setJSON($billings);
     }
 
-    // Add counter payment (AJAX)
+    // Add counter payment (AJAX) - Transaction Payments
     public function addCounterPayment()
     {
         try {
@@ -892,7 +925,7 @@ class Admin extends BaseController
         }
     }
 
-    // Export payments data (CSV)
+    // Export payments data (CSV) - Transaction Payments
     public function exportPayments()
     {
         $month = $this->request->getGet('month') ?? date('Y-m');
@@ -1153,9 +1186,8 @@ class Admin extends BaseController
 
     // ---------------- Billing Functions ----------------
 
-    /**
-     * Display billing management page
-     */
+
+     //Display billing management page
     public function billingManagement()
     {
         return view('admin/billing_management');
@@ -1168,19 +1200,24 @@ class Admin extends BaseController
     {
         try {
             $month = $this->request->getGet('month') ?? '';
+            $purok = $this->request->getGet('purok') ?? '';  // Add this line
             $status = $this->request->getGet('status') ?? '';
             $search = $this->request->getGet('search') ?? '';
             
             $builder = $this->billingModel
                 ->select('billings.*, 
                          CONCAT(user_information.first_name, " ", user_information.last_name) as user_name,
-                         users.email')
+                         users.email, user_information.purok')  // Add purok to select
                 ->join('users', 'users.id = billings.user_id', 'left')
                 ->join('user_information', 'user_information.user_id = users.id', 'left');
 
             // Apply filters
             if (!empty($month)) {
-                $builder->where('DATE_FORMAT(billings.due_date, "%Y-%m")', $month);
+                $builder->where('DATE_FORMAT(billings.billing_month, "%Y-%m")', $month);  // Use billing_month instead
+            }
+
+            if (!empty($purok)) {  // Add purok filter
+                $builder->where('user_information.purok', $purok);
             }
 
             if (!empty($status)) {
@@ -1212,10 +1249,8 @@ class Admin extends BaseController
         }
     }
 
-    /**
-     * Synchronize billings (for automatic billing setup)
-     */
-    public function synchronizeBillings()
+    //Synchronize billings (for automatic billing setup)
+ public function synchronizeBillings()
     {
         try {
             $input = $this->request->getJSON(true);
@@ -1229,60 +1264,113 @@ class Admin extends BaseController
                 ]);
             }
             
-            // Get all active users with their complete information
+            // ✅ Check if billing for this month has already been synchronized
+            $existingBillingsForMonth = $this->billingModel
+                ->where('DATE_FORMAT(billing_month, "%Y-%m")', date('Y-m')) // Check current month instead
+                ->countAllResults();
+
+            if ($existingBillingsForMonth > 0) {
+                $monthName = date('F Y');
+                $approvedUsersCount = $this->usersModel
+                    ->whereIn('status', ['approved', 'Approved'])
+                    ->countAllResults();
+                
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => "⚠️ Billing synchronization for {$monthName} has already been completed! Found {$existingBillingsForMonth} existing billings out of {$approvedUsersCount} approved users. You cannot synchronize for the same month twice."
+                ]);
+            }
+            
+            // ✅ FIXED - Focus on approved users only, regardless of other fields
             $users = $this->usersModel
                 ->select('users.id, 
+                         users.status,
+                         users.active,
+                         users.email,
                          user_information.family_number,
                          user_information.age,
                          user_information.first_name,
-                         user_information.last_name')  // ✅ Removed household_type
-                ->join('user_information', 'user_information.user_id = users.id', 'inner')
-                ->where('users.status', 'approved')
-                ->where('users.active', 2)
-                ->where('user_information.family_number IS NOT NULL')  // Must have family number
-                ->where('user_information.family_number !=', '')       // Family number not empty
-                ->where('user_information.age IS NOT NULL')            // Must have age
-                ->where('user_information.age >', 0)                   // Age must be valid
+                         user_information.last_name')
+                ->join('user_information', 'user_information.user_id = users.id', 'left')
+                ->whereIn('users.status', ['approved', 'Approved'])  // Only approved users
                 ->findAll();
             
+            // Debug information about what users we found
+            log_message('info', 'Billing Sync: Found ' . count($users) . ' users with approved status');
+            
             if (empty($users)) {
+                // Let's check what users actually exist in the database
+                $allUsers = $this->usersModel
+                    ->select('users.id, users.email, users.status, users.active, users.is_verified, users.profile_complete')
+                    ->limit(10)
+                    ->findAll();
+                
+                $debugInfo = '';
+                if (!empty($allUsers)) {
+                    $debugInfo = ' Debug - Found ' . count($allUsers) . ' total users. Sample statuses: ';
+                    foreach (array_slice($allUsers, 0, 5) as $u) {
+                        $debugInfo .= "[ID:{$u['id']} Status:'{$u['status']}' Active:{$u['active']}] ";
+                    }
+                } else {
+                    $debugInfo = ' No users found in database at all.';
+                }
+                
                 return $this->response->setJSON([
                     'success' => false,
-                    'message' => 'No eligible users found with complete profile information (family number and age required)'
+                    'message' => 'No approved users found for billing synchronization.' . $debugInfo
                 ]);
             }
             
             $created = 0;
             $existing = 0;
-            $skippedIncomplete = 0;
+            $processed = 0;
+            $skipped = 0;
+            $emailsSent = 0; // ✅ ADD EMAIL COUNTER
             
             foreach ($users as $user) {
-                // Determine billing rate based on family composition and age
-                $amount = $this->calculateBillingAmount($user);
+                $processed++;
                 
-                if ($amount === null) {
-                    $skippedIncomplete++;
-                    continue;
-                }
+                // Use default values for missing family/age data
+                $familyNumber = (int) ($user['family_number'] ?? 1);
+                $age = (int) ($user['age'] ?? 30);
                 
-                // Check if billing already exists for this user and month
+                // Ensure minimum valid values
+                if ($familyNumber <= 0) $familyNumber = 1;
+                if ($age <= 0) $age = 30;
+                
+                // Prepare user data with defaults for billing calculation
+                $userForCalculation = [
+                    'family_number' => $familyNumber,
+                    'age' => $age
+                ];
+                
+                // Calculate billing amount
+                $amount = $this->calculateBillingAmount($userForCalculation);
+                
+                // Check if billing already exists for this user and month (using due_date)
                 $existingBilling = $this->billingModel
                     ->where('user_id', $user['id'])
-                    ->where('DATE_FORMAT(billing_month, "%Y-%m")', $month)
+                    ->where('DATE_FORMAT(billing_month, "%Y-%m")', date('Y-m')) // Check current month
                     ->first();
                 
                 if ($existingBilling) {
                     $existing++;
+                    $skipped++;
+                    log_message('info', "Billing sync: User {$user['id']} already has billing for current month");
                     continue;
                 }
                 
-                // Create new billing record
+                // Create new billing record with current date and due date 1 week later
+                $syncDate = date('Y-m-d');
+                $dueDate = date('Y-m-d', strtotime('+7 days'));
+                $billNo = 'BILL-' . date('Ymd') . '-' . str_pad($user['id'], 4, '0', STR_PAD_LEFT);
+                
                 $billingData = [
                     'user_id' => $user['id'],
-                    'bill_no' => 'BILL-' . date('Ymd') . '-' . str_pad($user['id'], 4, '0', STR_PAD_LEFT),
+                    'bill_no' => $billNo,
                     'amount_due' => $amount,
-                    'billing_month' => $month . '-01',
-                    'due_date' => date('Y-m-t', strtotime($month . '-01')), // Last day of month
+                    'billing_month' => $syncDate, // Date when admin synchronized
+                    'due_date' => $dueDate, // Due date is 7 days from synchronization
                     'status' => 'Pending',
                     'created_at' => date('Y-m-d H:i:s'),
                     'updated_at' => date('Y-m-d H:i:s')
@@ -1290,25 +1378,64 @@ class Admin extends BaseController
                 
                 if ($this->billingModel->insert($billingData)) {
                     $created++;
+                    log_message('info', "Billing sync: Created billing for User {$user['id']} - Amount: ₱{$amount} - Sync Date: {$syncDate} - Due Date: {$dueDate}");
+                    
+                    // ✅ SEND EMAIL NOTIFICATION
+                    if (!empty($user['email'])) {
+                        $userName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
+                        if (empty($userName)) {
+                            $userName = 'Valued Customer';
+                        }
+                        
+                        $this->sendBillingNotificationEmail(
+                            $user['email'],
+                            $userName,
+                            $billNo,
+                            $amount,
+                            $dueDate,
+                            $syncDate
+                        );
+                        $emailsSent++;
+                    } else {
+                        log_message('warning', "No email address found for User {$user['id']}, skipping email notification");
+                    }
+                    
+                } else {
+                    $skipped++;
+                    log_message('error', "Billing sync: Failed to create billing for User {$user['id']}");
                 }
             }
             
-            $message = "Synchronization completed! Created: {$created} new billings";
+            // Build success message with detailed stats
+            $monthName = date('F Y', strtotime($month . '-01'));
+            $message = "✅ Billing synchronization for {$monthName} completed successfully! ";
+            $message .= "Processed: {$processed} approved users, ";
+            $message .= "Created: {$created} new billings, ";
+            $message .= "Emails sent: {$emailsSent}"; // ✅ ADD EMAIL COUNT
+            
             if ($existing > 0) {
                 $message .= ", Skipped: {$existing} existing billings";
             }
-            if ($skippedIncomplete > 0) {
-                $message .= ", Skipped: {$skippedIncomplete} users with incomplete data";
+            
+            if ($skipped > $existing) {
+                $failedCount = $skipped - $existing;
+                $message .= ", Failed: {$failedCount} billing creations";
             }
+            
+            // Log the results
+            log_message('info', "Billing synchronization completed - {$message}");
             
             return $this->response->setJSON([
                 'success' => true,
                 'message' => $message,
                 'stats' => [
+                    'month' => $monthName,
+                    'processed' => $processed,
                     'created' => $created,
                     'existing' => $existing,
-                    'skipped_incomplete' => $skippedIncomplete,
-                    'total_users' => count($users)
+                    'skipped' => $skipped,
+                    'emails_sent' => $emailsSent, // ✅ ADD EMAIL STATS
+                    'total_approved_users' => count($users)
                 ]
             ]);
             
@@ -1321,20 +1448,22 @@ class Admin extends BaseController
         }
     }
 
+
+
+
     /**
      * Calculate billing amount based on user's family composition and age
      * @param array $user User data with family_number and age
-     * @return float|null Billing amount or null if data is incomplete
+     * @return float Billing amount (always returns valid amount)
      */
     private function calculateBillingAmount($user)
     {
-        $familyNumber = (int) ($user['family_number'] ?? 0);
-        $age = (int) ($user['age'] ?? 0);
+        $familyNumber = (int) ($user['family_number'] ?? 1);
+        $age = (int) ($user['age'] ?? 30);
         
-        // Validate required data
-        if ($familyNumber <= 0 || $age <= 0) {
-            return null; // Skip users with invalid data
-        }
+        // Ensure valid defaults
+        if ($familyNumber <= 0) $familyNumber = 1;
+        if ($age <= 0) $age = 30;
         
         // Senior Citizen (60+ years old) - ₱48
         if ($age >= 60) {
@@ -1350,6 +1479,323 @@ class Admin extends BaseController
         return 30.00;
     }
 
+  // ✅ ADD THIS NEW METHOD FOR BILLING NOTIFICATION EMAILS
+    /**
+     * Send billing notification email using Brevo
+     * @param string $toEmail User's email address
+     * @param string $userName User's full name
+     * @param string $billNo Bill number
+     * @param float $amount Billing amount
+     * @param string $dueDate Due date
+     * @param string $billingMonth Billing month
+     */
+    private function sendBillingNotificationEmail($toEmail, $userName, $billNo, $amount, $dueDate, $billingMonth)
+    {
+        try {
+            require ROOTPATH . 'vendor/autoload.php';
+
+            $config = Configuration::getDefaultConfiguration()
+                ->setApiKey('api-key', getenv('BREVO_API_KEY'));
+
+            $apiInstance = new TransactionalEmailsApi(
+                new Client(),
+                $config
+            );
+
+            // Format the billing month for display
+            $monthDisplay = date('F Y', strtotime($billingMonth));
+            $dueDateDisplay = date('F d, Y', strtotime($dueDate));
+            $amountDisplay = number_format($amount, 2);
+
+            $email = new SendSmtpEmail([
+                'subject' => "Water Billing Statement - {$monthDisplay}",
+                'sender' => ['name' => 'Water Billing System', 'email' => getenv('SMTP_FROM')],
+                'to' => [['email' => $toEmail]],
+                'htmlContent' => "
+                    <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;'>
+                        <div style='background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px;'>
+                            <h2 style='margin: 0; text-align: center;'>💧 Water Billing Statement</h2>
+                            <p style='margin: 10px 0 0 0; text-align: center; opacity: 0.9;'>Monthly Water Service Bill</p>
+                        </div>
+                        
+                        <div style='padding: 20px; background: #f8fafc; border-radius: 8px; margin-bottom: 20px;'>
+                            <p style='margin: 0 0 10px 0; font-size: 16px;'><strong>Dear {$userName},</strong></p>
+                            <p style='margin: 0; color: #4b5563; line-height: 1.6;'>Your water billing statement for {$monthDisplay} has been generated. Please review the details below and ensure payment is made before the due date.</p>
+                        </div>
+                        
+                        <div style='background: white; padding: 20px; border-radius: 8px; border: 1px solid #e5e7eb; margin-bottom: 20px;'>
+                            <h3 style='margin: 0 0 15px 0; color: #1f2937; border-bottom: 2px solid #3b82f6; padding-bottom: 8px;'>📋 Billing Details</h3>
+                            <table style='width: 100%; border-collapse: collapse;'>
+                                <tr>
+                                    <td style='padding: 8px 0; font-weight: 600; color: #374151;'>Bill Number:</td>
+                                    <td style='padding: 8px 0; color: #6b7280;'>{$billNo}</td>
+                                </tr>
+                                <tr>
+                                    <td style='padding: 8px 0; font-weight: 600; color: #374151;'>Billing Period:</td>
+                                    <td style='padding: 8px 0; color: #6b7280;'>{$monthDisplay}</td>
+                                </tr>
+                                <tr style='background: #fef3c7;'>
+                                    <td style='padding: 12px 8px; font-weight: 700; color: #92400e; font-size: 16px;'>Amount Due:</td>
+                                    <td style='padding: 12px 8px; font-weight: 700; color: #92400e; font-size: 18px;'>₱{$amountDisplay}</td>
+                                </tr>
+                                <tr style='background: #fee2e2;'>
+                                    <td style='padding: 12px 8px; font-weight: 700; color: #dc2626; font-size: 16px;'>Due Date:</td>
+                                    <td style='padding: 12px 8px; font-weight: 700; color: #dc2626; font-size: 16px;'>{$dueDateDisplay}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        
+                        <div style='background: #ecfdf5; padding: 16px; border-radius: 8px; border-left: 4px solid #10b981; margin-bottom: 20px;'>
+                            <h4 style='margin: 0 0 8px 0; color: #065f46;'>💡 Payment Reminder</h4>
+                            <p style='margin: 0; color: #047857; font-size: 14px;'>Please ensure your payment is completed before the due date to avoid any service interruption. You can pay through our online portal or visit our office during business hours.</p>
+                        </div>
+                        
+                        <div style='text-align: center; padding: 20px; background: #f1f5f9; border-radius: 8px;'>
+                            <p style='margin: 0 0 10px 0; color: #475569; font-size: 14px;'>Thank you for using our Water Billing System.</p>
+                            <p style='margin: 0; color: #94a3b8; font-size: 12px;'>This is an automated message. Please do not reply to this email.</p>
+                        </div>
+                    </div>
+                ",
+            ]);
+
+            $apiInstance->sendTransacEmail($email);
+            log_message('info', "Billing notification sent to {$toEmail} for bill {$billNo}");
+            
+        } catch (\Exception $e) {
+            log_message('error', "Failed to send billing notification to {$toEmail}: " . $e->getMessage());
+        }
+    }
+
+
+    //Get billing statistics for the current month
+    public function getBillingStatistics()
+    {
+        try {
+            $month = $this->request->getGet('month') ?? date('Y-m');
+            
+            // Validate month format
+            if (!preg_match('/^\d{4}-\d{2}$/', $month)) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Invalid month format'
+                ]);
+            }
+            
+            // Get billing statistics by amount (which corresponds to billing type)
+            $stats = $this->billingModel
+                ->select("
+                    SUM(CASE WHEN amount_due = 30.00 THEN 1 ELSE 0 END) as solo_count,
+                    SUM(CASE WHEN amount_due = 48.00 THEN 1 ELSE 0 END) as senior_count,
+                    SUM(CASE WHEN amount_due = 60.00 THEN 1 ELSE 0 END) as family_count,
+                    COUNT(*) as total_count
+                ")
+                ->where('DATE_FORMAT(billing_month, "%Y-%m")', $month)
+                ->get()
+                ->getRow();
+                
+            if (!$stats) {
+                $stats = (object)[
+                    'solo_count' => 0,
+                    'senior_count' => 0,
+                    'family_count' => 0,
+                    'total_count' => 0
+                ];
+            }
+            
+            return $this->response->setJSON([
+                'success' => true,
+                'statistics' => [
+                    'solo' => (int)$stats->solo_count,
+                    'senior' => (int)$stats->senior_count,
+                    'family' => (int)$stats->family_count,
+                    'total' => (int)$stats->total_count
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            log_message('error', 'Error in getBillingStatistics: ' . $e->getMessage());
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Failed to load statistics: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    // Get users by Purok for Manual Billing (excludes users with existing billings)
+    public function getUsersByPurokForManualBilling($purok)
+    {
+        try {
+            $userModel = new \App\Models\UserInformationModel();
+            $purok = (int) $purok;
+            
+            $month = $this->request->getGet('month');
+            
+            // ✅ Include family_number and age for automatic amount calculation
+            $builder = $userModel->select('user_information.user_id, user_information.first_name, user_information.last_name, user_information.family_number, user_information.age')
+                ->join('users', 'users.id = user_information.user_id', 'inner')
+                ->where('user_information.purok', $purok)
+                ->whereIn('users.status', ['approved', 'Approved']) // Handle both status values
+                ->orderBy('user_information.first_name', 'ASC');
+        
+            // Always filter out users with existing billings for the selected month
+            if ($month && preg_match('/^\d{4}-\d{2}$/', $month)) {
+                // Get users with billings first, then exclude them
+                $usersWithBillings = $this->billingModel
+                    ->builder()  // ✅ Get the Query Builder instance
+                    ->distinct()
+                    ->select('user_id')
+                    ->where('DATE_FORMAT(billing_month, "%Y-%m")', $month)
+                    ->get()
+                    ->getResultArray();
+            
+                $userIdsWithBillings = array_column($usersWithBillings, 'user_id');
+            
+                if (!empty($userIdsWithBillings)) {
+                    $builder->whereNotIn('user_information.user_id', $userIdsWithBillings);
+                }
+            }
+            
+            $users = $builder->findAll();
+            
+            // ✅ Calculate billing amount for each user
+            foreach ($users as &$user) {
+                $user['calculated_amount'] = $this->calculateBillingAmount($user);
+            }
+            
+            return $this->response->setJSON($users);
+            
+        } catch (\Exception $e) {
+            log_message('error', "getUsersByPurokForManualBilling Error: " . $e->getMessage());
+            return $this->response->setStatusCode(500)->setJSON([
+                'error' => 'Failed to load users',
+                'message' => $e->getMessage()
+            ]);
+        }
+    }
+
+    // Create Manual Billing (AJAX)
+  public function createManualBilling()
+    {
+        try {
+            $input = $this->request->getJSON(true);
+            
+            if (!$input || empty($input['user_id']) || empty($input['month']) || empty($input['amount'])) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Missing required fields'
+                ]);
+            }
+            
+            $userId = (int)$input['user_id'];
+            $month = $input['month'];
+            $amount = (float)$input['amount'];
+            $purok = $input['purok'] ?? '';
+            
+            // Validate month format
+            if (!preg_match('/^\d{4}-\d{2}$/', $month)) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Invalid month format'
+                ]);
+            }
+            
+            // Check if user exists and get user details for email
+            $user = $this->usersModel
+                ->select('users.id, users.email, user_information.first_name, user_information.last_name')
+                ->join('user_information', 'user_information.user_id = users.id', 'left')
+                ->where('users.id', $userId)
+                ->first();
+            
+            if (!$user) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'User not found'
+                ]);
+            }
+            
+            // Check if billing already exists for this user and month
+            $existingBilling = $this->billingModel
+                ->where('user_id', $userId)
+                ->where('DATE_FORMAT(billing_month, "%Y-%m")', $month)
+                ->first();
+            
+            if ($existingBilling) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'User already has a billing for this month'
+                ]);
+            }
+            
+            // Create billing record
+            $today = date('Y-m-d');
+            $dueDate = date('Y-m-d', strtotime('+7 days'));
+            $billNo = 'MANUAL-' . date('Ymd') . '-' . str_pad($userId, 4, '0', STR_PAD_LEFT);
+            
+            $billingData = [
+                'user_id' => $userId,
+                'bill_no' => $billNo,
+                'amount_due' => $amount,
+                'billing_month' => $month . '-01', // First day of the month
+                'due_date' => $dueDate,
+                'status' => 'Pending',
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s')
+            ];
+            
+            if ($this->billingModel->insert($billingData)) {
+                $userName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
+                if (empty($userName)) {
+                    $userName = 'Valued Customer';
+                }
+                
+                // ✅ SEND EMAIL NOTIFICATION FOR MANUAL BILLING
+                if (!empty($user['email'])) {
+                    $this->sendBillingNotificationEmail(
+                        $user['email'],
+                        $userName,
+                        $billNo,
+                        $amount,
+                        $dueDate,
+                        $month . '-01'  // Use first day of month for display
+                    );
+                    
+                    log_message('info', "Manual billing email sent to {$user['email']} for bill {$billNo}");
+                    
+                    return $this->response->setJSON([
+                        'success' => true,
+                        'message' => "Manual billing created successfully for {$userName} - ₱{$amount}. Email notification sent!"
+                    ]);
+                } else {
+                    log_message('warning', "Manual billing created for User {$userId} but no email address found, skipping email notification");
+                    
+                    return $this->response->setJSON([
+                        'success' => true,
+                        'message' => "Manual billing created successfully for {$userName} - ₱{$amount}. (No email address found)"
+                    ]);
+                }
+            } else {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Failed to create manual billing'
+                ]);
+            }
+            
+        } catch (\Exception $e) {
+            log_message('error', 'Error in createManualBilling: ' . $e->getMessage());
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Failed to create manual billing: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+
+
+
+
+
+
+    // Billing Reports
     public function reports()
     {
         $currentYear = date('Y');
@@ -1516,6 +1962,15 @@ class Admin extends BaseController
         }
         return view('admin/reports', $viewData);
     }
+
+
+
+
+
+
+
+
+
 
 
     // ---------------- Account Functions ----------------
