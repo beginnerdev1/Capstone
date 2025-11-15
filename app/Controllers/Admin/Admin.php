@@ -368,6 +368,7 @@ class Admin extends BaseController
     {
         $search = $this->request->getVar('search');
         $purok = $this->request->getVar('purok');
+        $status = $this->request->getVar('status');
 
         $builder = $this->usersModel
             ->select('users.*, user_information.first_name, user_information.last_name, user_information.purok')
@@ -384,6 +385,10 @@ class Admin extends BaseController
 
         if ($purok) {
             $builder->where('user_information.purok', $purok);
+        }
+
+        if ($status) {
+            $builder->where('users.status', strtolower($status));
         }
 
         $users = $builder->findAll();
