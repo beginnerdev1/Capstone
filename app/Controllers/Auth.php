@@ -124,6 +124,13 @@ class Auth extends BaseController
 
         $inputOtp = $this->request->getPost('otp');
 
+        // Lockout protection
+        $lockedUntil = (int) (session()->get('user_otp_locked_until') ?? 0);
+        if ($lockedUntil > time()) {
+            $wait = $lockedUntil - time();
+            return redirect()->to('/verify')->with('error', 'Too many attempts. Try again in ' . $wait . ' seconds.');
+        }
+
         if ($user['otp_code'] == $inputOtp && strtotime($user['otp_expires']) > time()) {
             $this->userModel->update($userId, [
                 'is_verified' => 1,
@@ -141,10 +148,20 @@ class Auth extends BaseController
 
             return redirect()->to(base_url('users'))->with('message', 'Account verified and logged in successfully!');
         } else {
+            // Track failures and set a short lockout if needed
+            $fails = (int) (session()->get('user_otp_fail_count') ?? 0);
+            $fails++;
+            session()->set('user_otp_fail_count', $fails);
+
+            // Invalidate OTP to avoid brute force on same code
             $this->userModel->protect(false)->update($userId, [
                 'otp_code'    => null,
                 'otp_expires' => null,
             ]);
+
+            if ($fails >= 5) {
+                session()->set('user_otp_locked_until', time() + 300);
+            }
 
             return redirect()->back()->with('error', 'Invalid or expired OTP. Please request a new one.');
         }
@@ -166,6 +183,19 @@ class Auth extends BaseController
             return redirect()->to('/register')->with('error', 'User not found.');
         }
 
+        // Enforce simple lockout/cooldown
+        $now = time();
+        $lockedUntil = (int) (session()->get('user_otp_locked_until') ?? 0);
+        if ($lockedUntil > $now) {
+            $wait = $lockedUntil - $now;
+            return redirect()->to('/verify')->with('error', 'Too many attempts. Try again in ' . $wait . ' seconds.');
+        }
+        $lastReq = (int) (session()->get('user_otp_last') ?? 0);
+        if ($now - $lastReq < 60) {
+            $wait = 60 - ($now - $lastReq);
+            return redirect()->to('/verify')->with('error', 'Please wait ' . $wait . ' seconds before requesting a new OTP.');
+        }
+
         // Generate new OTP
         $otp = rand(100000, 999999);
 
@@ -177,6 +207,9 @@ class Auth extends BaseController
 
         // Send the OTP via Brevo
         $this->sendOtpEmail($user['email'], $otp);
+
+        session()->set('user_otp_last', $now);
+        session()->remove('user_otp_fail_count');
 
         // Redirect with success message
         return redirect()->to('/verify')->with('message', 'A new OTP has been sent to your email.');

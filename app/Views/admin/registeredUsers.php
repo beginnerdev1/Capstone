@@ -15,7 +15,6 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     background: linear-gradient(135deg, #f0f4f8 0%, #d9e2ec 100%);
 }
-.container-fluid { padding: 2rem 1rem; }
 .header-wrapper { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 2rem; margin-bottom: 2.5rem; }
 .header-icon-box { width: 56px; height: 56px; background: linear-gradient(135deg, var(--primary), var(--secondary)); border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 16px rgba(102,126,234,0.3); }
 .header-icon-box i { color: white; font-size: 1.75rem; }
@@ -150,7 +149,7 @@ body {
                     <?= csrf_field() ?>
                     <div class="alert alert-info" role="alert">
                         <i class="fas fa-info-circle me-1"></i>
-                        <strong>Note:</strong> A default password will be sent to the user's email if account is approved.
+                        <strong>Note:</strong> Please fill in all required fields. Password must be at least 6 characters.
                     </div>
                     <div class="row mb-3">
                         <div class="col-md-6">
@@ -182,6 +181,35 @@ body {
                     </div>
                     <div class="row mb-3">
                         <div class="col-md-6">
+                            <label class="form-label">Contact Number <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="phone" maxlength="20" required>
+                            <div class="invalid-feedback">Please enter a contact number</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Gender <span class="text-danger">*</span></label>
+                            <select class="form-select" name="gender" required>
+                                <option value="">Select Gender</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                                <option value="Other">Other</option>
+                            </select>
+                            <div class="invalid-feedback">Please select a gender</div>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Age <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" name="age" min="1" max="120" required>
+                            <div class="invalid-feedback">Please enter a valid age (1-120)</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Family Members <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" name="family_number" min="1" max="20" required>
+                            <div class="invalid-feedback">Please enter a valid number (1-20)</div>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
                             <label class="form-label">Purok <span class="text-danger">*</span></label>
                             <select class="form-select" name="purok" id="addUserPurok" required>
                                 <option value="">Select Purok</option>
@@ -197,6 +225,27 @@ body {
                             </select>
                         </div>
                     </div>
+                    <!-- Fixed Location (read-only for consistency) -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Barangay</label>
+                            <input type="text" class="form-control" value="Borlongan" readonly disabled>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Municipality</label>
+                            <input type="text" class="form-control" value="Dipaculao" readonly disabled>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Province</label>
+                            <input type="text" class="form-control" value="Aurora" readonly disabled>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Zip Code</label>
+                            <input type="text" class="form-control" value="3203" readonly disabled>
+                        </div>
+                    </div>
                     <div class="text-end">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                             <i class="fas fa-times me-1"></i>Cancel
@@ -209,13 +258,42 @@ body {
             </div>
         </div>
     </div>
+
+            <!-- Deactivate User Modal -->
+            <div class="modal fade" id="deactivateUserModal" tabindex="-1" aria-labelledby="deactivateUserLabel" aria-hidden="true">
+                <div class="modal-dialog modal-md modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header bg-danger text-white">
+                            <h5 class="modal-title" id="deactivateUserLabel"><i class="fas fa-user-slash me-2"></i>Deactivate User</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="deactivateUserForm">
+                                <?= csrf_field() ?>
+                                <p class="mb-2">You are about to deactivate <strong id="deactivateUserName">this user</strong>.</p>
+                                <div class="mb-3">
+                                    <label class="form-label">Reason (optional)</label>
+                                    <textarea class="form-control" name="reason" id="deactivateReason" rows="3" placeholder="e.g., Moved out, duplicate account, etc."></textarea>
+                                </div>
+                            </form>
+                            <div class="alert alert-warning"><i class="fas fa-box-archive me-2"></i>Last 2 years of this user's billings will be archived.</div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-danger" id="confirmDeactivateBtn">
+                                <i class="fas fa-user-slash me-1"></i>Deactivate
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
 </div>
 
 <!-- ✅ JavaScript Logic -->
 <script>
 function initRegisteredUsersPage() {
     const baseUrl = "<?= base_url() ?>";
-    const maxPurok = 4;
+    const maxPurok = 7;
 
     console.log("✅ Registered Users page initialized!");
 
@@ -272,6 +350,9 @@ function initRegisteredUsersPage() {
                             <td>
                                 <button class="btn btn-sm btn-primary viewUserBtn" data-id="${user.id}">
                                     <i class="fas fa-eye"></i> View
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger deactivateUserBtn" data-id="${user.id}" data-name="${fullName}">
+                                    <i class="fas fa-user-slash"></i> Deactivate
                                 </button>
                             </td>
                         </tr>
@@ -357,7 +438,7 @@ function initRegisteredUsersPage() {
     // Print
     $('#printUsersBtn').on('click',function(){
         const printWindow = window.open('','', 'width=900,height=700');
-        const tableHTML = document.getElementById('usersTable').outerHTML;
+        const tableHTML = document.getElementById('usersTable').outerHTML; 
         printWindow.document.write(`
             <html>
                 <head>
@@ -453,6 +534,57 @@ function initRegisteredUsersPage() {
             },
             complete: function(){
                 submitBtn.prop('disabled', false).html('<i class="fas fa-plus me-1"></i>Add User');
+            }
+        });
+    });
+
+    // Deactivate flow
+    let currentDeactivateUserId = null;
+    $(document).on('click', '.deactivateUserBtn', function(){
+        currentDeactivateUserId = $(this).data('id');
+        const name = $(this).data('name') || 'this user';
+        $('#deactivateUserName').text(name);
+        $('#deactivateReason').val('');
+        $('#deactivateUserModal').modal('show');
+    });
+
+    $('#confirmDeactivateBtn').on('click', function(){
+        if(!currentDeactivateUserId) return;
+        const formData = $('#deactivateUserForm').serialize();
+        const btn = $(this);
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Deactivating...');
+        $.ajax({
+            url: baseUrl + '/admin/deactivateUser/' + currentDeactivateUserId,
+            type: 'POST',
+            data: formData,
+            dataType: 'json',
+            success: function(res){
+                if(res && res.success){
+                    const successAlert = $('<div class="alert alert-success alert-dismissible fade show" role="alert">' +
+                        '<i class="fas fa-check-circle me-2"></i>' + (res.message || 'User deactivated and archived successfully.') +
+                        '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                        '</div>');
+                    $('.container-fluid').prepend(successAlert);
+                    $('#deactivateUserModal').modal('hide');
+                    loadUsers($('#filterInput').val(), $('#filterPurok').val(), $('#filterStatus').val());
+                } else {
+                    const msg = res && res.message ? res.message : 'Failed to deactivate user.';
+                    const errorAlert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
+                        '<i class="fas fa-exclamation-triangle me-2"></i>' + msg +
+                        '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                        '</div>');
+                    $('#deactivateUserForm').prepend(errorAlert);
+                }
+            },
+            error: function(xhr){
+                const errorAlert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
+                    '<i class="fas fa-exclamation-triangle me-2"></i>Error deactivating user. Please try again.' +
+                    '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                    '</div>');
+                $('#deactivateUserForm').prepend(errorAlert);
+            },
+            complete: function(){
+                btn.prop('disabled', false).html('<i class="fas fa-user-slash me-1"></i>Deactivate');
             }
         });
     });

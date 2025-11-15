@@ -458,6 +458,13 @@ body {
   flex-shrink: 0;
 }
 
+/* Password requirements styling */
+.req-list { margin-top: 0.4rem; display: grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap: 0.25rem 1rem; }
+.req-item { font-size: 0.85rem; display: flex; align-items: center; gap: 0.4rem; color: var(--danger); }
+.req-item .req-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); display: inline-block; }
+.req-item.valid { color: var(--success); }
+.req-item.valid .req-dot { background: var(--success); }
+
 .form-grid.full-width {
   grid-template-columns: 1fr;
 }
@@ -667,16 +674,7 @@ body {
         <h1 class="profile-title" id="profileName"><?= esc($admin['first_name'] ?? '') ?> <?= esc($admin['last_name'] ?? '') ?></h1>
         <p class="profile-email" id="profileEmailDisplay"><?= esc($admin['email'] ?? '') ?></p>
       </div>
-      <div class="profile-badges">
-        <div class="profile-badge">
-          <span class="badge-icon">✓</span>
-          <span>Account Verified</span>
-        </div>
-        <div class="profile-badge">
-          <span class="badge-icon">🔒</span>
-          <span>Secure Profile</span>
-        </div>
-      </div>
+      <!-- Removed profile badges (Account Verified / Secure Profile) per request -->
     </div>
   </div>
 
@@ -734,6 +732,47 @@ body {
             <div class="form-hint">We'll send confirmations to this email</div>
           </div>
         </div>
+      </div>
+
+      <!-- Change Password (OTP Secured) -->
+      <div class="form-section" id="passwordChangeSection">
+        <h2 class="section-title">
+          <span class="section-icon">🔐</span>
+          Change Password (OTP Secured)
+        </h2>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Current Password <span class="form-required">*</span></label>
+            <input type="password" class="form-input" id="currentPassword" placeholder="Enter current password" autocomplete="current-password">
+            <div class="form-hint">Required to request an OTP</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">New Password <span class="form-required">*</span></label>
+            <input type="password" class="form-input" id="newPassword" placeholder="New password" disabled autocomplete="new-password">
+            <div class="form-hint">Min 6 chars, capital letter, number & special character</div>
+            <div class="req-list" id="pwdReqList">
+              <div class="req-item" id="reqLength"><span class="req-dot"></span>At least 6 characters</div>
+              <div class="req-item" id="reqUpper"><span class="req-dot"></span>At least one capital letter (A-Z)</div>
+              <div class="req-item" id="reqNumber"><span class="req-dot"></span>At least one number (0-9)</div>
+              <div class="req-item" id="reqSpecial"><span class="req-dot"></span>At least one special character (!@#$…)</div>
+              <div class="req-item" id="reqMatch"><span class="req-dot"></span>Passwords match</div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Confirm Password <span class="form-required">*</span></label>
+            <input type="password" class="form-input" id="confirmPassword" placeholder="Confirm password" disabled autocomplete="new-password">
+          </div>
+          <div class="form-group">
+            <label class="form-label">OTP Code <span class="form-required">*</span></label>
+            <input type="text" class="form-input" id="otpCode" placeholder="6-digit OTP" disabled maxlength="6">
+            <div class="form-hint" id="otpStatus">Request an OTP to begin</div>
+          </div>
+        </div>
+        <div class="form-actions" style="justify-content:flex-start; background:transparent; padding:1rem 0 0;">
+          <button type="button" class="btn btn-secondary" id="sendOtpBtn">📩 Send OTP</button>
+          <button type="button" class="btn btn-success" id="changePasswordBtn" disabled>✅ Change Password</button>
+        </div>
+        <div id="passwordChangeMessages" style="margin-top:1rem;"></div>
       </div>
 
       <!-- Form Actions -->
@@ -840,4 +879,126 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 });
+
+// ================= PASSWORD CHANGE WITH OTP =================
+const sendOtpBtn = document.getElementById('sendOtpBtn');
+const changePasswordBtn = document.getElementById('changePasswordBtn');
+const currentPasswordInput = document.getElementById('currentPassword');
+const newPasswordInput = document.getElementById('newPassword');
+const confirmPasswordInput = document.getElementById('confirmPassword');
+const otpInput = document.getElementById('otpCode');
+const otpStatus = document.getElementById('otpStatus');
+const passwordChangeMessages = document.getElementById('passwordChangeMessages');
+
+function getCsrfField() {
+  const hidden = document.querySelector('#editProfileForm input[type="hidden"]');
+  return hidden ? { name: hidden.getAttribute('name'), value: hidden.value } : null;
+}
+
+function showPwdMessage(msg, type='info') {
+  passwordChangeMessages.innerHTML = `<div class="alert ${type === 'error' ? 'alert-error show' : 'alert-success show'}"><span class="alert-icon">${type==='error'?'✕':'✓'}</span><span>${msg}</span></div>`;
+  setTimeout(()=>{ passwordChangeMessages.innerHTML=''; }, 5000);
+}
+
+sendOtpBtn.addEventListener('click', async () => {
+  const currentPwd = currentPasswordInput.value.trim();
+  if (!currentPwd) { showPwdMessage('Current password is required.', 'error'); return; }
+  sendOtpBtn.disabled = true; sendOtpBtn.textContent = '⏳ Sending...';
+  const csrf = getCsrfField();
+  const fd = new FormData();
+  if (csrf) fd.append(csrf.name, csrf.value);
+  fd.append('current_password', currentPwd);
+  try {
+    const res = await fetch('<?= base_url('admin/requestPasswordOtp') ?>', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.success) {
+      otpStatus.textContent = 'OTP sent. Check your delivery channel.';
+      newPasswordInput.disabled = false;
+      confirmPasswordInput.disabled = false;
+      otpInput.disabled = false;
+      // Do not enable change button yet; wait for requirements to pass
+      updatePasswordUI();
+      showPwdMessage(data.message, 'success');
+    } else {
+      showPwdMessage(data.message || 'Failed to send OTP.', 'error');
+    }
+  } catch (e) {
+    showPwdMessage('Network error sending OTP.', 'error');
+  } finally {
+    sendOtpBtn.disabled = false; sendOtpBtn.textContent = '📩 Send OTP';
+  }
+});
+
+changePasswordBtn.addEventListener('click', async () => {
+  const otp = otpInput.value.trim();
+  const newPwd = newPasswordInput.value.trim();
+  const confirmPwd = confirmPasswordInput.value.trim();
+  if (!otp || !newPwd || !confirmPwd) { showPwdMessage('All password fields & OTP are required.', 'error'); return; }
+  const csrf = getCsrfField();
+  const fd = new FormData();
+  if (csrf) fd.append(csrf.name, csrf.value);
+  fd.append('otp_code', otp);
+  fd.append('new_password', newPwd);
+  fd.append('confirm_password', confirmPwd);
+  changePasswordBtn.disabled = true; changePasswordBtn.textContent = '⏳ Changing...';
+  try {
+    const res = await fetch('<?= base_url('admin/changePassword') ?>', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.success) {
+      showPwdMessage('Password changed successfully.', 'success');
+      currentPasswordInput.value='';
+      newPasswordInput.value='';
+      confirmPasswordInput.value='';
+      otpInput.value='';
+      newPasswordInput.disabled = true;
+      confirmPasswordInput.disabled = true;
+      otpInput.disabled = true;
+      changePasswordBtn.disabled = true;
+      otpStatus.textContent = 'Request a new OTP to change again';
+    } else {
+      showPwdMessage(data.message || 'Failed to change password.', 'error');
+    }
+  } catch (e) {
+    showPwdMessage('Network error changing password.', 'error');
+  } finally {
+    changePasswordBtn.disabled = false; changePasswordBtn.textContent = '✅ Change Password';
+  }
+});
+
+// Live password requirement checks
+function hasSpecial(s){
+  return /[!@#$%^&*()_\-+=\[\]{};:'",.<>\/?\\|`~]/.test(s);
+}
+
+function setReq(id, ok){
+  const el = document.getElementById(id);
+  if(!el) return;
+  if(ok) el.classList.add('valid'); else el.classList.remove('valid');
+}
+
+function updatePasswordUI(){
+  const pwd = newPasswordInput.value || '';
+  const confirm = confirmPasswordInput.value || '';
+  const otp = otpInput.value || '';
+  const lenOK = pwd.length >= 6;
+  const upperOK = /[A-Z]/.test(pwd);
+  const numOK = /\d/.test(pwd);
+  const specialOK = hasSpecial(pwd);
+  const matchOK = confirm.length > 0 && pwd === confirm;
+
+  setReq('reqLength', lenOK);
+  setReq('reqUpper', upperOK);
+  setReq('reqNumber', numOK);
+  setReq('reqSpecial', specialOK);
+  setReq('reqMatch', matchOK);
+
+  const allOK = lenOK && upperOK && numOK && specialOK && matchOK;
+  const otpReady = !otpInput.disabled && /^\d{6}$/.test(otp);
+  changePasswordBtn.disabled = !(allOK && otpReady);
+}
+
+newPasswordInput.addEventListener('input', updatePasswordUI);
+confirmPasswordInput.addEventListener('input', updatePasswordUI);
+otpInput.addEventListener('input', updatePasswordUI);
+</script>
 </script>

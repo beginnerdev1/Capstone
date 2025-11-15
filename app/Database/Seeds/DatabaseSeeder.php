@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
         $this->call('PaymentsSeeder');
         $this->call('OTCPaidSeeder');
         $this->call('OTCUserSeeder');
+        $this->call('SampleDataSeeder');
     }
 }
 ?>

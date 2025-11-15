@@ -17,6 +17,7 @@
         "guzzlehttp/guzzle": "^7.10",
         "laminas/laminas-escaper": "^2.17",
         "phpmailer/phpmailer": "*",
+        "phpoffice/phpspreadsheet": "5",
         "psr/log": "^3.0"
     },
     "require-dev": {
