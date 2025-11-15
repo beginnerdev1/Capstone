@@ -1498,7 +1498,7 @@ class Admin extends BaseController
                 ->setApiKey('api-key', getenv('BREVO_API_KEY'));
 
             $apiInstance = new TransactionalEmailsApi(
-                new Client(),
+                new GuzzleClient(),
                 $config
             );
 
