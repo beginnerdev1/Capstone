@@ -255,19 +255,20 @@ function initRegisteredUsersPage() {
                     return;
                 }
                 users.forEach((user,index)=>{
+                    const statusLower = (user.status||'').toLowerCase();
                     let badgeClass='secondary';
-                    if(user.status==='approved') badgeClass='success';
-                    else if(user.status==='pending') badgeClass='warning';
-                    else if(user.status==='rejected') badgeClass='danger';
-                    else if(user.status==='suspended') badgeClass='dark';
-                    const fullName=(user.first_name||'')+' '+(user.last_name||'');
+                    if(statusLower==='approved') badgeClass='success';
+                    else if(statusLower==='pending') badgeClass='warning';
+                    else if(statusLower==='rejected') badgeClass='danger';
+                    else if(statusLower==='suspended') badgeClass='dark';
+                    const fullName = user.name || '-';
                     tbody.append(`
                         <tr>
                             <td>${index+1}</td>
                             <td>${fullName}</td>
                             <td>${user.email}</td>
                             <td>${user.purok||'-'}</td>
-                            <td><span class="badge bg-${badgeClass}">${user.status}</span></td>
+                            <td><span class="badge bg-${badgeClass}">${user.status||'-'}</span></td>
                             <td>
                                 <button class="btn btn-sm btn-primary viewUserBtn" data-id="${user.id}">
                                     <i class="fas fa-eye"></i> View
@@ -328,17 +329,22 @@ function initRegisteredUsersPage() {
                     : `<i class="fas fa-user-circle fa-5x text-muted mb-3"></i>`;
                 $("#userDetailsContent").html(`
                     <div class="text-center">${profileImg}</div>
-                    <h5 class="text-center mb-3">${user.first_name} ${user.last_name}</h5>
+                    <h5 class="text-center mb-3">${user.first_name||''} ${user.last_name||''}</h5>
                     <div class="row text-start">
                         <div class="col-md-6">
-                            <p><strong>Email:</strong> ${user.email}</p>
+                            <p><strong>Email:</strong> ${user.email||'-'}</p>
+                            <p><strong>Contact Number:</strong> ${user.phone||'-'}</p>
                             <p><strong>Gender:</strong> ${user.gender||'-'}</p>
                             <p><strong>Age:</strong> ${user.age||'-'}</p>
+                            <p><strong>Family Members:</strong> ${user.family_number||'-'}</p>
                         </div>
                         <div class="col-md-6">
                             <p><strong>Purok:</strong> ${user.purok||'-'}</p>
                             <p><strong>Barangay:</strong> ${user.barangay||'-'}</p>
-                            <p><strong>Status:</strong> <span class="badge bg-info">${user.status}</span></p>
+                            <p><strong>Municipality:</strong> ${user.municipality||'-'}</p>
+                            <p><strong>Province:</strong> ${user.province||'-'}</p>
+                            <p><strong>Zip Code:</strong> ${user.zipcode||'-'}</p>
+                            <p><strong>Status:</strong> <span class="badge bg-info">${user.status||'-'}</span></p>
                         </div>
                     </div>
                 `);

@@ -85,131 +85,96 @@
 @keyframes ubill-slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
 /* === MODAL STYLES (Removed modal logic but kept base classes for consistency) === */
 .ubill-modal { display: none; } /* Ensuring modal is hidden */
-/* === RESPONSIVENESS (Media Queries) === */
-@media (max-width: 900px) {
-    .ubill-wrapper {
-        padding: 0 1rem;
-    }
-    .ubill-content-card {
-        padding: 1rem 0;
-        margin: 1rem 0; /* Responsive margin */
-    }
-    .ubill-table-wrapper { position: relative; }
-    .ubill-table thead { display: none; }
-    .ubill-table, .ubill-table tbody, .ubill-table tr, .ubill-table td { display: block; width: 100%; }
-    .ubill-table tr { margin-bottom: 1rem; border-bottom: 1px solid var(--ubill-border); background: white; border-radius: 8px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05); }
-    .ubill-table td { text-align: right; padding: 0.75rem 1rem; position: relative; }
-    .ubill-table td::before { content: attr(data-label); float: left; font-weight: 600; text-transform: uppercase; color: var(--ubill-muted); font-size: 0.75rem; }
-    .ubill-table td:first-child { border-top-left-radius: 8px; border-top-right-radius: 8px; padding-top: 1.25rem; }
-    .ubill-table td:last-child { border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; padding-bottom: 1.25rem; }
-    .ubill-action-btns { justify-content: flex-end; }
-}
-@media (max-width: 768px) {
-    .ubill-form-grid { grid-template-columns: 1fr; }
-    .ubill-summary-grid { grid-template-columns: 1fr 1fr; } 
-    .ubill-action-btns { flex-direction: row; justify-content: space-between; }
-    .ubill-btn { flex: 1; }
-}
-@media (max-width: 480px) {
-    .ubill-summary-grid { grid-template-columns: 1fr; } 
-    .ubill-header-title { font-size: 1.5rem; }
-}
-</style>
-</head>
-<body class="ubill-body">
-
-<div class="ubill-wrapper">
-    <div class="ubill-content-card">
-        <!-- Removed TOP NAVIGATION -->
-
-        <!-- ===== BILLING SUMMARY SECTION (Now the only active section) ===== -->
-        <div id="ubill-billings" class="ubill-section active">
-            <div class="ubill-header">
-                <div class="ubill-header-title">⚙️ Billing and Summary Console</div>
-            </div>
-
-            <div class="ubill-form-container">
-                <div class="ubill-form-title">🚀 Recalculate and Synchronize Billing</div>
-                <p style="color: var(--ubill-muted); margin-bottom: 1.5rem; font-size: 0.95rem;">Use this function to ensure all pre-registered users have the correct, up-to-date monthly billing amounts based on their latest household classification rules.</p>
-                <div class="ubill-success-message" id="ubill-billingSuccess"></div>
-                <!-- Recalculate button remains active -->
-                <button onclick="ubillSetupAllBillings()" class="ubill-btn ubill-btn-warning" style="font-size: 1rem; padding: 1rem 2rem;">⚡ SYNCHRONIZE BILLINGS NOW</button>
-            </div>
-
-            <div class="ubill-table-container">
-                <div class="ubill-table-header">
-                    <div class="ubill-table-title">💵 Billing Summary by Type</div>
-                </div>
-                <div style="padding: 2rem;">
-                    <div class="ubill-summary-grid">
-                        <div class="ubill-summary-card">
-                            <div class="ubill-summary-value" id="ubill-summaryFamily">0</div>
-                            <div class="ubill-summary-label">👨‍👩‍👧‍👦 Family (₱60)</div>
-                        </div>
-                        <div class="ubill-summary-card">
-                            <div class="ubill-summary-value" id="ubill-summarySolo">0</div>
-                            <div class="ubill-summary-label">🧑 Solo (₱30)</div>
-                        </div>
-                        <div class="ubill-summary-card">
-                            <div class="ubill-summary-value" id="ubill-summarySenior">0</div>
-                            <div class="ubill-summary-label">👴 Senior (₱48)</div>
-                        </div>
-                        <div class="ubill-summary-card">
-                            <div class="ubill-summary-value" id="ubill-summaryTotal">0</div>
-                            <div class="ubill-summary-label">📋 Total Registered</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="ubill-table-container">
-                <div class="ubill-table-header">
-                    <div class="ubill-table-title">🧾 Detailed Billing List</div>
-                </div>
-                <div class="ubill-table-wrapper">
-                    <table class="ubill-table">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Email</th>
-                                <th>Household Type</th>
-                                <th>Details</th>
-                                <th>Billing Amount</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="ubill-billingTable">
-                            <!-- Data will be populated by JavaScript on load -->
-                            <tr>
-                                <td colspan="6" class="ubill-no-data">Calculating initial billing data...</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Removed DELETE CONFIRMATION MODAL -->
-
 <script>
-    // Mock user data to enable billing calculations after registration is removed
+    // Mock user data for static demo (head dev will implement backend)
     let ubillUsers = [
-        { id: 1, first_name: 'Juan', last_name: 'Dela Cruz', email: 'juan.cruz@example.com', phone: '0917-1234567', purok: '1', household_type: 'family', family_members: 4, billing_amount: 0, address: 'Blk 1 Lot 5', status: 'active' },
-        { id: 2, first_name: 'Maria', last_name: 'Santos', email: 'maria.santos@example.com', phone: '0918-9876543', purok: '3', household_type: 'solo', family_members: 1, billing_amount: 0, address: 'Unit 3A', status: 'active' },
-        { id: 3, first_name: 'Jose', last_name: 'Rizal', email: 'jose.rizal@example.com', phone: '0919-5551212', purok: '7', household_type: 'senior', family_members: 2, billing_amount: 0, address: 'House 12B', status: 'active' },
-        { id: 4, first_name: 'Elena', last_name: 'Garcia', email: 'elena.garcia@example.com', phone: '0920-1112222', purok: '2', household_type: 'family', family_members: 1, billing_amount: 0, address: 'Lot 9', status: 'active' },
-        { id: 5, first_name: 'Pedro', last_name: 'Reyes', email: 'pedro.reyes@example.com', phone: '0921-3334444', purok: '5', household_type: 'family', family_members: 7, billing_amount: 0, address: 'Blk 10', status: 'active' }
+        { id: 1, first_name: 'Juan', last_name: 'Dela Cruz', email: 'juan.cruz@example.com', purok: '1', barangay: 'Borlongan', household_type: 'family', family_members: 4, billing_amount: 0 },
+        { id: 2, first_name: 'Maria', last_name: 'Santos', email: 'maria.santos@example.com', purok: '3', barangay: 'Borlongan', household_type: 'solo', family_members: 1, billing_amount: 0 },
+        { id: 3, first_name: 'Jose', last_name: 'Rizal', email: 'jose.rizal@example.com', purok: '7', barangay: 'Borlongan', household_type: 'senior', family_members: 2, billing_amount: 0 },
+        { id: 4, first_name: 'Elena', last_name: 'Garcia', email: 'elena.garcia@example.com', purok: '2', barangay: 'Borlongan', household_type: 'family', family_members: 1, billing_amount: 0 },
+        { id: 5, first_name: 'Pedro', last_name: 'Reyes', email: 'pedro.reyes@example.com', purok: '5', barangay: 'Borlongan', household_type: 'family', family_members: 7, billing_amount: 0 }
     ];
 
-    /**
-     * Calculates the fixed monthly billing amount.
-     */
     function ubillCalculateBillingAmount(type, members = 1) {
         if (type === 'senior') return 48;
         if (type === 'solo') return 30;
-        if (type === 'family') {
+        if (type === 'family') return members >= 2 ? 60 : 30;
+        return 0;
+    }
+
+    function ubillGetHouseholdLabel(type, members = 1) {
+        if (type === 'senior') return '👴 Senior';
+        if (type === 'solo') return '🧑 Solo Living';
+        if (type === 'family') return members >= 2 ? `👨‍👩‍👧‍👦 Family (${members} members)` : `🧑 Solo (1 member)`;
+        return type;
+    }
+
+    function ubillCalculateSummary() {
+        let familyCount = 0, soloCount = 0, seniorCount = 0;
+        ubillUsers.forEach(user => {
+            if (user.billing_amount === 60) familyCount++;
+            else if (user.billing_amount === 30) soloCount++;
+            else if (user.billing_amount === 48) seniorCount++;
+        });
+        return { familyCount, soloCount, seniorCount };
+    }
+
+    function ubillUpdateSummary() {
+        const summary = ubillCalculateSummary();
+        document.getElementById('ubill-summaryFamily').textContent = summary.familyCount;
+        document.getElementById('ubill-summarySolo').textContent = summary.soloCount;
+        document.getElementById('ubill-summarySenior').textContent = summary.seniorCount;
+        document.getElementById('ubill-summaryTotal').textContent = ubillUsers.length;
+    }
+
+    function ubillUpdateBillingView() {
+        const tbody = document.getElementById('ubill-billingTable');
+        tbody.innerHTML = ubillUsers.map(user => {
+            const fullName = `${user.first_name} ${user.last_name}`;
+            const initials = `${user.first_name.charAt(0)}${user.last_name.charAt(0)}`;
+            const billingClass = user.billing_amount === 60 ? '60' : (user.billing_amount === 48 ? '48' : '30');
+            return `
+                <tr>
+                    <td data-label="Name">
+                        <div style="display:flex;align-items:center;gap:0.75rem;">
+                            <div class="ubill-avatar">${initials}</div>
+                            <strong>${fullName}</strong>
+                        </div>
+                    </td>
+                    <td data-label="Email">${user.email}</td>
+                    <td data-label="Household Type">${ubillGetHouseholdLabel(user.household_type, user.family_members)}</td>
+                    <td data-label="Details">Purok ${user.purok} · ${user.barangay}</td>
+                    <td data-label="Billing Amount"><span class="ubill-billing-badge ubill-billing-${billingClass}">₱${user.billing_amount}</span></td>
+                    <td data-label="Status"><span class="ubill-status-badge ubill-status-active">✅ Active</span></td>
+                </tr>
+            `;
+        }).join('');
+        ubillUpdateSummary();
+    }
+
+    function ubillShowSuccess(elementId, message) {
+        const el = document.getElementById(elementId);
+        if (message) el.innerHTML = message.replace(/\n/g, '<br>');
+        el.classList.add('show');
+        setTimeout(() => el.classList.remove('show'), 4000);
+    }
+
+    function ubillSetupAllBillings() {
+        if (!ubillUsers.length) {
+            ubillShowSuccess('ubill-billingSuccess', '⚠️ No users to setup billing.');
+            return;
+        }
+        ubillUsers.forEach(user => {
+            user.billing_amount = ubillCalculateBillingAmount(user.household_type, user.family_members);
+        });
+        ubillShowSuccess('ubill-billingSuccess', `✅ Billing Setup Complete! Updated ${ubillUsers.length} mock users.`);
+        ubillUpdateBillingView();
+    }
+
+    window.addEventListener('load', () => {
+        ubillSetupAllBillings();
+    });
+</script>
             // Family with 1 member is treated as solo living (₱30)
             return members >= 2 ? 60 : 30; 
         }

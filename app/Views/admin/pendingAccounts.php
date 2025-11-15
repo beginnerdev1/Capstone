@@ -159,10 +159,12 @@ let csrfHash = '<?= csrf_hash() ?>';
 let currentUserId = null;
 
 function fetchPendingAccounts() {
+    const tbody = document.getElementById('pendingAccountsBody');
+    if (!tbody) { stopPendingInterval(); return; }
     fetch('<?= base_url("admin/pendingAccounts") ?>?ajax=1')
         .then(res => res.json())
         .then(users => {
-            const tbody = document.getElementById('pendingAccountsBody');
+            if (!tbody) { stopPendingInterval(); return; }
             while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
             if (!users || users.length === 0) {
                 const tr = document.createElement('tr');
@@ -290,11 +292,21 @@ function startPendingInterval() {
     }
     // Poll every 30s only when tab is visible
     window.__pendingAccountsInterval = setInterval(() => {
+        const tbody = document.getElementById('pendingAccountsBody');
+        if (!tbody) { stopPendingInterval(); return; }
         if (document.visibilityState === 'visible') {
             updatePendingStatus('Refreshing...');
             fetchPendingAccounts();
         }
     }, 30000);
+    window.__pendingAccountsStop = stopPendingInterval;
+}
+
+function stopPendingInterval() {
+    if (window.__pendingAccountsInterval) {
+        clearInterval(window.__pendingAccountsInterval);
+        window.__pendingAccountsInterval = null;
+    }
 }
 
 document.getElementById('refreshPendingBtn').addEventListener('click', () => {
@@ -313,4 +325,5 @@ document.addEventListener('visibilitychange', () => {
 updatePendingStatus('Loading...');
 fetchPendingAccounts();
 startPendingInterval();
+window.addEventListener('beforeunload', stopPendingInterval);
 </script>

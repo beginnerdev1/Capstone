@@ -170,7 +170,7 @@ class Admin extends BaseController
                 $billingStats = $this->billingModel
                     ->select("SUM(amount_due) as annual_total,
                              SUM(CASE WHEN MONTH(updated_at) = {$currentMonth} THEN amount_due ELSE 0 END) as monthly_total")
-                    ->whereIn('status', ['Paid', 'Over the Counter'])
+                        ->where('status', 'Paid')
                     ->where('YEAR(updated_at)', $currentYear)
                     ->get()
                     ->getRow();
@@ -188,7 +188,7 @@ class Admin extends BaseController
                         MONTH(updated_at) AS month_num,
                         SUM(amount_due) AS total
                     ")
-                    ->whereIn('status', ['Paid', 'Over the Counter'])
+                        ->where('status', 'Paid')
                     ->where('YEAR(updated_at)', $currentYear)
                     ->groupBy('MONTH(updated_at)')
                     ->orderBy('MONTH(updated_at)', 'ASC')
@@ -313,7 +313,7 @@ class Admin extends BaseController
         $users = $usersModel
             ->select('users.id, users.email, users.status, user_information.first_name, user_information.last_name, user_information.purok, user_information.barangay')
             ->join('user_information', 'user_information.user_id = users.id', 'left')
-            ->where('users.status', 'Pending')
+            ->where('users.status', 'pending')
             ->orderBy('users.created_at', 'DESC')
             ->findAll();
 
@@ -337,6 +337,7 @@ class Admin extends BaseController
         return $this->response->setJSON([
             'id'            => $user['id'],
             'email'         => $user['email'],
+            'status'        => $user['status'] ?? '',
             'first_name'    => $info['first_name'] ?? '',
             'last_name'     => $info['last_name'] ?? '',
             'gender'        => $info['gender'] ?? '',
@@ -718,7 +719,7 @@ class Admin extends BaseController
         
         // Current month collection
         $currentMonthCollected = $this->billingModel
-            ->whereIn('status', ['Paid', 'Over the Counter'])
+            ->where('status', 'Paid')
             ->where('MONTH(updated_at)', $currentMonth)
             ->where('YEAR(updated_at)', $currentYear)
             ->selectSum('amount_due')
@@ -729,7 +730,7 @@ class Admin extends BaseController
         // Paid households this month (distinct users), based on updated_at
         $paidHouseholds = (int)($this->billingModel
             ->select('COUNT(DISTINCT user_id) as c')
-            ->whereIn('status', ['Paid', 'Over the Counter'])
+            ->where('status', 'Paid')
             ->where('MONTH(updated_at)', $currentMonth)
             ->where('YEAR(updated_at)', $currentYear)
             ->get()
@@ -763,7 +764,7 @@ class Admin extends BaseController
             // Recompute paid and pending within current year using updated_at
             $paidHouseholds = (int)($this->billingModel
                 ->select('COUNT(DISTINCT user_id) as c')
-                ->whereIn('status', ['Paid', 'Over the Counter'])
+                ->where('status', 'Paid')
                 ->where('YEAR(updated_at)', $currentYear)
                 ->get()
                 ->getRow()->c ?? 0);
@@ -793,7 +794,7 @@ class Admin extends BaseController
             ->select("MONTH(updated_at) as month_num, 
                      COUNT(DISTINCT user_id) as paid_count,
                      SUM(amount_due) as total_amount")
-            ->whereIn('status', ['Paid', 'Over the Counter'])
+            ->where('status', 'Paid')
             ->where('YEAR(updated_at)', $currentYear)
             ->groupBy('MONTH(updated_at)')
             ->orderBy('MONTH(updated_at)', 'ASC')
@@ -815,7 +816,7 @@ class Admin extends BaseController
             $twelveMonthsAgo = date('Y-m-01', strtotime('-11 months'));
             $monthlyData = $this->billingModel
                 ->select("DATE_FORMAT(updated_at, '%Y-%m') as ym, MONTH(updated_at) as month_num, COUNT(DISTINCT user_id) as paid_count, SUM(amount_due) as total_amount")
-                ->whereIn('status', ['Paid', 'Over the Counter'])
+                ->where('status', 'Paid')
                 ->where('DATE(updated_at) >=', $twelveMonthsAgo)
                 ->groupBy('YEAR(updated_at), MONTH(updated_at)')
                 ->orderBy('YEAR(updated_at)', 'ASC')
