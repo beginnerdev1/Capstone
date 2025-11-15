@@ -231,6 +231,7 @@ class Admin extends BaseController
 
     public function gcashsettings() { return view('admin/gcash_settings'); }
 
+    // Save GCash Settings (AJAX)
     public function saveGcashSettings()
     {
         try {
@@ -294,6 +295,7 @@ class Admin extends BaseController
         }
     }
 
+    // Show transaction records
     public function transactionRecords()
     {
         $data = [
@@ -302,6 +304,7 @@ class Admin extends BaseController
         return view('admin/transaction_records', $data);
     }
 
+    // Show monthly payments with filters
     public function monthlyPayments()
     {
         $month = $this->request->getGet('month') ?? date('Y-m');
@@ -362,6 +365,7 @@ class Admin extends BaseController
         return view('admin/monthly_payments', $data);
     }
 
+    // Fetch payments data (AJAX)
     public function getPaymentsData()
     {
         $month = $this->request->getGet('month');
@@ -417,6 +421,7 @@ class Admin extends BaseController
         ]);
     }
 
+    // Confirm GCash Payment (AJAX)
     public function confirmGCashPayment()
     {
         $data = $this->request->getJSON(true);
@@ -435,6 +440,7 @@ class Admin extends BaseController
         ]);
     }
 
+    // Get users by Purok (AJAX)
     public function getUsersByPurok($purok)
     {
         $userModel = new \App\Models\UserInformationModel();
@@ -448,6 +454,7 @@ class Admin extends BaseController
         return $this->response->setJSON($users);
     }
 
+    // Get pending billings for a user (AJAX)
     public function getPendingBillings($userId)
     {
         $month = $this->request->getGet('month');
@@ -458,6 +465,7 @@ class Admin extends BaseController
         return $this->response->setJSON($billings);
     }
 
+    // Add counter payment (AJAX)
     public function addCounterPayment()
     {
         try {
@@ -509,6 +517,7 @@ class Admin extends BaseController
         }
     }
 
+    // Export payments data (CSV)
     public function exportPayments()
     {
         $month = $this->request->getGet('month') ?? date('Y-m');
@@ -548,10 +557,210 @@ class Admin extends BaseController
 
     // ---------------- Billing Functions ----------------
 
+    /**
+     * Display billing management page
+     */
     public function billingManagement()
     {
         return view('admin/billing_management');
     }
+
+    /**
+     * Get all billings (AJAX endpoint for billing management)
+     */
+    public function getAllBillings()
+    {
+        try {
+            $month = $this->request->getGet('month') ?? '';
+            $status = $this->request->getGet('status') ?? '';
+            $search = $this->request->getGet('search') ?? '';
+            
+            $builder = $this->billingModel
+                ->select('billings.*, 
+                         CONCAT(user_information.first_name, " ", user_information.last_name) as user_name,
+                         users.email')
+                ->join('users', 'users.id = billings.user_id', 'left')
+                ->join('user_information', 'user_information.user_id = users.id', 'left');
+
+            // Apply filters
+            if (!empty($month)) {
+                $builder->where('DATE_FORMAT(billings.due_date, "%Y-%m")', $month);
+            }
+
+            if (!empty($status)) {
+                $builder->where('billings.status', $status);
+            }
+
+            if (!empty($search)) {
+                $builder->groupStart()
+                    ->like('user_information.first_name', $search)
+                    ->orLike('user_information.last_name', $search)
+                    ->orLike('users.email', $search)
+                    ->orLike('billings.bill_no', $search)
+                    ->groupEnd();
+            }
+
+            $billings = $builder->orderBy('billings.created_at', 'DESC')->findAll();
+
+            return $this->response->setJSON([
+                'success' => true,
+                'billings' => $billings
+            ]);
+
+        } catch (\Exception $e) {
+            log_message('error', 'Error in getAllBillings: ' . $e->getMessage());
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Failed to load billings: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Synchronize billings (for automatic billing setup)
+     */
+    public function synchronizeBillings()
+    {
+        try {
+            $input = $this->request->getJSON(true);
+            $month = $input['month'] ?? date('Y-m');
+            
+            // Validate month format
+            if (!preg_match('/^\d{4}-\d{2}$/', $month)) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Invalid month format'
+                ]);
+            }
+            
+            // Get all active users with their complete information
+            $users = $this->usersModel
+                ->select('users.id, 
+                         user_information.family_number,
+                         user_information.age,
+                         user_information.first_name,
+                         user_information.last_name')  // ✅ Removed household_type
+                ->join('user_information', 'user_information.user_id = users.id', 'inner')
+                ->where('users.status', 'approved')
+                ->where('users.active', 2)
+                ->where('user_information.family_number IS NOT NULL')  // Must have family number
+                ->where('user_information.family_number !=', '')       // Family number not empty
+                ->where('user_information.age IS NOT NULL')            // Must have age
+                ->where('user_information.age >', 0)                   // Age must be valid
+                ->findAll();
+            
+            if (empty($users)) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'No eligible users found with complete profile information (family number and age required)'
+                ]);
+            }
+            
+            $created = 0;
+            $existing = 0;
+            $skippedIncomplete = 0;
+            
+            foreach ($users as $user) {
+                // Determine billing rate based on family composition and age
+                $amount = $this->calculateBillingAmount($user);
+                
+                if ($amount === null) {
+                    $skippedIncomplete++;
+                    continue;
+                }
+                
+                // Check if billing already exists for this user and month
+                $existingBilling = $this->billingModel
+                    ->where('user_id', $user['id'])
+                    ->where('DATE_FORMAT(billing_month, "%Y-%m")', $month)
+                    ->first();
+                
+                if ($existingBilling) {
+                    $existing++;
+                    continue;
+                }
+                
+                // Create new billing record
+                $billingData = [
+                    'user_id' => $user['id'],
+                    'bill_no' => 'BILL-' . date('Ymd') . '-' . str_pad($user['id'], 4, '0', STR_PAD_LEFT),
+                    'amount_due' => $amount,
+                    'billing_month' => $month . '-01',
+                    'due_date' => date('Y-m-t', strtotime($month . '-01')), // Last day of month
+                    'status' => 'Pending',
+                    'created_at' => date('Y-m-d H:i:s'),
+                    'updated_at' => date('Y-m-d H:i:s')
+                ];
+                
+                if ($this->billingModel->insert($billingData)) {
+                    $created++;
+                }
+            }
+            
+            $message = "Synchronization completed! Created: {$created} new billings";
+            if ($existing > 0) {
+                $message .= ", Skipped: {$existing} existing billings";
+            }
+            if ($skippedIncomplete > 0) {
+                $message .= ", Skipped: {$skippedIncomplete} users with incomplete data";
+            }
+            
+            return $this->response->setJSON([
+                'success' => true,
+                'message' => $message,
+                'stats' => [
+                    'created' => $created,
+                    'existing' => $existing,
+                    'skipped_incomplete' => $skippedIncomplete,
+                    'total_users' => count($users)
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            log_message('error', 'Error in synchronizeBillings: ' . $e->getMessage());
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Failed to synchronize billings: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Calculate billing amount based on user's family composition and age
+     * @param array $user User data with family_number and age
+     * @return float|null Billing amount or null if data is incomplete
+     */
+    private function calculateBillingAmount($user)
+    {
+        $familyNumber = (int) ($user['family_number'] ?? 0);
+        $age = (int) ($user['age'] ?? 0);
+        
+        // Validate required data
+        if ($familyNumber <= 0 || $age <= 0) {
+            return null; // Skip users with invalid data
+        }
+        
+        // Senior Citizen (60+ years old) - ₱48
+        if ($age >= 60) {
+            return 48.00;
+        }
+        
+        // Family (2+ family members) - ₱60  
+        if ($familyNumber >= 2) {
+            return 60.00;
+        }
+        
+        // Solo (1 family member, under 60) - ₱30
+        return 30.00;
+    }
+
+    public function reports()
+    {
+        return view('admin/reports');
+    }
+
+
+    // ---------------- Account Functions ----------------
 
     // Edit user/admin profile
     public function editProfile()
@@ -559,10 +768,6 @@ class Admin extends BaseController
         return view('admin/edit_profile');
     }
 
-    public function reports()
-    {
-        return view('admin/reports');
-    }
 
     public function activateUser($id)
     {
