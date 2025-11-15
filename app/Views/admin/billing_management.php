@@ -430,7 +430,10 @@
                 <div class="ubill-form-grid" style="grid-template-columns: 1fr auto;">
                     <div class="ubill-form-group">
                         <label class="ubill-form-label">Current Billing Month</label>
-                        <input type="month" id="ubill-billingMonth" readonly class="ubill-form-input" style="background: var(--ubill-light); cursor: not-allowed;">
+                        <!-- Fix the input field -->
+<input type="month" id="ubill-billingMonth" class="ubill-form-input" 
+       style="font-weight: 600; color: var(--ubill-primary); background: white;"
+       readonly> <!-- THIS PREVENTS SETTING VALUE -->
                     </div>
                 </div>
                 
@@ -517,51 +520,66 @@
                                 <th>Amount Due</th>
                                 <th>Status</th>
                                 <th>Billing Month</th>
+                                <th>Due Date</th>
                             </tr>
                         </thead>
                         <tbody id="ubill-billingTable">
                             <tr>
-                                <td colspan="6" class="ubill-no-data">
+                                <td colspan="7" class="ubill-no-data">
                                     <div class="ubill-no-data-icon">📭</div>
                                     <div>Loading billing data...</div>
                                 </td>
                             </tr>
                         </tbody>
                     </table>
+
                 </div>
             </div>
         </div>
 
         <div id="ubill-manual-billing" class="ubill-section">
             <div class="ubill-content-card">
-                <div class="ubill-form-title">✍️ Create or Override Billing</div>
+                <div class="ubill-form-title">✍️ Create Manual Billing</div>
                 <div class="ubill-form-subtitle">
-                    Manually set a billing amount for a specific user and month. This will override automatic billings if they exist.
+                    Create custom billing for specific users and months. Manual bills will use current date billing logic with automatic due date calculation (7 days after creation).
                 </div>
                 <div class="ubill-success-message" id="ubill-manualSuccess"></div>
 
                 <div class="ubill-form-grid">
                     <div class="ubill-form-group">
+                        <label class="ubill-form-label">🏘️ Select Purok First</label>
+                        <select id="manual-purok-select" class="ubill-form-select" required>
+                            <option value="">Choose a Purok...</option>
+                        </select>
+                    </div>
+                    <div class="ubill-form-group">
                         <label class="ubill-form-label">👤 Select User</label>
-                        <select id="manual-user-select" class="ubill-form-select" required>
-                            <option value="">Choose a user...</option>
+                        <select id="manual-user-select" class="ubill-form-select" required disabled>
+                            <option value="">First select a Purok...</option>
                         </select>
                     </div>
                     <div class="ubill-form-group">
                         <label class="ubill-form-label">📅 Billing Month</label>
-                        <input type="month" id="manual-billing-month" class="ubill-form-input" required>
+                        <input type="month" id="manual-billing-month" class="ubill-form-input" 
+                               style="font-weight: 600; color: var(--ubill-primary); background: white;" required>
                     </div>
                     <div class="ubill-form-group">
                         <label class="ubill-form-label">💰 Amount (₱)</label>
-                        <input type="number" id="manual-billing-amount" class="ubill-form-input" placeholder="e.g., 500.00" step="0.01" min="1" required>
+                        <input type="number" id="manual-billing-amount" class="ubill-form-input" placeholder="e.g., 60.00" step="0.01" min="1" required>
                     </div>
                 </div>
 
                 <div class="ubill-form-actions">
-                    <button onclick="ubillProcessManualBill()" class="ubill-btn ubill-btn-success">
+                    <button onclick="ubillProcessManualBill()" class="ubill-btn ubill-btn-success" disabled id="manual-submit-btn">
                         <span>✅</span>
-                        <span>Process Manual Billing</span>
+                        <span>Create Manual Billing</span>
                     </button>
+                </div>
+
+                <!-- Manual Billing Preview Section -->
+                <div id="manual-billing-preview" class="ubill-content-card" style="display: none; margin-top: 1rem; background: rgba(59,130,246,0.05);">
+                    <div class="ubill-form-title" style="color: var(--ubill-primary);">📋 Billing Preview</div>
+                    <div id="manual-preview-content"></div>
                 </div>
             </div>
         </div>
@@ -574,37 +592,17 @@ const billingTableBody = document.getElementById('ubill-billingTable');
 let ubillUsers = [];
 let currentMonth = new Date().toISOString().slice(0, 7);
 
-// === Initialize Billing Page ===
-function initBillingPage() {
-    // Initialize filter options
-    populateMonthFilter();
-    populatePurokFilter();
-    
-    // Set up other components
-    ubillSetCurrentBillingMonth();
-    ubillPopulateUserSelect();
-    
-    // Set current month as default and load billings
-    document.getElementById('filter-month').value = currentMonth;
-    loadBillings();
-}
-
 // === Utility Functions ===
 function showLoading() {
     if (billingTableBody) {
         billingTableBody.innerHTML = `
             <tr>
-                <td colspan="6" class="ubill-no-data">
-                    <div class="ubill-no-data-icon">⏳</div>
-                    <div>Loading billing data...</div>
+                <td colspan="7" style="text-align: center; padding: 2rem;">
+                    <div>⏳ Loading billing data...</div>
                 </td>
             </tr>
         `;
     }
-}
-
-function hideLoading() {
-    // Loading handled by table content
 }
 
 function ubillShowMessage(elementId, message, isSuccess = true) {
@@ -616,83 +614,121 @@ function ubillShowMessage(elementId, message, isSuccess = true) {
     if (message) {
         el.classList.add('show');
         if (!isSuccess) el.classList.add('danger');
-        setTimeout(() => el.classList.remove('show'), 5000);
+        setTimeout(() => el.classList.remove('show'), 12000);
     }
 }
 
 function ubillFormatMonth(monthStr) {
     if (!monthStr) return 'N/A';
-    const date = new Date(monthStr + '-01');
-    return date.toLocaleString('en-US', { year: 'numeric', month: 'long' });
+    
+    try {
+        // Handle both YYYY-MM and YYYY-MM-DD formats
+        let date;
+        if (monthStr.length === 7) {
+            // YYYY-MM format
+            date = new Date(monthStr + '-01');
+        } else if (monthStr.length === 10) {
+            // YYYY-MM-DD format, extract just the year-month
+            const yearMonth = monthStr.substring(0, 7);
+            date = new Date(yearMonth + '-01');
+        } else {
+            // Try parsing as-is
+            date = new Date(monthStr);
+        }
+        
+        // Check if date is valid
+        if (isNaN(date.getTime())) {
+            console.warn('Invalid date format:', monthStr);
+            return monthStr; // Return original if can't parse
+        }
+        
+        return date.toLocaleString('en-US', { year: 'numeric', month: 'long' });
+    } catch (error) {
+        console.error('Date parsing error:', error, monthStr);
+        return monthStr; // Return original if error
+    }
+}
+
+// === Load Billing Statistics ===
+function loadBillingStatistics(month = null) {
+    const targetMonth = month || currentMonth;
+    
+    fetch(`<?= site_url('admin/getBillingStatistics') ?>?month=${targetMonth}`, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            updateStatisticsDisplay(data.statistics);
+        } else {
+            console.error('Failed to load statistics:', data.message);
+            // Set to zero if failed
+            updateStatisticsDisplay({
+                solo: 0,
+                senior: 0,
+                family: 0,
+                total: 0
+            });
+        }
+    })
+    .catch(err => {
+        console.error('Statistics fetch error:', err);
+        // Set to zero if error
+        updateStatisticsDisplay({
+            solo: 0,
+            senior: 0,
+            family: 0,
+            total: 0
+        });
+    });
+}
+
+function updateStatisticsDisplay(stats) {
+    // Update the summary cards with actual data
+    const soloElement = document.getElementById('ubill-summarySolo');
+    const seniorElement = document.getElementById('ubill-summarySenior');
+    const familyElement = document.getElementById('ubill-summaryFamily');
+    const totalElement = document.getElementById('ubill-summaryTotal');
+    
+    if (soloElement) soloElement.textContent = stats.solo || 0;
+    if (seniorElement) seniorElement.textContent = stats.senior || 0;
+    if (familyElement) familyElement.textContent = stats.family || 0;
+    if (totalElement) totalElement.textContent = stats.total || 0;
 }
 
 // === Load Billings (Main Function) ===
 function loadBillings(filters = {}) {
     showLoading();
     
-    // Get filter values - default to current month
     const month = filters.month !== undefined ? filters.month : (document.getElementById('filter-month')?.value || currentMonth);
     const purok = filters.purok || (document.getElementById('filter-purok')?.value || '');
     const search = filters.search || (document.getElementById('search-term')?.value || '');
     const page = filters.page || 1;
 
     const url = `<?= site_url('admin/getAllBillings') ?>?month=${month}&purok=${encodeURIComponent(purok)}&search=${encodeURIComponent(search)}&page=${page}`;
-    console.log('Loading billings from:', url);
 
     fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
         .then(res => res.json())
         .then(data => {
             if (data.success) {
                 renderBillingTable(data.billings || []);
-                
-                // Update table title
-                const tableTitle = document.querySelector('.ubill-table-title');
-                if (tableTitle) {
-                    let titleText = '💼 Billing Records';
-                    if (month) {
-                        titleText += ` - ${ubillFormatMonth(month)}`;
-                    }
-                    if (purok) {
-                        titleText += ` - Purok ${purok}`;
-                    }
-                    tableTitle.textContent = titleText;
-                }
-                
-                // Update summary message
-                let filterDescription = '';
-                if (month) filterDescription += ubillFormatMonth(month);
-                if (purok) filterDescription += (filterDescription ? ' in Purok ' + purok : 'Purok ' + purok);
-                if (!filterDescription) filterDescription = 'all records';
-                
-                const recordCount = data.billings?.length || 0;
-                if (recordCount > 0) {
-                    ubillShowMessage('ubill-billingSuccess', `✅ Loaded ${recordCount} billing records for ${filterDescription}.`, true);
-                }
+                // Load statistics for the filtered month
+                loadBillingStatistics(month);
             } else {
-                console.error('Backend error:', data.message);
-                ubillShowMessage('ubill-billingSuccess', 'Error: ' + (data.message || 'Failed to load billings'), false);
+                ubillShowMessage('ubill-billingSuccess', `❌ ${data.message}`, false);
                 renderBillingTable([]);
             }
-            hideLoading();
         })
         .catch(err => {
             console.error('Fetch error:', err);
             ubillShowMessage('ubill-billingSuccess', '❌ Failed to load billings. Check console.', false);
-            if (billingTableBody) {
-                billingTableBody.innerHTML = `<tr><td colspan="6">❌ Failed to load billings. Check console.</td></tr>`;
-            }
-            hideLoading();
+            renderBillingTable([]);
         });
 }
 
 // === Billing Table Rendering ===
 function renderBillingTable(data) {
-    console.log('renderBillingTable called with:', data);
-    
-    if (!billingTableBody) {
-        console.error('billingTableBody not found');
-        return;
-    }
+    if (!billingTableBody) return;
     
     billingTableBody.innerHTML = '';
 
@@ -711,17 +747,42 @@ function renderBillingTable(data) {
         
         billingTableBody.innerHTML = `
             <tr>
-                <td colspan="6" class="ubill-no-data">
-                    <div class="ubill-no-data-icon">📭</div>
-                    <div>No billing records found for ${filterText}.</div>
+                <td colspan="7" style="text-align: center; padding: 3rem;">
+                    <div class="ubill-no-data-icon">📋</div>
+                    <div>No billing records found for ${filterText}</div>
                 </td>
             </tr>
         `;
         return;
     }
 
+
     data.forEach(item => {
         const row = document.createElement('tr');
+        
+        // Format due date and add status styling
+        const dueDate = item.due_date ? new Date(item.due_date) : null;
+        const today = new Date();
+        let dueDateDisplay = 'N/A';
+        let dueDateClass = '';
+        
+        if (dueDate) {
+            dueDateDisplay = dueDate.toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric' 
+            });
+            
+            // Add styling based on due date status
+            if (dueDate < today && item.status === 'Pending') {
+                dueDateClass = 'style="color: #dc2626; font-weight: 600;"'; // Red for overdue
+            } else if (dueDate <= new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000) && item.status === 'Pending') {
+                dueDateClass = 'style="color: #d97706; font-weight: 600;"'; // Orange for due soon
+            } else {
+                dueDateClass = 'style="color: #059669;"'; // Green for normal
+            }
+        }
+        
         row.innerHTML = `
             <td>${item.bill_no || '-'}</td>
             <td>${item.user_name || '-'}</td>
@@ -729,22 +790,19 @@ function renderBillingTable(data) {
             <td>₱${parseFloat(item.amount_due || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
             <td>${item.status || '-'}</td>
             <td>${ubillFormatMonth(item.billing_month)}</td>
+            <td ${dueDateClass}>${dueDateDisplay}</td>
         `;
         billingTableBody.appendChild(row);
     });
-    
-    console.log('Table rendered successfully with', data.length, 'records');
 }
 
-// === Populate Month Filter Options ===
+// === Initialize Functions ===
 function populateMonthFilter() {
     const monthSelect = document.getElementById('filter-month');
     if (!monthSelect) return;
     
-    // Clear existing options
     monthSelect.innerHTML = '<option value="">All Months</option>';
     
-    // Generate options for the past 24 months and future 6 months (extended range)
     const today = new Date();
     const months = [];
     
@@ -764,13 +822,11 @@ function populateMonthFilter() {
         months.push({ value: monthValue, label: monthLabel });
     }
     
-    // Add options to select
     months.forEach(month => {
         const option = document.createElement('option');
         option.value = month.value;
         option.textContent = month.label;
         
-        // Mark current month with indicator and make it stand out
         if (month.value === currentMonth) {
             option.textContent += ' (Current Month)';
             option.style.fontWeight = 'bold';
@@ -779,165 +835,22 @@ function populateMonthFilter() {
         
         monthSelect.appendChild(option);
     });
-    
-    console.log('Month filter populated with options from', months[0]?.label, 'to', months[months.length-1]?.label);
 }
 
-// === Populate Purok Filter Options ===
 function populatePurokFilter() {
     const purokSelect = document.getElementById('filter-purok');
     if (!purokSelect) return;
     
-    // Clear existing options
     purokSelect.innerHTML = '<option value="">All Puroks</option>';
     
-    // Add purok options (1-7 as commonly used in Philippine barangays)
     for (let i = 1; i <= 7; i++) {
         const option = document.createElement('option');
         option.value = i.toString();
         option.textContent = `Purok ${i}`;
         purokSelect.appendChild(option);
     }
-    
-    console.log('Purok filter populated with options 1-7');
 }
 
-// === Filter & Search Handlers ===
-function ubillRenderFilteredTable() {
-    const month = document.getElementById('filter-month')?.value || '';
-    const purok = document.getElementById('filter-purok')?.value || '';
-    const search = document.getElementById('search-term')?.value || '';
-    
-    console.log('Applying filters - Month:', month, 'Purok:', purok, 'Search:', search);
-    
-    loadBillings({ month: month, purok: purok, search: search });
-}
-
-function ubillResetFilters() {
-    console.log('Resetting filters to current month:', currentMonth);
-    
-    // Reset to current month and clear other filters
-    document.getElementById('filter-month').value = currentMonth;
-    document.getElementById('filter-purok').value = '';
-    document.getElementById('search-term').value = '';
-    
-    // Load current month billings
-    loadBillings({ month: currentMonth });
-}
-
-// === Auto-apply filters on change (optional enhancement) ===
-function setupFilterAutoApply() {
-    const monthFilter = document.getElementById('filter-month');
-    const purokFilter = document.getElementById('filter-purok');
-    const searchFilter = document.getElementById('search-term');
-    
-    // Auto-apply when month changes
-    if (monthFilter) {
-        monthFilter.addEventListener('change', function() {
-            ubillRenderFilteredTable();
-        });
-    }
-    
-    // Auto-apply when purok changes
-    if (purokFilter) {
-        purokFilter.addEventListener('change', function() {
-            ubillRenderFilteredTable();
-        });
-    }
-    
-    // Auto-apply search on input (with debounce)
-    if (searchFilter) {
-        let searchTimeout;
-        searchFilter.addEventListener('input', function() {
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => {
-                ubillRenderFilteredTable();
-            }, 500); // 500ms delay after user stops typing
-        });
-    }
-}
-
-// === Print Table Handler ===
-function ubillPrintTable() {
-    // Fetch all records for current filters
-    const month = document.getElementById('filter-month')?.value || '';
-    const purok = document.getElementById('filter-purok')?.value || '';
-    const search = document.getElementById('search-term')?.value || '';
-    
-    const url = `<?= site_url('admin/getAllBillings') ?>?month=${month}&purok=${encodeURIComponent(purok)}&search=${encodeURIComponent(search)}&all=1`;
-
-    fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-        .then(res => res.json())
-        .then(data => {
-            const billings = data.billings || [];
-            let rows = '';
-            billings.forEach(item => {
-                rows += `
-                    <tr>
-                        <td>${item.bill_no || '-'}</td>
-                        <td>${item.user_name || '-'}</td>
-                        <td>${item.email || '-'}</td>
-                        <td>₱${parseFloat(item.amount_due || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                        <td>${item.status || '-'}</td>
-                        <td>${ubillFormatMonth(item.billing_month)}</td>
-                    </tr>
-                `;
-            });
-
-            const today = new Date().toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true });
-            
-            // Build filter description for print header
-            let filterText = '';
-            if (month && purok) {
-                filterText = ` - ${ubillFormatMonth(month)} (Purok ${purok})`;
-            } else if (month) {
-                filterText = ` - ${ubillFormatMonth(month)}`;
-            } else if (purok) {
-                filterText = ` - Purok ${purok}`;
-            } else {
-                filterText = ' - All Records';
-            }
-            
-            const content = `
-                <div style="text-align:center; margin-bottom:20px;">
-                    <h2 style="margin:0; font-size:2rem;">Billing Report${filterText}</h2>
-                    <div style="font-size:15px; color:#555; margin-top:8px;">Generated on: ${today}</div>
-                    <hr style="width:100%; margin:18px 0 0 0;">
-                </div>
-                <table style="width:100%; border-collapse:collapse; margin-top:18px;">
-                    <thead>
-                        <tr style="background:#f3f3f3;">
-                            <th style="padding:10px;border:1px solid #333;">Bill No</th>
-                            <th style="padding:10px;border:1px solid #333;">User Name</th>
-                            <th style="padding:10px;border:1px solid #333;">Email</th>
-                            <th style="padding:10px;border:1px solid #333;">Amount Due</th>
-                            <th style="padding:10px;border:1px solid #333;">Status</th>
-                            <th style="padding:10px;border:1px solid #333;">Billing Month</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${rows || `<tr><td colspan="6" style="text-align:center; padding:20px;">No billing records found for selected filters.</td></tr>`}
-                    </tbody>
-                </table>
-            `;
-            
-            const printWindow = window.open('', '', 'width=900,height=600');
-            printWindow.document.write('<html><head><title>Billing Report</title>');
-            printWindow.document.write('<style>body{font-family:Poppins,sans-serif;margin:20px;} table{width:100%;border-collapse:collapse;} th,td{border:1px solid #333;padding:8px;text-align:left;} th{background:#f3f3f3;} h2{margin-bottom:8px;} </style>');
-            printWindow.document.write('</head><body>');
-            printWindow.document.write(content);
-            printWindow.document.write('</body></html>');
-            printWindow.document.close();
-            printWindow.focus();
-            setTimeout(() => { printWindow.print(); printWindow.close(); }, 200);
-        })
-        .catch(err => {
-            console.error('Print error:', err);
-            alert('❌ Failed to generate print report. Please try again.');
-        });
-}
-
-// === Initialization ===
 function ubillSetCurrentBillingMonth() {
     const billingMonthInput = document.getElementById('ubill-billingMonth');
     const manualMonthInput = document.getElementById('manual-billing-month');
@@ -954,9 +867,26 @@ function ubillPopulateUserSelect() {
     ubillUsers.forEach(user => {
         const option = document.createElement('option');
         option.value = user.id;
-        option.textContent = `${user.first_name} ${user.last_name} (Purok ${user.purok}, ${user.household_type.charAt(0).toUpperCase() + user.household_type.slice(1)})`;
+        option.textContent = `${user.first_name} ${user.last_name} (Purok ${user.purok})`;
         select.appendChild(option);
     });
+}
+
+// === Filter Functions ===
+function ubillRenderFilteredTable() {
+    const month = document.getElementById('filter-month')?.value || '';
+    const purok = document.getElementById('filter-purok')?.value || '';
+    const search = document.getElementById('search-term')?.value || '';
+    
+    loadBillings({ month: month, purok: purok, search: search });
+}
+
+function ubillResetFilters() {
+    document.getElementById('filter-month').value = currentMonth;
+    document.getElementById('filter-purok').value = '';
+    document.getElementById('search-term').value = '';
+    
+    loadBillings({ month: currentMonth });
 }
 
 // === Tab Navigation ===
@@ -977,34 +907,11 @@ function ubillToggleView(viewId) {
     }
 
     if (viewId === 'ubill-billings') {
-        console.log('Switching to billing tab - loading current month data');
-        // Load current month data when switching to billing tab
         loadBillings({ month: currentMonth });
-    }
-    if (viewId === 'ubill-manual-billing') {
-        ubillShowMessage('ubill-manualSuccess', '', false);
     }
 }
 
-// === Search on Enter Key ===
-document.addEventListener('DOMContentLoaded', function() {
-    const searchInput = document.getElementById('search-term');
-    if (searchInput) {
-        searchInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                ubillRenderFilteredTable();
-            }
-        });
-    }
-    
-    // Setup auto-apply filters
-    setupFilterAutoApply();
-});
-
-// === Initialize Page ===
-initBillingPage();
-
-// === Synchronize All Billings ===
+// === Synchronize Billings ===
 function ubillSetupAllBillings() {
     const monthInput = document.getElementById('ubill-billingMonth');
     const month = monthInput ? monthInput.value : currentMonth;
@@ -1014,19 +921,16 @@ function ubillSetupAllBillings() {
         return;
     }
     
-    if (!confirm(`Are you sure you want to synchronize billings for ${ubillFormatMonth(month)}? This will create new billings for all users.`)) {
+    if (!confirm(`Are you sure you want to synchronize billings for ${ubillFormatMonth(month)}?`)) {
         return;
     }
     
-    // Show loading state
     const button = event.target;
     const originalText = button.innerHTML;
     button.disabled = true;
     button.innerHTML = '<span>⏳</span><span>Synchronizing...</span>';
     
-    const url = `<?= site_url('admin/synchronizeBillings') ?>`;
-    
-    fetch(url, {
+    fetch(`<?= site_url('admin/synchronizeBillings') ?>`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -1038,20 +942,431 @@ function ubillSetupAllBillings() {
     .then(data => {
         if (data.success) {
             ubillShowMessage('ubill-billingSuccess', `✅ ${data.message}`, true);
-            // Reload the billing table
             loadBillings({ month: month });
+            // Refresh statistics after synchronization
+            loadBillingStatistics(month);
         } else {
             ubillShowMessage('ubill-billingSuccess', `❌ ${data.message}`, false);
         }
     })
     .catch(err => {
         console.error('Synchronization error:', err);
-        ubillShowMessage('ubill-billingSuccess', '❌ Failed to synchronize billings. Check console.', false);
+        ubillShowMessage('ubill-billingSuccess', '❌ Failed to synchronize billings.', false);
     })
     .finally(() => {
-        // Restore button state
         button.disabled = false;
         button.innerHTML = originalText;
     });
+}
+
+// === Print Function ===
+
+function ubillPrintTable() {
+    const month = document.getElementById('filter-month')?.value || '';
+    const purok = document.getElementById('filter-purok')?.value || '';
+    const search = document.getElementById('search-term')?.value || '';
+    
+    const url = `<?= site_url('admin/getAllBillings') ?>?month=${month}&purok=${encodeURIComponent(purok)}&search=${encodeURIComponent(search)}&all=1`;
+
+    fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(res => res.json())
+        .then(data => {
+            const billings = data.billings || [];
+            let rows = '';
+            billings.forEach(item => {
+                // Format due date for printing
+                const dueDate = item.due_date ? new Date(item.due_date) : null;
+                const dueDateDisplay = dueDate ? 
+                    dueDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 
+                    'N/A';
+                
+                rows += `
+                    <tr>
+                        <td style="border:1px solid #333; padding:8px;">${item.bill_no || '-'}</td>
+                        <td style="border:1px solid #333; padding:8px;">${item.user_name || '-'}</td>
+                        <td style="border:1px solid #333; padding:8px;">${item.email || '-'}</td>
+                        <td style="border:1px solid #333; padding:8px;">₱${parseFloat(item.amount_due || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td style="border:1px solid #333; padding:8px;">${item.status || '-'}</td>
+                        <td style="border:1px solid #333; padding:8px;">${ubillFormatMonth(item.billing_month)}</td>
+                        <td style="border:1px solid #333; padding:8px;">${dueDateDisplay}</td>
+                    </tr>
+                `;
+            });
+
+            const today = new Date().toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true });
+            
+            let filterText = '';
+            if (month && purok) {
+                filterText = ` - ${ubillFormatMonth(month)} (Purok ${purok})`;
+            } else if (month) {
+                filterText = ` - ${ubillFormatMonth(month)}`;
+            } else if (purok) {
+                filterText = ` - Purok ${purok}`;
+            } else {
+                filterText = ' - All Records';
+            }
+            
+            const content = `
+                <div style="text-align:center; margin-bottom:20px;">
+                    <h2>Billing Management Report${filterText}</h2>
+                    <p>Generated on: ${today}</p>
+                </div>
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead>
+                        <tr>
+                            <th style="border:1px solid #333; padding:8px; background:#f3f3f3;">Bill No</th>
+                            <th style="border:1px solid #333; padding:8px; background:#f3f3f3;">User Name</th>
+                            <th style="border:1px solid #333; padding:8px; background:#f3f3f3;">Email</th>
+                            <th style="border:1px solid #333; padding:8px; background:#f3f3f3;">Amount Due</th>
+                            <th style="border:1px solid #333; padding:8px; background:#f3f3f3;">Status</th>
+                            <th style="border:1px solid #333; padding:8px; background:#f3f3f3;">Billing Month</th>
+                            <th style="border:1px solid #333; padding:8px; background:#f3f3f3;">Due Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rows || '<tr><td colspan="7" style="text-align:center; padding:20px;">No billing records found.</td></tr>'}
+                    </tbody>
+                </table>
+            `;
+            
+            const printWindow = window.open('', '', 'width=900,height=600');
+            printWindow.document.write('<html><head><title>Billing Report</title>');
+            printWindow.document.write('<style>body{font-family:Poppins,sans-serif;margin:20px;} table{width:100%;border-collapse:collapse;} th,td{border:1px solid #333;padding:8px;text-align:left;} th{background:#f3f3f3;} h2{margin-bottom:8px;} </style>');
+            printWindow.document.write('</head><body>');
+            printWindow.document.write(content);
+            printWindow.document.write('</body></html>');
+            printWindow.document.close();
+            printWindow.focus();
+            setTimeout(() => { printWindow.print(); printWindow.close(); }, 200);
+        });
+}
+
+// === MAIN INITIALIZATION ===
+function initializePage() {
+    // Set current month first
+    const now = new Date();
+    currentMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+    
+    // Initialize all components
+    populateMonthFilter();
+    populatePurokFilter();
+    populateManualPurokSelect(); // Add this line
+    ubillSetCurrentBillingMonth();
+    
+    // Set current month as default
+    const monthFilter = document.getElementById('filter-month');
+    if (monthFilter) monthFilter.value = currentMonth;
+    
+    // Setup auto-apply filters
+    setupFilterAutoApply();
+    setupManualBillingEventListeners(); // Add this line
+    
+    // Load current month data AND statistics
+    loadBillings({ month: currentMonth });
+    loadBillingStatistics(currentMonth);
+}
+
+function setupFilterAutoApply() {
+    const monthFilter = document.getElementById('filter-month');
+    const purokFilter = document.getElementById('filter-purok');
+    const searchFilter = document.getElementById('search-term');
+    
+    if (monthFilter) {
+        monthFilter.addEventListener('change', ubillRenderFilteredTable);
+    }
+    
+    if (purokFilter) {
+        purokFilter.addEventListener('change', ubillRenderFilteredTable);
+    }
+    
+    if (searchFilter) {
+        let searchTimeout;
+        searchFilter.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(ubillRenderFilteredTable, 500);
+        });
+        
+        searchFilter.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') ubillRenderFilteredTable();
+        });
+    }
+}
+
+// === EXECUTE INITIALIZATION ===
+initializePage();
+
+// === Manual Billing Functions ===
+function populateManualPurokSelect() {
+    const purokSelect = document.getElementById('manual-purok-select');
+    if (!purokSelect) return;
+    
+    purokSelect.innerHTML = '<option value="">Choose a Purok...</option>';
+    
+    for (let i = 1; i <= 7; i++) {
+        const option = document.createElement('option');
+        option.value = i.toString();
+        option.textContent = `Purok ${i}`;
+        purokSelect.appendChild(option);
+    }
+}
+function loadUsersByPurok(purok) {
+    const userSelect = document.getElementById('manual-user-select');
+    if (!userSelect) return;
+    
+    // Show loading state
+    userSelect.innerHTML = '<option value="">Loading users...</option>';
+    userSelect.disabled = true;
+    
+    if (!purok) {
+        userSelect.innerHTML = '<option value="">First select a Purok...</option>';
+        return;
+    }
+    
+    // Get the selected month for filtering
+    const selectedMonth = document.getElementById('manual-billing-month')?.value || currentMonth;
+    
+    // Use the new endpoint specifically for manual billing
+    fetch(`<?= site_url('admin/getUsersByPurokForManualBilling') ?>/${purok}?month=${selectedMonth}`, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(res => res.json())
+    .then(users => {
+        userSelect.innerHTML = '<option value="">Choose a user...</option>';
+        
+        if (!users || !users.length) {
+            userSelect.innerHTML = '<option value="">No users without billing found in this Purok for selected month</option>';
+            userSelect.disabled = true;
+            return;
+        }
+        
+        users.forEach(user => {
+            const option = document.createElement('option');
+            option.value = user.user_id;
+            option.textContent = `${user.first_name} ${user.last_name}`;
+            // ✅ Store the calculated amount in the option data
+            option.dataset.calculatedAmount = user.calculated_amount || 30.00;
+            userSelect.appendChild(option);
+        });
+        
+        userSelect.disabled = false;
+    })
+    .catch(err => {
+        console.error('Failed to fetch users:', err);
+        userSelect.innerHTML = '<option value="">Error loading users</option>';
+        ubillShowMessage('ubill-manualSuccess', '❌ Failed to load users for selected Purok', false);
+    });
+}
+
+// === Manual Billing Event Listeners ===
+function onUserSelectionChange() {
+    const userSelect = document.getElementById('manual-user-select');
+    const amountInput = document.getElementById('manual-billing-amount');
+    
+    if (!userSelect || !amountInput) return;
+    
+    const selectedOption = userSelect.selectedOptions[0];
+    
+    if (selectedOption && selectedOption.dataset.calculatedAmount) {
+        // Auto-populate with calculated amount
+        amountInput.value = parseFloat(selectedOption.dataset.calculatedAmount).toFixed(2);
+        
+        // Add visual indicator that amount was auto-calculated
+        amountInput.style.background = 'rgba(16, 185, 129, 0.1)';
+        amountInput.style.borderColor = 'var(--ubill-success)';
+        
+        // Optional: Add tooltip or placeholder text
+        amountInput.title = 'Auto-calculated amount based on user profile (you can override)';
+    } else {
+        // Reset if no user selected
+        amountInput.value = '';
+        amountInput.style.background = '';
+        amountInput.style.borderColor = '';
+        amountInput.title = '';
+    }
+    
+    // Trigger form validation
+    validateManualBillingForm();
+}
+
+// === Event Listeners for Manual Billing ===
+function setupManualBillingEventListeners() {
+    const purokSelect = document.getElementById('manual-purok-select');
+    const userSelect = document.getElementById('manual-user-select');
+    const amountInput = document.getElementById('manual-billing-amount');
+    const monthInput = document.getElementById('manual-billing-month');
+    
+    if (purokSelect) {
+        purokSelect.addEventListener('change', function() {
+            const purok = this.value;
+            loadUsersByPurok(purok);
+            validateManualBillingForm();
+        });
+    }
+    
+    if (userSelect) {
+        // ✅ UPDATED: Add user selection change listener
+        userSelect.addEventListener('change', function() {
+            onUserSelectionChange(); // This will call validateManualBillingForm internally
+        });
+    }
+    
+    if (amountInput) {
+        amountInput.addEventListener('input', function() {
+            // ✅ Reset styling when user manually edits
+            this.style.background = '';
+            this.style.borderColor = '';
+            this.title = '';
+            validateManualBillingForm();
+        });
+    }
+    
+    // Add month change listener
+    if (monthInput) {
+        monthInput.addEventListener('change', onManualMonthChange);
+    }
+}
+
+
+
+function onManualMonthChange() {
+    // When month changes, reload users for the currently selected purok
+    const purokSelect = document.getElementById('manual-purok-select');
+    const currentPurok = purokSelect?.value;
+    
+    // Reset user selection
+    document.getElementById('manual-user-select').innerHTML = '<option value="">First select a Purok...</option>';
+    document.getElementById('manual-user-select').disabled = true;
+    
+    // Reload users if purok is selected
+    if (currentPurok) {
+        loadUsersByPurok(currentPurok);
+    }
+    
+    // Revalidate form
+    validateManualBillingForm();
+}
+
+function validateManualBillingForm() {
+    const purok = document.getElementById('manual-purok-select')?.value;
+    const user = document.getElementById('manual-user-select')?.value;
+    const month = document.getElementById('manual-billing-month')?.value;
+    const amount = document.getElementById('manual-billing-amount')?.value;
+    
+    const submitBtn = document.getElementById('manual-submit-btn');
+    const isValid = purok && user && month && amount && parseFloat(amount) > 0;
+    
+    if (submitBtn) {
+        submitBtn.disabled = !isValid;
+    }
+    
+    // Show preview if all fields are filled
+    if (isValid) {
+        showManualBillingPreview();
+    } else {
+        hideManualBillingPreview();
+    }
+    
+    return isValid;
+}
+
+function showManualBillingPreview() {
+    const purok = document.getElementById('manual-purok-select')?.value;
+    const userSelect = document.getElementById('manual-user-select');
+    const month = document.getElementById('manual-billing-month')?.value;
+    const amount = parseFloat(document.getElementById('manual-billing-amount')?.value || 0);
+    
+    const userName = userSelect?.selectedOptions[0]?.textContent || 'Unknown User';
+    const today = new Date();
+    const dueDate = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days from today
+    
+    const previewContent = `
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+            <div><strong>User:</strong> ${userName} (Purok ${purok})</div>
+            <div><strong>Month:</strong> ${ubillFormatMonth(month)}</div>
+            <div><strong>Amount:</strong> ₱${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            <div><strong>Due Date:</strong> ${dueDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+        </div>
+    `;
+    
+    document.getElementById('manual-preview-content').innerHTML = previewContent;
+    document.getElementById('manual-billing-preview').style.display = 'block';
+}
+
+function hideManualBillingPreview() {
+    document.getElementById('manual-billing-preview').style.display = 'none';
+}
+
+function ubillProcessManualBill() {
+    const purok = document.getElementById('manual-purok-select')?.value;
+    const userId = document.getElementById('manual-user-select')?.value;
+    const month = document.getElementById('manual-billing-month')?.value;
+    const amount = document.getElementById('manual-billing-amount')?.value;
+    
+    // Validate form
+    if (!validateManualBillingForm()) {
+        ubillShowMessage('ubill-manualSuccess', '❌ Please fill in all required fields correctly', false);
+        return;
+    }
+    
+    const userName = document.getElementById('manual-user-select').selectedOptions[0]?.textContent || 'Unknown User';
+    
+    if (!confirm(`Create manual billing for ${userName} (Purok ${purok})\nMonth: ${ubillFormatMonth(month)}\nAmount: ₱${parseFloat(amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}?`)) {
+        return;
+    }
+    
+    const button = event.target;
+    const originalText = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<span>⏳</span><span>Creating Billing...</span>';
+    
+    // Prepare data similar to synchronize billing
+    const requestData = {
+        user_id: userId,
+        month: month,
+        amount: parseFloat(amount),
+        purok: purok
+    };
+    
+    fetch(`<?= site_url('admin/createManualBilling') ?>`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify(requestData)
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            ubillShowMessage('ubill-manualSuccess', `✅ ${data.message}`, true);
+            
+            // Reset form
+            resetManualBillingForm();
+            
+            // Refresh billing table if on billings tab
+            loadBillings({ month: month });
+            loadBillingStatistics(month);
+        } else {
+            ubillShowMessage('ubill-manualSuccess', `❌ ${data.message}`, false);
+        }
+    })
+    .catch(err => {
+        console.error('Manual billing error:', err);
+        ubillShowMessage('ubill-manualSuccess', '❌ Failed to create manual billing.', false);
+    })
+    .finally(() => {
+        button.disabled = false;
+        button.innerHTML = originalText;
+    });
+}
+
+function resetManualBillingForm() {
+    document.getElementById('manual-purok-select').value = '';
+    document.getElementById('manual-user-select').innerHTML = '<option value="">First select a Purok...</option>';
+    document.getElementById('manual-user-select').disabled = true;
+    document.getElementById('manual-billing-month').value = currentMonth;
+    document.getElementById('manual-billing-amount').value = '';
+    document.getElementById('manual-submit-btn').disabled = true;
+    hideManualBillingPreview();
 }
 </script>

@@ -111,6 +111,7 @@ $routes->get('monthlyPayments', 'Admin::monthlyPayments'); // Monthly Payments P
 $routes->get('getPaymentsData', 'Admin::getPaymentsData');// Get Payments Data for Monthly Payments Page
 $routes->post('confirmGCashPayment', 'Admin::confirmGCashPayment');// Confirm GCash Payment
 $routes->get('exportPayments', 'Admin::exportPayments');// Export Payments Data
+$routes->get('getUsersByPurokForManualBilling/(:any)', 'Admin::getUsersByPurokForManualBilling/$1'); // Get Users by Purok for Manual Billing (excludes existing billings)
 $routes->get('getUsersByPurok/(:any)', 'Admin::getUsersByPurok/$1'); // Get Users by Purok for Counter Payment
 $routes->get('getPendingBillings/(:num)', 'Admin::getPendingBillings/$1');// Get Pending Billings for Counter Payment
 $routes->post('addCounterPayment', 'Admin::addCounterPayment'); // Add Counter Payment
@@ -118,6 +119,10 @@ $routes->get('billingManagement', 'Admin::billingManagement'); // Billing Manage
 $routes->post('synchronizeBillings', 'Admin::synchronizeBillings'); // Synchronize Billings
 $routes->get('getAllBillings', 'Admin::getAllBillings'); // Get All Billings (AJAX for Billing Management Page)
 $routes->post('synchronizeBillings', 'Admin::synchronizeBillings'); // Synchronize Billings
+$routes->get('getBillingStatistics', 'Admin::getBillingStatistics'); // Get Billing Statistics
+$routes->post('createManualBilling', 'Admin::createManualBilling'); // Create Manual Billing
+
+
 
 
         $routes->post('approve/(:num)', 'Admin::approve/$1');
