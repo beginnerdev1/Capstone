@@ -1114,10 +1114,14 @@ if (miniPaymentCtx) {
   }
   function closeExportModal(){ exportModal.style.display='none'; }
 
-  // Intercept export clicks globally (capture) to block legacy handlers
+  // Intercept export clicks only when inside this Reports view
   document.addEventListener('click', function(ev){
     const target = ev.target && ev.target.closest ? ev.target.closest('.export-btn, .btn-export') : null;
     if (!target) return;
+    const wrapper = document.querySelector('#mainContent .reports-wrapper') || document.querySelector('.reports-wrapper');
+    if (!wrapper || !wrapper.contains(target)) {
+      return; // allow other pages (e.g., Transactions) to handle their own buttons
+    }
     ev.preventDefault();
     if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
     ev.stopPropagation();

@@ -259,34 +259,7 @@ body {
         </div>
     </div>
 
-            <!-- Deactivate User Modal -->
-            <div class="modal fade" id="deactivateUserModal" tabindex="-1" aria-labelledby="deactivateUserLabel" aria-hidden="true">
-                <div class="modal-dialog modal-md modal-dialog-centered">
-                    <div class="modal-content">
-                        <div class="modal-header bg-danger text-white">
-                            <h5 class="modal-title" id="deactivateUserLabel"><i class="fas fa-user-slash me-2"></i>Deactivate User</h5>
-                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                        </div>
-                        <div class="modal-body">
-                            <form id="deactivateUserForm">
-                                <?= csrf_field() ?>
-                                <p class="mb-2">You are about to deactivate <strong id="deactivateUserName">this user</strong>.</p>
-                                <div class="mb-3">
-                                    <label class="form-label">Reason (optional)</label>
-                                    <textarea class="form-control" name="reason" id="deactivateReason" rows="3" placeholder="e.g., Moved out, duplicate account, etc."></textarea>
-                                </div>
-                            </form>
-                            <div class="alert alert-warning"><i class="fas fa-box-archive me-2"></i>Last 2 years of this user's billings will be archived.</div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                            <button type="button" class="btn btn-danger" id="confirmDeactivateBtn">
-                                <i class="fas fa-user-slash me-1"></i>Deactivate
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <!-- Deactivate modal now provided globally in layout; removed here to avoid duplicates -->
 </div>
 
 <!-- ✅ JavaScript Logic -->
@@ -538,9 +511,10 @@ function initRegisteredUsersPage() {
         });
     });
 
-    // Deactivate flow
+    // Deactivate flow (legacy per-view handler). Guard so global modal handles by default.
     let currentDeactivateUserId = null;
     $(document).on('click', '.deactivateUserBtn', function(){
+        if (!$('#deactivateUserModal').length) return; // global handler will take over
         currentDeactivateUserId = $(this).data('id');
         const name = $(this).data('name') || 'this user';
         $('#deactivateUserName').text(name);
@@ -549,6 +523,7 @@ function initRegisteredUsersPage() {
     });
 
     $('#confirmDeactivateBtn').on('click', function(){
+        if (!$('#deactivateUserModal').length) return; // handled globally
         if(!currentDeactivateUserId) return;
         const formData = $('#deactivateUserForm').serialize();
         const btn = $(this);

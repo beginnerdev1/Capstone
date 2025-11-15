@@ -1297,10 +1297,14 @@ $(document).ready(function() {
     }
     function closeModal(){ modal.style.display='none'; }
 
-    // Intercept export clicks inside #mainContent
+    // Intercept export clicks inside Reports view only
     document.addEventListener('click', function(ev){
         const target = ev.target && ev.target.closest ? ev.target.closest('#mainContent .export-btn, #mainContent .btn-export') : null;
         if (!target) return;
+        const reportsRoot = document.querySelector('#mainContent .reports-wrapper');
+        if (!reportsRoot || !reportsRoot.contains(target)) {
+            return; // let other pages (e.g., Transactions) handle their own exports
+        }
         ev.preventDefault();
         // Prefer data-format; if absent, derive from href query param
         let fmt = target.getAttribute('data-format');
@@ -1397,7 +1401,7 @@ $(document).ready(function() {
 <script>
 // Delegated handlers for Registered Users deactivate modal (AJAX-injected views)
 (function(){
-    // Open deactivate modal
+    // Open global deactivate modal when clicking a deactivate button in injected content
     document.addEventListener('click', function(ev){
         const btn = ev.target && ev.target.closest ? ev.target.closest('#mainContent .deactivateUserBtn') : null;
         if (!btn) return;
@@ -1405,14 +1409,14 @@ $(document).ready(function() {
         try { console.debug('[Deactivate] Click captured', btn); } catch(_) {}
         const userId = btn.getAttribute('data-id');
         const name = btn.getAttribute('data-name') || 'this user';
-        const nameEl = document.getElementById('deactivateUserName');
-        const reasonEl = document.getElementById('deactivateReason');
-        if (nameEl) nameEl.textContent = name;
-        if (reasonEl) reasonEl.value = '';
-        const modalEl = document.getElementById('deactivateUserModal');
+        const modalEl = document.getElementById('globalDeactivateModal');
         try { console.debug('[Deactivate] Modal element found?', !!modalEl); } catch(_) {}
         if (modalEl) {
             modalEl.dataset.userId = userId || '';
+            const nameEl = modalEl.querySelector('#deactivateUserName');
+            const reasonEl = modalEl.querySelector('#deactivateReason');
+            if (nameEl) nameEl.textContent = name;
+            if (reasonEl) reasonEl.value = '';
             try {
                 const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
                 modal.show();
@@ -1424,18 +1428,18 @@ $(document).ready(function() {
         }
     });
 
-    // Confirm deactivate
+    // Confirm deactivate from global modal
     document.addEventListener('click', function(ev){
-        const btn = ev.target && ev.target.closest ? ev.target.closest('#mainContent #confirmDeactivateBtn') : null;
+        const btn = ev.target && ev.target.closest ? ev.target.closest('#confirmDeactivateBtn') : null;
         if (!btn) return;
         ev.preventDefault();
-        const modalEl = document.getElementById('deactivateUserModal');
+        const modalEl = btn.closest('.modal') || document.getElementById('globalDeactivateModal');
         try { console.debug('[Deactivate] Confirm clicked; modal present?', !!modalEl); } catch(_) {}
         if (!modalEl) return;
         const userId = modalEl.dataset.userId;
         if (!userId) return;
-        const form = document.getElementById('deactivateUserForm');
-        const data = form ? $(form).serialize() : {};
+        const form = modalEl.querySelector('#deactivateUserForm');
+        const data = form ? $(form).serialize() : { reason: (modalEl.querySelector('#deactivateReason') || {}).value || '' };
         const url = "<?= site_url('admin/deactivateUser') ?>/" + encodeURIComponent(userId);
         const $btn = $(btn);
         $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Deactivating...');
@@ -1448,12 +1452,18 @@ $(document).ready(function() {
                     + '</div>');
                 if ($container.length) { $container.prepend(successAlert); }
                 try { bootstrap.Modal.getInstance(modalEl).hide(); } catch(_) {}
+                // Cleanup any lingering backdrops/classes to restore clickability
+                try {
+                    document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+                    document.body.classList.remove('modal-open');
+                    document.body.style.removeProperty('padding-right');
+                } catch(_) {}
                 // Reload current page content
                 const current = localStorage.getItem('lastAjaxPage') || "<?= base_url('admin/registeredUsers') ?>";
                 try { loadAjaxPage(current); } catch(e) { window.location.href = current; }
             } else {
                 const msg = res && res.message ? res.message : 'Failed to deactivate user.';
-                const $form = $('#deactivateUserForm');
+                const $form = $(modalEl).find('#deactivateUserForm');
                 const errorAlert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">'
                     + '<i class="fas fa-exclamation-triangle me-2"></i>' + msg
                     + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>'
@@ -1461,7 +1471,7 @@ $(document).ready(function() {
                 if ($form.length) { $form.prepend(errorAlert); }
             }
         }).fail(function(){
-            const $form = $('#deactivateUserForm');
+            const $form = $(modalEl).find('#deactivateUserForm');
             const errorAlert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">'
                 + '<i class="fas fa-exclamation-triangle me-2"></i>Error deactivating user. Please try again.'
                 + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>'
@@ -1471,8 +1481,46 @@ $(document).ready(function() {
             $btn.prop('disabled', false).html('<i class="fas fa-user-slash me-1"></i>Deactivate');
         });
     });
+
+    // Safety: clean backdrops on any modal hide
+    document.addEventListener('hidden.bs.modal', function(){
+        try {
+            document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('padding-right');
+        } catch(_) {}
+    });
 })();
 </script>
+
+<!-- Global Deactivate Modal (for AJAX-injected Registered Users) -->
+<div class="modal fade" id="globalDeactivateModal" tabindex="-1" aria-labelledby="globalDeactivateLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="globalDeactivateLabel">Deactivate <span id="deactivateUserName"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="deactivateUserForm">
+                    <div class="mb-3">
+                        <label for="deactivateReason" class="form-label">Reason for deactivation (optional)</label>
+                        <textarea class="form-control" id="deactivateReason" name="reason" rows="3" placeholder="Provide a reason (optional)"></textarea>
+                    </div>
+                </form>
+                <div class="alert alert-warning" role="alert" style="margin-bottom:0;">
+                    <i class="fas fa-exclamation-triangle me-2"></i>This will archive the user's last 2 years of billings.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDeactivateBtn">
+                    <i class="fas fa-user-slash me-1"></i>Deactivate
+                </button>
+            </div>
+        </div>
+    </div>
+    </div>
 
 </body>
 
