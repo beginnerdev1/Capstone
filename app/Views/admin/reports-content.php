@@ -106,14 +106,14 @@
         <span>Fixed-Rate Water Bill Reports</span>
       </div>
       <div class="header-actions">
-        <button class="btn btn-primary">
+        <a class="btn btn-primary reports-refresh" href="<?= site_url('admin/reports') ?>">
           <span>🔄</span>
           <span>Refresh</span>
-        </button>
-        <button class="btn btn-success">
+        </a>
+        <a class="btn btn-success export-btn" data-format="csv" data-export-url="<?= site_url('admin/exportReports') ?>" href="<?= site_url('admin/exportReports') ?>?format=csv&filename=reports_<?= date('Y-m-d') ?>" target="_blank" rel="noopener">
           <span>📥</span>
           <span>Export All</span>
-        </button>
+        </a>
       </div>
     </div>
   </div>
@@ -177,7 +177,7 @@
       </div>
       <div class="report-footer">
         <button class="btn-small btn-view">📄 View</button>
-        <button class="btn-small btn-export">📥 Export</button>
+        <a class="btn-small btn-export" href="<?= site_url('admin/exportReports') ?>?format=csv&filename=reports_<?= date('Y-m-d') ?>" target="_blank" rel="noopener">📥 Export</a>
       </div>
     </div>
 
@@ -210,7 +210,7 @@
       </div>
       <div class="report-footer">
         <button class="btn-small btn-view">📄 View</button>
-        <button class="btn-small btn-export">📥 Export</button>
+        <a class="btn-small btn-export" href="<?= site_url('admin/exportReports') ?>?format=csv&filename=reports_<?= date('Y-m-d') ?>" target="_blank" rel="noopener">📥 Export</a>
       </div>
     </div>
 
@@ -246,7 +246,7 @@
       </div>
       <div class="report-footer">
         <button class="btn-small btn-view">📄 View</button>
-        <button class="btn-small btn-export">📥 Export</button>
+        <a class="btn-small btn-export" href="<?= site_url('admin/exportReports') ?>?format=csv&filename=reports_<?= date('Y-m-d') ?>" target="_blank" rel="noopener">📥 Export</a>
       </div>
     </div>
 
@@ -291,6 +291,7 @@
     </div>
   </div>
 
+
   <!-- Monthly Collection Chart -->
   <div class="chart-container">
     <div class="chart-title">
@@ -309,29 +310,28 @@
     <canvas id="paymentStatusChart" class="chart-canvas"></canvas>
   </div>
 
-  <!-- Export Options -->
-  <div class="export-options">
-    <div class="export-title">📥 Export All Data</div>
-    <div class="export-grid">
-      <button class="export-btn">
-        <span class="export-icon">📄</span>
-        <span>PDF</span>
-      </button>
-      <button class="export-btn">
-        <span class="export-icon">📊</span>
-        <span>Excel</span>
-      </button>
-      <button class="export-btn">
-        <span class="export-icon">📋</span>
-        <span>CSV</span>
-      </button>
-      <button class="export-btn">
-        <span class="export-icon">🖨️</span>
-        <span>Print</span>
-      </button>
-    </div>
-  </div>
 </div>
+
+<!-- Embed reports data as JSON for chart initialization under AJAX -->
+<script type="application/json" id="reports-data">
+<?= json_encode([
+  'collectionRates' => $collectionRates ?? array_fill(0, 12, 0),
+  'collectionAmounts' => $collectionAmounts ?? array_fill(0, 12, 0),
+  'paidHouseholds' => (int)($paidHouseholds ?? 0),
+  'pendingCount' => (int)($pendingCount ?? 0),
+  'latePayments' => (int)($latePayments ?? 0),
+  'normalCount' => (int)($normalCount ?? 0),
+  'seniorCount' => (int)($seniorCount ?? 0),
+  'aloneCount' => (int)($aloneCount ?? 0),
+  'rateNormal' => (float)($rateNormal ?? 60),
+  'rateSenior' => (float)($rateSenior ?? 48),
+  'rateAlone' => (float)($rateAlone ?? 30),
+  'year' => (int)date('Y'),
+  'filterStart' => $filterStart ?? null,
+  'filterEnd' => $filterEnd ?? null,
+  'filterType' => $filterType ?? null,
+], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>
+</script>
 
 <script>
 // De-duplicate JSON data script and inject current values for AJAX path

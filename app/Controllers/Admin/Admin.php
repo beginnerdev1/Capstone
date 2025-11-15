@@ -9,6 +9,19 @@ use App\Models\UsersModel;
 use App\Models\UserInformationModel;
 use App\Models\GcashSettingsModel;
 use App\Models\PaymentsModel;
+use Brevo\Client\Configuration;
+use Brevo\Client\Api\TransactionalEmailsApi;
+use Brevo\Client\Model\SendSmtpEmail;
+use GuzzleHttp\Client as GuzzleClient;
+// Optional Excel generation library
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Chart\Chart as XlsChart;
+use PhpOffice\PhpSpreadsheet\Chart\DataSeries;
+use PhpOffice\PhpSpreadsheet\Chart\DataSeriesValues;
+use PhpOffice\PhpSpreadsheet\Chart\PlotArea;
+use PhpOffice\PhpSpreadsheet\Chart\Title;
+use PhpOffice\PhpSpreadsheet\Chart\Legend;
 use Brevo\Client\Api\TransactionalEmailsApi;
 use Brevo\Client\Configuration;
 use Brevo\Client\Model\SendSmtpEmail;
@@ -174,7 +187,7 @@ class Admin extends BaseController
                 $billingStats = $this->billingModel
                     ->select("SUM(amount_due) as annual_total,
                              SUM(CASE WHEN MONTH(updated_at) = {$currentMonth} THEN amount_due ELSE 0 END) as monthly_total")
-                    ->whereIn('status', ['Paid', 'Over the Counter'])
+                        ->where('status', 'Paid')
                     ->where('YEAR(updated_at)', $currentYear)
                     ->get()
                     ->getRow();
@@ -192,7 +205,7 @@ class Admin extends BaseController
                         MONTH(updated_at) AS month_num,
                         SUM(amount_due) AS total
                     ")
-                    ->whereIn('status', ['Paid', 'Over the Counter'])
+                        ->where('status', 'Paid')
                     ->where('YEAR(updated_at)', $currentYear)
                     ->groupBy('MONTH(updated_at)')
                     ->orderBy('MONTH(updated_at)', 'ASC')
@@ -265,6 +278,96 @@ class Admin extends BaseController
         return view('admin/registeredUsers', $data);
     }
 
+    // Inactive Users page (view)
+    public function inactiveUsers()
+    {
+        return view('admin/inactive_users');
+    }
+
+    // Fetch inactive users (AJAX)
+    public function getInactiveUsers()
+    {
+        $search = trim((string)$this->request->getGet('search'));
+        $purok  = trim((string)$this->request->getGet('purok'));
+        $from   = trim((string)$this->request->getGet('from'));
+        $to     = trim((string)$this->request->getGet('to'));
+
+        $db = \Config\Database::connect();
+        $builder = $db->table('inactive_users iu')
+            ->select('iu.id as inactive_id, iu.user_id, iu.email, iu.first_name, iu.last_name, iu.phone, iu.purok, iu.barangay, iu.municipality, iu.province, iu.zipcode, iu.inactivated_at, u.status, u.active')
+            ->join('users u', 'u.id = iu.user_id', 'left')
+            ->where('u.status', 'inactive')
+            ->where('u.active', 1);
+
+        if ($search !== '') {
+            $builder->groupStart()
+                ->like('iu.email', $search)
+                ->orLike('iu.first_name', $search)
+                ->orLike('iu.last_name', $search)
+                ->groupEnd();
+        }
+        if ($purok !== '') {
+            $builder->where('iu.purok', (int)$purok);
+        }
+        if ($from !== '' && $to !== '') {
+            $builder->where('DATE(iu.inactivated_at) >=', $from)
+                    ->where('DATE(iu.inactivated_at) <=', $to);
+        }
+
+        $rows = $builder->orderBy('iu.inactivated_at', 'DESC')->get()->getResultArray();
+
+        return $this->response->setJSON($rows);
+    }
+
+    // List archived bills (AJAX)
+    public function getArchivedBills($inactiveId)
+    {
+        $db = \Config\Database::connect();
+        $bills = $db->table('archived_billings')
+            ->where('inactive_ref_id', (int)$inactiveId)
+            ->orderBy('billing_month', 'DESC')
+            ->get()->getResultArray();
+
+        // Minimal formatting for client rendering
+        $out = array_map(function($b){
+            return [
+                'id' => (int)$b['id'],
+                'bill_no' => $b['bill_no'],
+                'amount_due' => (float)($b['amount_due'] ?? 0),
+                'billing_month' => $b['billing_month'],
+                'due_date' => $b['due_date'],
+                'status' => $b['status'],
+                'paid_date' => $b['paid_date'],
+                'archived_at' => $b['archived_at'],
+            ];
+        }, $bills);
+
+        return $this->response->setJSON($out);
+    }
+
+    // Reactivate user (AJAX)
+    public function reactivateUser($id)
+    {
+        $db = \Config\Database::connect();
+        $db->transStart();
+        $user = $this->usersModel->find($id);
+        if (!$user) {
+            return $this->response->setJSON(['success' => false, 'message' => 'User not found']);
+        }
+
+        // Set to approved + active=2
+        $this->usersModel->update($id, [
+            'status' => 'approved',
+            'active' => 2,
+        ]);
+
+        $db->transComplete();
+        if (!$db->transStatus()) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Failed to reactivate user']);
+        }
+        return $this->response->setJSON(['success' => true, 'message' => 'User reactivated successfully']);
+    }
+
     public function filterUsers()
     {
         $search = $this->request->getVar('search');
@@ -317,7 +420,7 @@ class Admin extends BaseController
         $users = $usersModel
             ->select('users.id, users.email, users.status, user_information.first_name, user_information.last_name, user_information.purok, user_information.barangay')
             ->join('user_information', 'user_information.user_id = users.id', 'left')
-            ->where('users.status', 'Pending')
+            ->where('users.status', 'pending')
             ->orderBy('users.created_at', 'DESC')
             ->findAll();
 
@@ -341,6 +444,7 @@ class Admin extends BaseController
         return $this->response->setJSON([
             'id'            => $user['id'],
             'email'         => $user['email'],
+            'status'        => $user['status'] ?? '',
             'first_name'    => $info['first_name'] ?? '',
             'last_name'     => $info['last_name'] ?? '',
             'gender'        => $info['gender'] ?? '',
@@ -354,6 +458,145 @@ class Admin extends BaseController
             'zipcode'       => $info['zipcode'] ?? '',
             'profile_picture' => $info['profile_picture'] ?? ''
         ]);
+    }
+
+    /**
+     * Add a new user account (AJAX)
+     * Expects: first_name, last_name, email, password, purok, status
+     */
+    public function addUser()
+    {
+        if (!$this->request->is('post')) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Invalid request method'
+            ]);
+        }
+
+        try {
+            helper(['text']);
+
+            $firstName     = trim((string)$this->request->getPost('first_name'));
+            $lastName      = trim((string)$this->request->getPost('last_name'));
+            $email         = trim((string)$this->request->getPost('email'));
+            $password      = (string)$this->request->getPost('password');
+            $phone         = trim((string)$this->request->getPost('phone'));
+            $gender        = trim((string)$this->request->getPost('gender'));
+            $age           = (int)$this->request->getPost('age');
+            $familyNumber  = (int)$this->request->getPost('family_number');
+            $purok         = trim((string)$this->request->getPost('purok'));
+            $status        = strtolower(trim((string)$this->request->getPost('status') ?? 'approved'));
+
+            $errors = [];
+            if (strlen($firstName) < 2) $errors['first_name'] = 'First name must be at least 2 characters';
+            if (strlen($lastName) < 2)  $errors['last_name']  = 'Last name must be at least 2 characters';
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors['email'] = 'Invalid email address';
+            if (strlen($password) < 6) $errors['password'] = 'Password must be at least 6 characters';
+            if ($purok === '' || !preg_match('/^\d+$/', $purok)) $errors['purok'] = 'Purok is required';
+            if ($phone === '') $errors['phone'] = 'Contact number is required';
+            if (!in_array($gender, ['Male','Female','Other'], true)) $errors['gender'] = 'Invalid gender';
+            if ($age < 1 || $age > 120) $errors['age'] = 'Age must be between 1 and 120';
+            if ($familyNumber < 1 || $familyNumber > 20) $errors['family_number'] = 'Family members must be between 1 and 20';
+
+            if (!empty($errors)) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors'  => $errors
+                ]);
+            }
+
+            // Normalize email to lowercase for consistent storage and comparison
+            $email = strtolower($email);
+
+            // Ensure email is unique (case-insensitive)
+            // Let CI escape the value so SQL is valid: generates LOWER(email) = 'value'
+            $existing = $this->usersModel->where('LOWER(email)', $email)->first();
+            if ($existing) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Email already exists',
+                    'errors'  => ['email' => 'Email is already registered']
+                ]);
+            }
+
+            // Normalize status and active flags
+            $allowedStatuses = ['pending','approved','suspended','rejected','inactive'];
+            if (!in_array($status, $allowedStatuses, true)) {
+                $status = 'approved';
+            }
+            $active = ($status === 'approved') ? 2 : 1; // keep consistent with existing code
+            $isVerified = ($status === 'approved') ? 1 : 0;
+
+            // Start DB transaction
+            $db = \Config\Database::connect();
+            $db->transStart();
+
+            // Create user
+            $userId = $this->usersModel->insert([
+                'email'            => $email,
+                'password'         => password_hash($password, PASSWORD_DEFAULT),
+                'status'           => $status,
+                'active'           => $active,
+                'is_verified'      => $isVerified,
+                'profile_complete' => 1,
+            ], true);
+
+            if (!$userId) {
+                $db->transRollback();
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Failed to create user account'
+                ]);
+            }
+
+            // Create user information using model validation rules
+            $infoResult = $this->userInfoModel->saveUserInfo($userId, [
+                'first_name'    => $firstName,
+                'last_name'     => $lastName,
+                'phone'         => $phone,
+                'gender'        => $gender,
+                'age'           => $age,
+                'family_number' => $familyNumber,
+                'purok'         => (int)$purok,
+                // Enforce fixed location for this deployment
+                'barangay'      => 'Borlongan',
+                'municipality'  => 'Dipaculao',
+                'province'      => 'Aurora',
+                'zipcode'       => '3203',
+            ]);
+
+            if (!$infoResult['success']) {
+                $db->transRollback();
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => $infoResult['message'] ?? 'Failed to save user info',
+                    'errors'  => $infoResult['errors'] ?? []
+                ]);
+            }
+
+            // Commit transaction
+            $db->transComplete();
+            if ($db->transStatus() === false) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Database transaction failed'
+                ]);
+            }
+
+            return $this->response->setJSON([
+                'success' => true,
+                'message' => 'User added successfully.',
+                'id' => (int)$userId
+            ]);
+
+        } catch (\Throwable $e) {
+            log_message('error', 'addUser error: ' . $e->getMessage());
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Server error: ' . $e->getMessage()
+            ]);
+        }
     }
 
     // ======================================================
@@ -718,12 +961,227 @@ class Admin extends BaseController
         exit;
     }
 
+    // Export current reports data (CSV/Excel/PDF/Print)
+    public function exportReports()
+    {
+        $format = strtolower($this->request->getGet('format') ?? 'csv');
+        $fileBase = preg_replace('/[^A-Za-z0-9_\-]/', '_', $this->request->getGet('filename') ?? ('reports_' . date('Y-m-d')));
+        if (!$fileBase) { $fileBase = 'reports_' . date('Y-m-d'); }
 
+        // Optional filters to match on-screen state
+        $start = trim((string)$this->request->getGet('start'));
+        $end = trim((string)$this->request->getGet('end'));
+        $type = trim((string)$this->request->getGet('type'));
+        $defaultStart = date('Y') . '-01-01';
+        $defaultEnd = date('Y-m-d');
+        $startDate = (\DateTime::createFromFormat('Y-m-d', $start) && $start === \DateTime::createFromFormat('Y-m-d', $start)->format('Y-m-d')) ? $start : $defaultStart;
+        $endDate = (\DateTime::createFromFormat('Y-m-d', $end) && $end === \DateTime::createFromFormat('Y-m-d', $end)->format('Y-m-d')) ? $end : $defaultEnd;
+        if ($endDate < $startDate) { $endDate = $startDate; }
+        $year = date('Y');
+        $monthNow = date('m');
 
+        // Household distribution (align with reports())
+        $normalCount = $this->userInfoModel
+            ->where('(age < 60 OR age IS NULL)')
+            ->where('family_number !=', 1)
+            ->countAllResults();
 
+        $seniorCount = $this->userInfoModel
+            ->where('age >=', 60)
+            ->where('family_number !=', 1)
+            ->countAllResults();
 
+        $aloneCount = $this->userInfoModel
+            ->where('family_number', 1)
+            ->countAllResults();
 
-    
+        $totalHouseholds = (int)($normalCount + $seniorCount + $aloneCount);
+
+        // Fixed rates
+        $rateNormal = 60; $rateSenior = 48; $rateAlone = 30;
+
+        // Payment status (within selected range)
+        $paidHouseholds = (int)($this->billingModel
+            ->select('COUNT(DISTINCT user_id) as c')
+            ->where('status', 'Paid')
+            ->where('DATE(updated_at) >=', $startDate)
+            ->where('DATE(updated_at) <=', $endDate)
+            ->get()->getRow()->c ?? 0);
+
+        $pendingCount = (int)($this->billingModel
+            ->where('status', 'Pending')
+            ->where('DATE(updated_at) >=', $startDate)
+            ->where('DATE(updated_at) <=', $endDate)
+            ->countAllResults());
+
+        $latePayments = (int)$this->billingModel
+            ->where('status', 'Pending')
+            ->where('due_date <', date('Y-m-d'))
+            ->where('DATE(due_date) >=', $startDate)
+            ->where('DATE(due_date) <=', $endDate)
+            ->countAllResults();
+
+        // Monthly amounts and collection rate in selected window (paid unique households / total)
+        $monthlyAmounts = array_fill(1, 12, 0.0);
+        $monthlyRates = array_fill(1, 12, 0.0);
+        // Aggregate by month within the date window
+        $rows = $this->billingModel
+            ->select("YEAR(updated_at) as y, MONTH(updated_at) as m, SUM(amount_due) as amt, COUNT(DISTINCT user_id) as pc")
+            ->where('status', 'Paid')
+            ->where('DATE(updated_at) >=', $startDate)
+            ->where('DATE(updated_at) <=', $endDate)
+            ->groupBy('YEAR(updated_at), MONTH(updated_at)')
+            ->orderBy('YEAR(updated_at)', 'ASC')
+            ->orderBy('MONTH(updated_at)', 'ASC')
+            ->get()->getResultArray();
+        foreach ($rows as $r) {
+            $m = (int)$r['m'];
+            $monthlyAmounts[$m] = (float)($r['amt'] ?? 0);
+            $paidC = (int)($r['pc'] ?? 0);
+            $monthlyRates[$m] = $totalHouseholds > 0 ? round(($paidC / $totalHouseholds) * 100, 1) : 0.0;
+        }
+
+        if ($format === 'pdf' || $format === 'print') {
+            // Render a printer-friendly HTML with auto-print. Users can Save as PDF.
+            $title = 'Fixed-Rate Water Bill Reports';
+            $months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            $period = ($startDate === ($year.'-01-01') && $endDate === date('Y-m-d')) ? $year : ($startDate . ' to ' . $endDate);
+            $html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' . htmlspecialchars($title) . '</title>' .
+                '<style>body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:24px;}h1{margin:0 0 6px;}h2{margin:18px 0 8px;}table{border-collapse:collapse;width:100%;margin:8px 0;}th,td{border:1px solid #ddd;padding:8px;font-size:12px}th{background:#f3f4f6;text-align:left}.muted{color:#6b7280;font-size:12px;margin-bottom:10px}</style>' .
+                '</head><body>' .
+                '<h1>' . htmlspecialchars($title) . '</h1>' .
+                '<div class="muted">Period: ' . htmlspecialchars($period) . '</div>' .
+                '<h2>Monthly Collection</h2><table><thead><tr><th>Month</th><th>Collection Rate (%)</th><th>Amount (PHP)</th></tr></thead><tbody>';
+            for ($i=1;$i<=12;$i++) { $html .= '<tr><td>'.$months[$i-1].'</td><td>'.number_format($monthlyRates[$i],1).'</td><td>'.number_format($monthlyAmounts[$i],2).'</td></tr>'; }
+            $html .= '</tbody></table>';
+            $html .= '<h2>Payment Status (Selected Range)</h2><table><tbody>';
+            $html .= '<tr><th>Paid Households</th><td>'.$paidHouseholds.'</td></tr>';
+            $html .= '<tr><th>Pending</th><td>'.$pendingCount.'</td></tr>';
+            $html .= '<tr><th>Late</th><td>'.$latePayments.'</td></tr>';
+            $html .= '</tbody></table>';
+            $html .= '<h2>Rate Distribution (Households)</h2><table><thead><tr><th>Normal</th><th>Senior</th><th>Alone</th><th>Total</th></tr></thead><tbody>';
+            $html .= '<tr><td>'.$normalCount.'</td><td>'.$seniorCount.'</td><td>'.$aloneCount.'</td><td>'.$totalHouseholds.'</td></tr>';
+            $html .= '</tbody></table>';
+            $html .= '<h2>Fixed Rates (PHP)</h2><table><thead><tr><th>Normal</th><th>Senior</th><th>Alone</th></tr></thead><tbody>';
+            $html .= '<tr><td>'.number_format($rateNormal,2).'</td><td>'.number_format($rateSenior,2).'</td><td>'.number_format($rateAlone,2).'</td></tr>';
+            $html .= '</tbody></table>';
+            $html .= '<script>window.onload=function(){window.print();}</script>';
+            $html .= '</body></html>';
+            return $this->response->setHeader('Content-Type', 'text/html')->setBody($html);
+        }
+
+        // If Excel requested and PhpSpreadsheet is available, generate native .xlsx with a chart
+        if (($format === 'excel' || $format === 'xlsx') && class_exists(\PhpOffice\PhpSpreadsheet\Spreadsheet::class)) {
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+            $sheet->setTitle('Monthly');
+
+            // Headers
+            $sheet->setCellValue('A1', 'Month');
+            $sheet->setCellValue('B1', 'Collection Rate (%)');
+            $sheet->setCellValue('C1', 'Amount (PHP)');
+
+            $months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            for ($i = 1; $i <= 12; $i++) {
+                $row = $i + 1;
+                $sheet->setCellValue('A' . $row, $months[$i-1]);
+                $sheet->setCellValue('B' . $row, (float)$monthlyRates[$i]);
+                $sheet->setCellValue('C' . $row, (float)$monthlyAmounts[$i]);
+            }
+
+            // Summary sheet
+            $sum = $spreadsheet->createSheet();
+            $sum->setTitle('Summary');
+            $sum->fromArray([
+                ['Metric', 'Value'],
+                ['Paid Households', $paidHouseholds],
+                ['Pending', $pendingCount],
+                ['Late', $latePayments],
+                ['Normal Households', $normalCount],
+                ['Senior Households', $seniorCount],
+                ['Alone Households', $aloneCount],
+                ['Total Households', $totalHouseholds],
+                ['Rate Normal (PHP)', $rateNormal],
+                ['Rate Senior (PHP)', $rateSenior],
+                ['Rate Alone (PHP)', $rateAlone],
+            ], null, 'A1');
+
+            // Build a line chart for Amounts (Monthly sheet)
+            $dataSeriesLabels = [new DataSeriesValues('String', 'Monthly!$C$1', null, 1)];
+            $xAxisTickValues = [new DataSeriesValues('String', 'Monthly!$A$2:$A$13', null, 12)];
+            $dataSeriesValues = [new DataSeriesValues('Number', 'Monthly!$C$2:$C$13', null, 12)];
+
+            $series = new DataSeries(
+                DataSeries::TYPE_LINECHART,
+                DataSeries::GROUPING_STANDARD,
+                range(0, count($dataSeriesValues) - 1),
+                $dataSeriesLabels,
+                $xAxisTickValues,
+                $dataSeriesValues
+            );
+
+            $plotArea = new PlotArea(null, [$series]);
+            $legend = new Legend(Legend::POSITION_RIGHT, null, false);
+            $title = new Title('Monthly Amount Collected');
+
+            $chart = new XlsChart('chart1', $title, $legend, $plotArea);
+            // Position chart on the sheet
+            $chart->setTopLeftPosition('E2');
+            $chart->setBottomRightPosition('O20');
+            $sheet->addChart($chart);
+
+            // Output to browser
+            $filename = $fileBase . '.xlsx';
+            header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            header('Cache-Control: max-age=0');
+
+            $writer = new Xlsx($spreadsheet);
+            $writer->setIncludeCharts(true);
+            $writer->save('php://output');
+            exit;
+        }
+
+        // Prepare CSV (also used for legacy Excel compatibility)
+        $filename = $fileBase . ($format === 'excel' ? '.xls' : '.csv');
+        if ($format === 'excel') {
+            header('Content-Type: application/vnd.ms-excel');
+        } else {
+            header('Content-Type: text/csv');
+        }
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+
+        $out = fopen('php://output', 'w');
+        // Monthly Collection
+        fputcsv($out, ['Section', 'Monthly Collection (' . $year . ')']);
+        fputcsv($out, ['Month', 'Collection Rate (%)', 'Amount (PHP)']);
+        $months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        for ($i = 1; $i <= 12; $i++) {
+            fputcsv($out, [$months[$i-1], $monthlyRates[$i], number_format($monthlyAmounts[$i], 2, '.', '')]);
+        }
+        fputcsv($out, []);
+
+        // Payment Status (selected range)
+        fputcsv($out, ['Section', 'Payment Status (Selected Range)']);
+        fputcsv($out, ['Paid Households', 'Pending', 'Late']);
+        fputcsv($out, [$paidHouseholds, $pendingCount, $latePayments]);
+        fputcsv($out, []);
+
+        // Rate Distribution (households)
+        fputcsv($out, ['Section', 'Rate Distribution (Households)']);
+        fputcsv($out, ['Normal', 'Senior', 'Alone', 'Total Households']);
+        fputcsv($out, [$normalCount, $seniorCount, $aloneCount, $totalHouseholds]);
+        fputcsv($out, []);
+
+        // Fixed Rates
+        fputcsv($out, ['Section', 'Fixed Rates (PHP)']);
+        fputcsv($out, ['Normal', 'Senior', 'Alone']);
+        fputcsv($out, [number_format($rateNormal,2,'.',''), number_format($rateSenior,2,'.',''), number_format($rateAlone,2,'.','')]);
+
+        fclose($out);
+        exit;
+    }
+
     // ---------------- Billing Functions ----------------
 
 
@@ -1340,6 +1798,18 @@ class Admin extends BaseController
     {
         $currentYear = date('Y');
         $currentMonth = date('m');
+
+        // Read filters (YYYY-MM-DD). Defaults: start = Jan 1 of current year, end = today
+        $start = trim((string)$this->request->getGet('start'));
+        $end = trim((string)$this->request->getGet('end'));
+        $type = trim((string)$this->request->getGet('type'));
+
+        $defaultStart = date('Y') . '-01-01';
+        $defaultEnd = date('Y-m-d');
+
+        $startDate = (\DateTime::createFromFormat('Y-m-d', $start) && $start === \DateTime::createFromFormat('Y-m-d', $start)->format('Y-m-d')) ? $start : $defaultStart;
+        $endDate = (\DateTime::createFromFormat('Y-m-d', $end) && $end === \DateTime::createFromFormat('Y-m-d', $end)->format('Y-m-d')) ? $end : $defaultEnd;
+        if ($endDate < $startDate) { $endDate = $startDate; }
         
         // Calculate rate-based household counts
         $normalCount = $this->userInfoModel
@@ -1366,86 +1836,63 @@ class Admin extends BaseController
         // Expected monthly collection
         $monthlyExpected = ($normalCount * $rateNormal) + ($seniorCount * $rateSenior) + ($aloneCount * $rateAlone);
         
-        // Current month collection
+        // Collection within selected date range
         $currentMonthCollected = $this->billingModel
-            ->whereIn('status', ['Paid', 'Over the Counter'])
-            ->where('MONTH(updated_at)', $currentMonth)
-            ->where('YEAR(updated_at)', $currentYear)
+            ->where('status', 'Paid')
+            ->where('DATE(updated_at) >=', $startDate)
+            ->where('DATE(updated_at) <=', $endDate)
             ->selectSum('amount_due')
             ->get()
             ->getRow()
             ->amount_due ?? 0;
         
-        // Paid households this month (distinct users), based on updated_at
+        // Paid households in range (distinct users), based on updated_at
         $paidHouseholds = (int)($this->billingModel
             ->select('COUNT(DISTINCT user_id) as c')
-            ->whereIn('status', ['Paid', 'Over the Counter'])
-            ->where('MONTH(updated_at)', $currentMonth)
-            ->where('YEAR(updated_at)', $currentYear)
+            ->where('status', 'Paid')
+            ->where('DATE(updated_at) >=', $startDate)
+            ->where('DATE(updated_at) <=', $endDate)
             ->get()
             ->getRow()->c ?? 0);
         
-        // Pending amount and count
+        // Pending amount and count (range)
         $pendingAmount = (float)($this->billingModel
             ->where('status', 'Pending')
-            ->where('MONTH(updated_at)', $currentMonth)
-            ->where('YEAR(updated_at)', $currentYear)
+            ->where('DATE(updated_at) >=', $startDate)
+            ->where('DATE(updated_at) <=', $endDate)
             ->selectSum('amount_due')
             ->get()
             ->getRow()
             ->amount_due ?? 0);
-        
+
         $pendingCount = (int)($this->billingModel
             ->where('status', 'Pending')
-            ->where('MONTH(updated_at)', $currentMonth)
-            ->where('YEAR(updated_at)', $currentYear)
+            ->where('DATE(updated_at) >=', $startDate)
+            ->where('DATE(updated_at) <=', $endDate)
             ->countAllResults());
         
         // Late payments (overdue)
         $latePayments = $this->billingModel
             ->where('status', 'Pending')
             ->where('due_date <', date('Y-m-d'))
+            ->where('DATE(due_date) >=', $startDate)
+            ->where('DATE(due_date) <=', $endDate)
             ->countAllResults();
         
         // If no data for current month, fallback to Year-To-Date for status overview
-        $statusScope = 'MONTH';
-        if ((int)$paidHouseholds + (int)$pendingCount + (int)$latePayments === 0) {
-            // Recompute paid and pending within current year using updated_at
-            $paidHouseholds = (int)($this->billingModel
-                ->select('COUNT(DISTINCT user_id) as c')
-                ->whereIn('status', ['Paid', 'Over the Counter'])
-                ->where('YEAR(updated_at)', $currentYear)
-                ->get()
-                ->getRow()->c ?? 0);
-
-            $pendingCount = (int)($this->billingModel
-                ->where('status', 'Pending')
-                ->where('YEAR(updated_at)', $currentYear)
-                ->countAllResults());
-
-            // Late payments within current year and overdue (by due_date year)
-            $latePayments = (int)($this->billingModel
-                ->where('status', 'Pending')
-                ->where('YEAR(due_date)', $currentYear)
-                ->where('due_date <', date('Y-m-d'))
-                ->countAllResults());
-
-            if ((int)$paidHouseholds + (int)$pendingCount + (int)$latePayments > 0) {
-                $statusScope = 'YTD';
-            }
-        }
+        $statusScope = 'RANGE';
 
         // Collection rate
         $collectionRate = $totalHouseholds > 0 ? round(($paidHouseholds / $totalHouseholds) * 100, 1) : 0;
         
-        // Monthly collection rates and amounts for chart
+        // Monthly collection rates and amounts for chart (within range)
         $monthlyData = $this->billingModel
-            ->select("MONTH(updated_at) as month_num, 
-                     COUNT(DISTINCT user_id) as paid_count,
-                     SUM(amount_due) as total_amount")
-            ->whereIn('status', ['Paid', 'Over the Counter'])
-            ->where('YEAR(updated_at)', $currentYear)
-            ->groupBy('MONTH(updated_at)')
+            ->select("YEAR(updated_at) as y, MONTH(updated_at) as month_num, COUNT(DISTINCT user_id) as paid_count, SUM(amount_due) as total_amount")
+            ->where('status', 'Paid')
+            ->where('DATE(updated_at) >=', $startDate)
+            ->where('DATE(updated_at) <=', $endDate)
+            ->groupBy('YEAR(updated_at), MONTH(updated_at)')
+            ->orderBy('YEAR(updated_at)', 'ASC')
             ->orderBy('MONTH(updated_at)', 'ASC')
             ->get()
             ->getResultArray();
@@ -1460,12 +1907,13 @@ class Admin extends BaseController
             $collectionAmounts[$monthIndex] = (float)$data['total_amount'];
         }
 
-        // If no data for current year, fallback to last 12 months rolling window
-        if (array_sum($collectionAmounts) == 0) {
+        // Only apply rolling fallback when no explicit filters were provided
+        $filtersProvided = ($this->request->getGet('start') || $this->request->getGet('end') || $this->request->getGet('type'));
+        if (!$filtersProvided && array_sum($collectionAmounts) == 0) {
             $twelveMonthsAgo = date('Y-m-01', strtotime('-11 months'));
             $monthlyData = $this->billingModel
                 ->select("DATE_FORMAT(updated_at, '%Y-%m') as ym, MONTH(updated_at) as month_num, COUNT(DISTINCT user_id) as paid_count, SUM(amount_due) as total_amount")
-                ->whereIn('status', ['Paid', 'Over the Counter'])
+                ->where('status', 'Paid')
                 ->where('DATE(updated_at) >=', $twelveMonthsAgo)
                 ->groupBy('YEAR(updated_at), MONTH(updated_at)')
                 ->orderBy('YEAR(updated_at)', 'ASC')
@@ -1500,7 +1948,11 @@ class Admin extends BaseController
             'collectionRate' => $collectionRate,
             'collectionRates' => $collectionRates,
             'collectionAmounts' => $collectionAmounts,
-            'statusScope' => $statusScope
+            'statusScope' => $statusScope,
+            // Expose filters to the views
+            'filterStart' => $startDate,
+            'filterEnd' => $endDate,
+            'filterType' => $type,
         ];
         
         if ($this->request->isAJAX()) {
@@ -1536,8 +1988,105 @@ class Admin extends BaseController
 
     public function deactivateUser($id)
     {
+        $db = \Config\Database::connect();
+        $db->transStart();
+
+        $user = $this->usersModel->find($id);
+        if (!$user) {
+            if ($this->request->isAJAX() || $this->request->is('post')) {
+                return $this->response->setJSON(['success' => false, 'message' => 'User not found.']);
+            }
+            return redirect()->back()->with('error', 'User not found.');
+        }
+
+        $info = $this->userInfoModel->getByUserId($id) ?? [];
+        $now = date('Y-m-d H:i:s');
+        $adminId = (int)(session()->get('admin_id') ?? 0);
+
+        // 1) Update user status/active
         $this->usersModel->update($id, ['active' => 1, 'status' => 'inactive']);
-        return redirect()->back()->with('success', 'User deactivated successfully.');
+
+        // 2) Insert snapshot into inactive_users
+        $inactiveData = [
+            'user_id'        => $id,
+            'email'          => $user['email'] ?? '',
+            'first_name'     => $info['first_name'] ?? null,
+            'last_name'      => $info['last_name'] ?? null,
+            'phone'          => $info['phone'] ?? null,
+            'purok'          => isset($info['purok']) ? (int)$info['purok'] : null,
+            'barangay'       => $info['barangay'] ?? 'Borlongan',
+            'municipality'   => $info['municipality'] ?? 'Dipaculao',
+            'province'       => $info['province'] ?? 'Aurora',
+            'zipcode'        => $info['zipcode'] ?? '3203',
+            'inactivated_at' => $now,
+            'inactivated_by' => $adminId ?: null,
+            'reason'         => $this->request->getPost('reason') ?? null,
+            'created_at'     => $now,
+            'updated_at'     => $now,
+        ];
+
+        $db->table('inactive_users')->insert($inactiveData);
+        $inactiveId = $db->insertID();
+
+        // 3) Archive last two years of billings before inactivation
+        // Prefer billing_month as reference; fallback to created_at
+        $twoYearsAgo = date('Y-m-d', strtotime('-2 years', strtotime($now)));
+
+        // Fetch eligible billings
+        $billings = $db->table('billings')
+            ->select('*')
+            ->where('user_id', $id)
+            ->groupStart()
+                ->groupStart()
+                    ->where('billing_month <=', date('Y-m-d', strtotime($now)))
+                    ->where('billing_month >=', $twoYearsAgo)
+                ->groupEnd()
+                ->orGroupStart()
+                    ->where('billing_month', null)
+                    ->where('DATE(created_at) <=', date('Y-m-d', strtotime($now)))
+                    ->where('DATE(created_at) >=', $twoYearsAgo)
+                ->groupEnd()
+            ->groupEnd()
+            ->get()
+            ->getResultArray();
+
+        if (!empty($billings)) {
+            foreach ($billings as $b) {
+                $db->table('archived_billings')->insert([
+                    'inactive_ref_id'    => $inactiveId,
+                    'original_billing_id'=> $b['id'],
+                    'user_id'            => $b['user_id'],
+                    'bill_no'            => $b['bill_no'] ?? null,
+                    'amount_due'         => $b['amount_due'] ?? null,
+                    'billing_month'      => $b['billing_month'] ?? null,
+                    'due_date'           => $b['due_date'] ?? null,
+                    'status'             => $b['status'] ?? null,
+                    'paid_date'          => $b['paid_date'] ?? null,
+                    'created_at'         => $b['created_at'] ?? null,
+                    'updated_at'         => $b['updated_at'] ?? null,
+                    'archived_at'        => $now,
+                ]);
+            }
+
+            // Remove archived rows from active billings
+            $ids = array_column($billings, 'id');
+            if (!empty($ids)) {
+                $db->table('billings')->whereIn('id', $ids)->delete();
+            }
+        }
+
+        $db->transComplete();
+        if (!$db->transStatus()) {
+            if ($this->request->isAJAX() || $this->request->is('post')) {
+                return $this->response->setJSON(['success' => false, 'message' => 'Failed to deactivate and archive user records.']);
+            }
+            return redirect()->back()->with('error', 'Failed to deactivate and archive user records.');
+        }
+
+        if ($this->request->isAJAX() || $this->request->is('post')) {
+            return $this->response->setJSON(['success' => true, 'message' => 'User deactivated and last 2 years of billings archived.']);
+        }
+        return redirect()->back()->with('success', 'User deactivated and last 2 years of billings archived.');
     }
 
     public function suspendUser($id)
@@ -1742,5 +2291,180 @@ class Admin extends BaseController
         }
 
         return redirect()->back()->with('error', 'Failed to update profile.');
+    }
+
+    // ===================== PASSWORD CHANGE (OTP) =====================
+    public function requestPasswordOtp()
+    {
+        if (!$this->request->is('post')) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Invalid request method']);
+        }
+
+        $adminId = session()->get('admin_id');
+        if (!$adminId) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Not authenticated']);
+        }
+
+        // Basic cooldown: 60 seconds between OTP requests
+        $now = time();
+        $lastReq = (int) (session()->get('pwd_otp_last') ?? 0);
+        if ($now - $lastReq < 60) {
+            $wait = 60 - ($now - $lastReq);
+            return $this->response->setJSON(['success' => false, 'message' => 'Please wait ' . $wait . 's before requesting a new OTP']);
+        }
+
+        $currentPassword = $this->request->getPost('current_password');
+        if (empty($currentPassword)) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Current password is required']);
+        }
+
+        $admin = $this->adminModel->find($adminId);
+        if (!$admin) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Admin not found']);
+        }
+
+        if (!password_verify($currentPassword, $admin['password'])) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Current password is incorrect']);
+        }
+
+        // Generate 6-digit OTP
+        try {
+            $otp = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        } catch (\Exception $e) {
+            $otp = (string)mt_rand(100000, 999999);
+        }
+        $expiry = date('Y-m-d H:i:s', time() + 300); // 5 minutes
+
+        // Store plain OTP to be compatible with existing column sizes
+        $this->adminModel->update($adminId, [
+            'otp_code' => $otp,
+            'otp_expire' => $expiry,
+        ]);
+
+        // Send OTP using Brevo Transactional Email API
+        require ROOTPATH . 'vendor/autoload.php';
+        $mailerSent = false;
+        try {
+            $config = Configuration::getDefaultConfiguration()
+                ->setApiKey('api-key', getenv('BREVO_API_KEY'));
+            $apiInstance = new TransactionalEmailsApi(new GuzzleClient(), $config);
+
+            $fromEmail = getenv('SMTP_FROM') ?: (getenv('SMTP_USER') ?: 'no-reply@localhost');
+            $email = new SendSmtpEmail([
+                'subject' => 'Password Change - One Time Password (OTP)',
+                'sender' => ['name' => 'Password Security', 'email' => $fromEmail],
+                'to' => [[ 'email' => $admin['email'] ]],
+                'htmlContent' =>
+                    '<h3>Password Change Request</h3>' .
+                    '<p>Hello ' . esc($admin['first_name'] ?? 'Admin') . ',</p>' .
+                    '<p>Your One Time Password (OTP) is:</p>' .
+                    '<h2><b>' . $otp . '</b></h2>' .
+                    '<p>This code will expire in 5 minutes. Do not share this code with anyone.</p>' .
+                    '<br><small>This is an automated message. Please do not reply.</small>'
+            ]);
+
+            $apiInstance->sendTransacEmail($email);
+            $mailerSent = true;
+        } catch (\Throwable $e) {
+            log_message('error', 'Brevo OTP email failed: ' . $e->getMessage());
+        }
+
+        // Reset counters on new OTP
+        session()->set('pwd_otp_last', $now);
+        session()->remove('pwd_otp_fail_count');
+        session()->remove('pwd_otp_locked_until');
+
+        $response = [
+            'success' => true,
+            'message' => $mailerSent ? 'OTP sent to your email. It will expire in 5 minutes.' : 'OTP generated. Email delivery failed; contact admin.',
+            'emailSent' => $mailerSent,
+        ];
+
+        return $this->response->setJSON($response);
+    }
+
+    public function changePassword()
+    {
+        if (!$this->request->is('post')) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Invalid request method']);
+        }
+
+        $adminId = session()->get('admin_id');
+        if (!$adminId) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Not authenticated']);
+        }
+
+        $otpCode = $this->request->getPost('otp_code');
+        $newPassword = $this->request->getPost('new_password');
+        $confirmPassword = $this->request->getPost('confirm_password');
+
+        if (empty($otpCode) || empty($newPassword) || empty($confirmPassword)) {
+            return $this->response->setJSON(['success' => false, 'message' => 'All fields are required']);
+        }
+        if ($newPassword !== $confirmPassword) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Passwords do not match']);
+        }
+        // Updated password policy: min 6 chars, at least one capital letter, one number, one special character
+        if (strlen($newPassword) < 6) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Password must be at least 6 characters']);
+        }
+        if (!preg_match('/[A-Z]/', $newPassword)) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Password must contain at least one uppercase letter']);
+        }
+        if (!preg_match('/\d/', $newPassword)) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Password must contain at least one number']);
+        }
+        if (!preg_match('/[!@#$%^&*()_\-+=\[\]{};:"' . "'" . '<>,.?\/|`~]/', $newPassword)) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Password must contain at least one special character']);
+        }
+
+        // Check temporary lockout after too many failed attempts
+        $lockedUntil = (int) (session()->get('pwd_otp_locked_until') ?? 0);
+        if ($lockedUntil > time()) {
+            $wait = $lockedUntil - time();
+            return $this->response->setJSON(['success' => false, 'message' => 'Too many attempts. Try again in ' . $wait . 's']);
+        }
+
+        $admin = $this->adminModel->find($adminId);
+        if (!$admin || empty($admin['otp_code']) || empty($admin['otp_expire'])) {
+            return $this->response->setJSON(['success' => false, 'message' => 'No OTP request found']);
+        }
+        if (strtotime($admin['otp_expire']) < time()) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Invalid or expired OTP']);
+        }
+        $storedOtp = (string)($admin['otp_code'] ?? '');
+        $isValid = false;
+        // Support both hashed and plain storage
+        if (strlen($storedOtp) > 20) {
+            // Looks like a hash
+            $isValid = password_verify($otpCode, $storedOtp);
+        } else {
+            // Plain numeric OTP
+            $isValid = hash_equals($storedOtp, $otpCode);
+        }
+        if (!$isValid) {
+            $fails = (int) (session()->get('pwd_otp_fail_count') ?? 0);
+            $fails++;
+            session()->set('pwd_otp_fail_count', $fails);
+            if ($fails >= 5) {
+                // Lock for 5 minutes and clear current OTP
+                session()->set('pwd_otp_locked_until', time() + 300);
+                $this->adminModel->update($adminId, ['otp_code' => null, 'otp_expire' => null]);
+                return $this->response->setJSON(['success' => false, 'message' => 'Too many attempts. Please request a new OTP in 5 minutes']);
+            }
+            return $this->response->setJSON(['success' => false, 'message' => 'Invalid or expired OTP']);
+        }
+
+        $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
+        $this->adminModel->update($adminId, [
+            'password' => $hashedPassword,
+            'otp_code' => null,
+            'otp_expire' => null,
+        ]);
+
+        session()->remove('pwd_otp_fail_count');
+        session()->remove('pwd_otp_locked_until');
+
+        return $this->response->setJSON(['success' => true, 'message' => 'Password changed successfully']);
     }
 }

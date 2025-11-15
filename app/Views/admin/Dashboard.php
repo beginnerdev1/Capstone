@@ -891,6 +891,38 @@ function loadAjaxPage(url) {
                 $("#mainContent").empty().append($fallback);
             }
 
+            // Persist last AJAX page centrally
+            try { localStorage.setItem("lastAjaxPage", url); } catch(_) {}
+
+            // If reports view is loaded, sync filter controls from URL or defaults
+            try {
+                const $mc = $("#mainContent");
+                if ($mc.find('.filters-section').length) {
+                    const parsed = new URL(url, window.location.origin);
+                    const qs = parsed.searchParams;
+                    const start = qs.get('start');
+                    const end = qs.get('end');
+                    const type = qs.get('type');
+
+                    const startEl = $mc.find('#startDate')[0];
+                    const endEl = $mc.find('#endDate')[0];
+                    const typeEl = $mc.find('.filter-select')[0];
+
+                    const today = new Date();
+                    const yyyy = today.getFullYear();
+                    const mm = String(today.getMonth() + 1).padStart(2, '0');
+                    const dd = String(today.getDate()).padStart(2, '0');
+                    const defaultStart = `${yyyy}-01-01`;
+                    const defaultEnd = `${yyyy}-${mm}-${dd}`;
+
+                    if (startEl) startEl.value = start || defaultStart;
+                    if (endEl) endEl.value = end || defaultEnd;
+                    if (typeEl) typeEl.value = type || '';
+                }
+            } catch(err) {
+                console.warn('[Reports] Failed to sync filters:', err);
+            }
+
             if (typeof initTransactionPage === 'function' && $("#mainContent").find('#paymentTableBody').length) {
                 initTransactionPage();
             }
@@ -1213,6 +1245,152 @@ $(document).ready(function() {
 
     loadAjaxPage(urlToLoad);
 });
+</script>
+<!-- Global Export Confirmation Modal (available for AJAX-injected pages) -->
+<div id="globalExportConfirmModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:9999; align-items:center; justify-content:center;">
+    <div style="background:#fff; width:95%; max-width:560px; border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,.25); overflow:hidden; font-family:Poppins, sans-serif;">
+        <div style="padding:16px 20px; background:linear-gradient(135deg,#3b82f6,#0ea5e9); color:#fff; font-weight:700;">Confirm Export</div>
+        <div style="padding:16px 20px; color:#1f2937;">
+            <div style="margin-bottom:12px;">Choose your export options.</div>
+            <div style="display:flex; gap:10px; align-items:center; margin-top:8px;">
+                <label for="globalExportFileName" style="font-weight:600; min-width:110px;">File name</label>
+                <input id="globalExportFileName" type="text" style="flex:1; padding:10px 12px; border:2px solid #e5e7eb; border-radius:10px;" placeholder="reports_<?= date('Y-m-d') ?>">
+            </div>
+            <div style="display:flex; gap:10px; align-items:center; margin-top:12px;">
+                <label for="globalExportFormat" style="font-weight:600; min-width:110px;">Format</label>
+                <select id="globalExportFormat" style="flex:1; padding:10px 12px; border:2px solid #e5e7eb; border-radius:10px;">
+                    <option value="csv">CSV</option>
+                    <option value="excel">Excel (.xlsx)</option>
+                    <option value="pdf">PDF</option>
+                    <option value="print">Print</option>
+                </select>
+            </div>
+        </div>
+        <div style="padding:12px 20px; background:#f9fafb; display:flex; gap:10px; justify-content:flex-end;">
+            <button id="globalExportCancelBtn" style="padding:.7rem 1.2rem; border:2px solid #e5e7eb; background:#fff; border-radius:10px; font-weight:700;">Cancel</button>
+            <button id="globalExportConfirmBtn" style="padding:.7rem 1.2rem; background:#10b981; color:#fff; border:none; border-radius:10px; font-weight:700;">Export</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// Global delegated handlers so AJAX-injected content works
+(function(){
+    const EXPORT_URL = "<?= site_url('admin/exportReports') ?>";
+    const modal = document.getElementById('globalExportConfirmModal');
+    const nameInput = document.getElementById('globalExportFileName');
+    const fmtSelect = document.getElementById('globalExportFormat');
+    const cancelBtn = document.getElementById('globalExportCancelBtn');
+    const confirmBtn = document.getElementById('globalExportConfirmBtn');
+    let pendingFormat = 'csv';
+    let pendingUrl = EXPORT_URL;
+
+    function openModal(fmt, url){
+        pendingFormat = (fmt||'csv').toLowerCase();
+        pendingUrl = url || EXPORT_URL;
+        try { if (fmtSelect) fmtSelect.value = pendingFormat; } catch(_) {}
+        if (!nameInput.value) {
+            nameInput.value = `reports_${new Date().toISOString().slice(0,10)}`;
+        }
+        modal.style.display = 'flex';
+    }
+    function closeModal(){ modal.style.display='none'; }
+
+    // Intercept export clicks inside #mainContent
+    document.addEventListener('click', function(ev){
+        const target = ev.target && ev.target.closest ? ev.target.closest('#mainContent .export-btn, #mainContent .btn-export') : null;
+        if (!target) return;
+        ev.preventDefault();
+        // Prefer data-format; if absent, derive from href query param
+        let fmt = target.getAttribute('data-format');
+        if (!fmt) {
+            const href = target.getAttribute('href') || '';
+            try {
+                const u = new URL(href, window.location.origin);
+                fmt = u.searchParams.get('format');
+            } catch(_) { fmt = null; }
+        }
+        fmt = (fmt || 'csv').toLowerCase();
+        const url = target.getAttribute('data-export-url') || EXPORT_URL;
+        openModal(fmt, url);
+    }, true);
+
+    // Refresh button (AJAX) inside reports
+    document.addEventListener('click', function(ev){
+        const a = ev.target && ev.target.closest ? ev.target.closest('#mainContent .reports-refresh') : null;
+        if (!a) return;
+        ev.preventDefault();
+        const href = a.getAttribute('href') || "<?= site_url('admin/reports') ?>";
+        try {
+            try { localStorage.setItem('lastAjaxPage', href); } catch(_) {}
+            loadAjaxPage(href);
+        } catch(e) { window.location.href = href; }
+    });
+
+    // Apply filters and Reset (diagnostic wiring)
+    document.addEventListener('click', function(ev){
+        const apply = ev.target && ev.target.closest ? ev.target.closest('#mainContent .btn-apply') : null;
+        if (apply) {
+            ev.preventDefault();
+            const root = document.querySelector('#mainContent');
+            const startEl = root ? root.querySelector('#startDate') : null;
+            const endEl = root ? root.querySelector('#endDate') : null;
+            const typeEl = root ? root.querySelector('.filter-select') : null;
+
+            const start = startEl && startEl.value ? startEl.value : '';
+            const end = endEl && endEl.value ? endEl.value : '';
+            const type = typeEl && typeEl.value ? typeEl.value : '';
+
+            // Determine base reports URL from Refresh button or fallback
+            const refreshA = root ? root.querySelector('.reports-refresh') : null;
+            const baseUrl = (refreshA && refreshA.getAttribute('href')) || "<?= site_url('admin/reports') ?>";
+
+            const params = new URLSearchParams();
+            if (start) params.set('start', start);
+            if (end) params.set('end', end);
+            if (type) params.set('type', type);
+            const url = params.toString() ? `${baseUrl}?${params.toString()}` : baseUrl;
+            try { localStorage.setItem('lastAjaxPage', url); } catch(_) {}
+            try { loadAjaxPage(url); } catch(e) { window.location.href = url; }
+            return;
+        }
+        const reset = ev.target && ev.target.closest ? ev.target.closest('#mainContent .btn-reset') : null;
+        if (reset) {
+            ev.preventDefault();
+            const root = document.querySelector('#mainContent');
+            const refreshA = root ? root.querySelector('.reports-refresh') : null;
+            const baseUrl = (refreshA && refreshA.getAttribute('href')) || "<?= site_url('admin/reports') ?>";
+            try { localStorage.setItem('lastAjaxPage', baseUrl); } catch(_) {}
+            try { loadAjaxPage(baseUrl); } catch(e) { window.location.href = baseUrl; }
+            return;
+        }
+    });
+
+    cancelBtn.addEventListener('click', closeModal);
+    confirmBtn.addEventListener('click', function(){
+        const baseName = (nameInput.value || `reports_${new Date().toISOString().slice(0,10)}`).trim();
+        if (!baseName) { alert('Please enter a file name.'); return; }
+        // Use selected format if available
+        let chosenFmt = pendingFormat;
+        if (fmtSelect && fmtSelect.value) { chosenFmt = fmtSelect.value.toLowerCase(); }
+
+        // Include current filters in export URL so scope matches the view
+        const mc = document.getElementById('mainContent');
+        const startEl = mc ? mc.querySelector('#startDate') : null;
+        const endEl = mc ? mc.querySelector('#endDate') : null;
+        const typeEl = mc ? mc.querySelector('.filter-select') : null;
+        const params = new URLSearchParams();
+        params.set('format', chosenFmt);
+        params.set('filename', baseName);
+        if (startEl && startEl.value) params.set('start', startEl.value);
+        if (endEl && endEl.value) params.set('end', endEl.value);
+        if (typeEl && typeEl.value) params.set('type', typeEl.value);
+
+        const href = `${pendingUrl}?${params.toString()}`;
+        closeModal();
+        window.open(href, '_blank');
+    });
+})();
 </script>
 
 </body>

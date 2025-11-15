@@ -585,7 +585,8 @@
         </div>
     </div>
 <script>
-const baseUrl = "<?= base_url() ?>";
+// Avoid redeclaring globals on AJAX reloads
+window.APP_BASE_URL = window.APP_BASE_URL || "<?= base_url() ?>";
 const billingTableBody = document.getElementById('ubill-billingTable');
 
 // === Global Variables ===

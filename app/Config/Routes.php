@@ -92,6 +92,10 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
         $routes->get('api/dashboard-stats', 'Admin::getDashboardStats'); // Optimized JSON API endpoint
         $routes->get('logout', 'AdminAuth::logout');
         $routes->get('registeredUsers', 'Admin::registeredUsers');
+        $routes->get('inactiveUsers', 'Admin::inactiveUsers');
+        $routes->get('getInactiveUsers', 'Admin::getInactiveUsers');
+        $routes->get('archivedBills/(:num)', 'Admin::getArchivedBills/$1');
+        $routes->post('reactivateUser/(:num)', 'Admin::reactivateUser/$1');
         $routes->get('getUserDetails/(:num)', 'Admin::getUserDetails/$1'); // Fetch user details for admin view
         $routes->get('announcements', 'Admin::announcements');
         $routes->get('manageAccounts', 'Admin::manageAccounts');
@@ -111,7 +115,7 @@ $routes->get('monthlyPayments', 'Admin::monthlyPayments'); // Monthly Payments P
 $routes->get('getPaymentsData', 'Admin::getPaymentsData');// Get Payments Data for Monthly Payments Page
 $routes->post('confirmGCashPayment', 'Admin::confirmGCashPayment');// Confirm GCash Payment
 $routes->get('exportPayments', 'Admin::exportPayments');// Export Payments Data
-$routes->get('getUsersByPurokForManualBilling/(:any)', 'Admin::getUsersByPurokForManualBilling/$1'); // Get Users by Purok for Manual Billing (excludes existing billings)
+$routes->get('exportReports', 'Admin::exportReports');// Export Reports (CSV/Excel)
 $routes->get('getUsersByPurok/(:any)', 'Admin::getUsersByPurok/$1'); // Get Users by Purok for Counter Payment
 $routes->get('getPendingBillings/(:num)', 'Admin::getPendingBillings/$1');// Get Pending Billings for Counter Payment
 $routes->post('addCounterPayment', 'Admin::addCounterPayment'); // Add Counter Payment
@@ -125,10 +129,12 @@ $routes->post('createManualBilling', 'Admin::createManualBilling'); // Create Ma
 
 
 
+
         $routes->post('approve/(:num)', 'Admin::approve/$1');
         $routes->post('reject/(:num)', 'Admin::reject/$1');
         $routes->get('activateUser/(:num)', 'Admin::activateUser/$1');
         $routes->get('deactivateUser/(:num)', 'Admin::deactivateUser/$1');
+        $routes->post('deactivateUser/(:num)', 'Admin::deactivateUser/$1');
         $routes->get('suspendUser/(:num)', 'Admin::suspendUser/$1');
         // Removed duplicate/stale routes to ensure correct controller + data
         // $routes->get('reports', 'Reports::index');
@@ -139,6 +145,9 @@ $routes->post('createManualBilling', 'Admin::createManualBilling'); // Create Ma
         $routes->get('500', 'Admin::page500');
         $routes->get('profile', 'Admin::profile');
         $routes->post('updateProfile', 'Admin::updateProfile');
+        // Secure password change with OTP
+        $routes->post('requestPasswordOtp', 'Admin::requestPasswordOtp');
+        $routes->post('changePassword', 'Admin::changePassword');
 
        /*  // View single user details
         $routes->get('viewUser/(:num)', 'Admin::viewUser/$1');

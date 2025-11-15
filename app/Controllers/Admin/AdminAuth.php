@@ -4,8 +4,10 @@ namespace App\Controllers\Admin;
 
 use App\Controllers\BaseController;
 use App\Models\AdminModel;
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\Exception;
+use Brevo\Client\Configuration;
+use Brevo\Client\Api\TransactionalEmailsApi;
+use Brevo\Client\Model\SendSmtpEmail;
+use GuzzleHttp\Client as GuzzleClient;
 
 class AdminAuth extends BaseController
 {
@@ -36,6 +38,14 @@ class AdminAuth extends BaseController
 
         // Not verified → send OTP
         if ($admin['is_verified'] == 0) {
+            // Cooldown: allow OTP send once every 60s
+            $now = time();
+            $lastReq = (int) (session()->get('admin_login_otp_last') ?? 0);
+            if ($now - $lastReq < 60) {
+                $wait = 60 - ($now - $lastReq);
+                return redirect()->back()->with('error', 'Please wait ' . $wait . ' seconds before requesting OTP again.');
+            }
+
             $otp = rand(100000, 999999);
             $this->adminModel->update($admin['id'], [
                 'otp_code'   => $otp,
@@ -47,26 +57,26 @@ class AdminAuth extends BaseController
                 'otp_email'    => $email
             ]);
 
+            // Send via Brevo Transactional Email API
             require ROOTPATH . 'vendor/autoload.php';
-            $mail = new PHPMailer(true);
-
             try {
-                $mail->isSMTP();
-                $mail->Host       = getenv('SMTP_HOST');
-                $mail->SMTPAuth   = true;
-                $mail->Username   = getenv('SMTP_USER');
-                $mail->Password   = getenv('SMTP_PASS');
-                $mail->SMTPSecure = 'tls';
-                $mail->Port       = getenv('SMTP_PORT');
-                $mail->setFrom(getenv('SMTP_FROM'), 'Admin Verification');
-                $mail->addAddress($email);
-                $mail->isHTML(true);
-                $mail->Subject = "Your Admin OTP Code";
-                $mail->Body    = "<p>Your OTP is <b>$otp</b>. It will expire in 5 minutes.</p>";
-                $mail->send();
-            } catch (Exception $e) {
-                log_message('error', "Mailer Error: {$mail->ErrorInfo}");
+                $config = Configuration::getDefaultConfiguration()->setApiKey('api-key', getenv('BREVO_API_KEY'));
+                $api = new TransactionalEmailsApi(new GuzzleClient(), $config);
+                $fromEmail = getenv('SMTP_FROM') ?: (getenv('SMTP_USER') ?: 'no-reply@localhost');
+                $payload = new SendSmtpEmail([
+                    'subject' => 'Your Admin OTP Code',
+                    'sender' => ['name' => 'Admin Verification', 'email' => $fromEmail],
+                    'to' => [[ 'email' => $email ]],
+                    'htmlContent' => '<p>Your OTP is <b>' . $otp . '</b>. It will expire in 5 minutes.</p>'
+                ]);
+                $api->sendTransacEmail($payload);
+            } catch (\Throwable $e) {
+                log_message('error', 'Brevo AdminAuth OTP send failed: ' . $e->getMessage());
             }
+
+            session()->set('admin_login_otp_last', $now);
+            session()->remove('admin_login_otp_fail_count');
+            session()->remove('admin_login_otp_locked_until');
 
             return redirect()->to('admin/verify-otp')->with('success', 'OTP sent to your email.');
         }
@@ -111,6 +121,12 @@ class AdminAuth extends BaseController
             return redirect()->to('admin/login')->with('error', 'Account not found. Please try again.');
         }
 
+        $lockedUntil = (int) (session()->get('admin_login_otp_locked_until') ?? 0);
+        if ($lockedUntil > time()) {
+            $wait = $lockedUntil - time();
+            return redirect()->to('admin/verify-otp')->with('error', 'Too many attempts. Try again in ' . $wait . ' seconds.');
+        }
+
         if ($admin['otp_code'] == $otp && strtotime($admin['otp_expire']) > time()) {
             $this->adminModel->update($adminId, [
                 'is_verified' => 1,
@@ -133,6 +149,13 @@ class AdminAuth extends BaseController
                 ->with('success', 'Email verified! Welcome to the dashboard.');
         }
 
+        // Count failures and lock after 5 attempts
+        $fails = (int) (session()->get('admin_login_otp_fail_count') ?? 0);
+        $fails++;
+        session()->set('admin_login_otp_fail_count', $fails);
+        if ($fails >= 5) {
+            session()->set('admin_login_otp_locked_until', time() + 300);
+        }
         return redirect()->to('admin/verify-otp')->with('error', 'Invalid or expired OTP.');
     }
 
@@ -145,6 +168,19 @@ class AdminAuth extends BaseController
             return redirect()->to('admin/login')->with('error', "Session expired. Please login again.");
         }
 
+        // Enforce cooldown and lockout
+        $now = time();
+        $lockedUntil = (int) (session()->get('admin_login_otp_locked_until') ?? 0);
+        if ($lockedUntil > $now) {
+            $wait = $lockedUntil - $now;
+            return redirect()->to('admin/verify-otp')->with('error', 'Too many attempts. Try again in ' . $wait . ' seconds.');
+        }
+        $lastReq = (int) (session()->get('admin_login_otp_last') ?? 0);
+        if ($now - $lastReq < 60) {
+            $wait = 60 - ($now - $lastReq);
+            return redirect()->to('admin/verify-otp')->with('error', 'Please wait ' . $wait . ' seconds before requesting OTP again.');
+        }
+
         $otp = rand(100000, 999999);
         $this->adminModel->update($adminId, [
             'otp_code'   => $otp,
@@ -152,25 +188,23 @@ class AdminAuth extends BaseController
         ]);
 
         require ROOTPATH . 'vendor/autoload.php';
-        $mail = new PHPMailer(true);
-
         try {
-            $mail->isSMTP();
-            $mail->Host       = getenv('SMTP_HOST');
-            $mail->SMTPAuth   = true;
-            $mail->Username   = getenv('SMTP_USER');
-            $mail->Password   = getenv('SMTP_PASS');
-            $mail->SMTPSecure = 'tls';
-            $mail->Port       = getenv('SMTP_PORT');
-            $mail->setFrom(getenv('SMTP_FROM'), 'Admin Verification');
-            $mail->addAddress($email);
-            $mail->isHTML(true);
-            $mail->Subject = "Your Admin OTP Code";
-            $mail->Body    = "<p>Your OTP is <b>$otp</b>. It will expire in 5 minutes.</p>";
-            $mail->send();
-        } catch (Exception $e) {
-            log_message('error', "Mailer Error: {$mail->ErrorInfo}");
+            $config = Configuration::getDefaultConfiguration()->setApiKey('api-key', getenv('BREVO_API_KEY'));
+            $api = new TransactionalEmailsApi(new GuzzleClient(), $config);
+            $fromEmail = getenv('SMTP_FROM') ?: (getenv('SMTP_USER') ?: 'no-reply@localhost');
+            $payload = new SendSmtpEmail([
+                'subject' => 'Your Admin OTP Code',
+                'sender' => ['name' => 'Admin Verification', 'email' => $fromEmail],
+                'to' => [[ 'email' => $email ]],
+                'htmlContent' => '<p>Your OTP is <b>' . $otp . '</b>. It will expire in 5 minutes.</p>'
+            ]);
+            $api->sendTransacEmail($payload);
+        } catch (\Throwable $e) {
+            log_message('error', 'Brevo AdminAuth resend OTP failed: ' . $e->getMessage());
         }
+
+        session()->set('admin_login_otp_last', $now);
+        session()->remove('admin_login_otp_fail_count');
 
         return redirect()->to('admin/verify-otp')->with('success', 'OTP successfully resent to your email.');
     }

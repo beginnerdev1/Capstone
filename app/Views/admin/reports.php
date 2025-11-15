@@ -497,14 +497,14 @@ body {
         <span>Fixed-Rate Water Bill Reports</span>
       </div>
       <div class="header-actions">
-        <button class="btn btn-primary">
+        <a class="btn btn-primary reports-refresh" href="<?= site_url('admin/reports') ?>">
           <span>🔄</span>
           <span>Refresh</span>
-        </button>
-        <button class="btn btn-success">
+        </a>
+        <a class="btn btn-success export-btn" data-format="csv" data-export-url="<?= site_url('admin/exportReports') ?>" href="<?= site_url('admin/exportReports') ?>?format=csv&filename=reports_<?= date('Y-m-d') ?>" target="_blank" rel="noopener">
           <span>📥</span>
           <span>Export All</span>
-        </button>
+        </a>
       </div>
     </div>
   </div>
@@ -568,7 +568,7 @@ body {
       </div>
       <div class="report-footer">
         <button class="btn-small btn-view">📄 View</button>
-        <button class="btn-small btn-export">📥 Export</button>
+        <a class="btn-small btn-export" href="<?= site_url('admin/exportReports') ?>?format=csv&filename=reports_<?= date('Y-m-d') ?>" target="_blank" rel="noopener">📥 Export</a>
       </div>
     </div>
 
@@ -601,7 +601,7 @@ body {
       </div>
       <div class="report-footer">
         <button class="btn-small btn-view">📄 View</button>
-        <button class="btn-small btn-export">📥 Export</button>
+        <a class="btn-small btn-export" href="<?= site_url('admin/exportReports') ?>?format=csv&filename=reports_<?= date('Y-m-d') ?>" target="_blank" rel="noopener">📥 Export</a>
       </div>
     </div>
 
@@ -637,7 +637,7 @@ body {
       </div>
       <div class="report-footer">
         <button class="btn-small btn-view">📄 View</button>
-        <button class="btn-small btn-export">📥 Export</button>
+        <a class="btn-small btn-export" href="<?= site_url('admin/exportReports') ?>?format=csv&filename=reports_<?= date('Y-m-d') ?>" target="_blank" rel="noopener">📥 Export</a>
       </div>
     </div>
 
@@ -699,54 +699,68 @@ body {
     </div>
     <canvas id="paymentStatusChart" class="chart-canvas"></canvas>
   </div>
+</div>
 
-  <!-- Export Options -->
-  <div class="export-options">
-    <div class="export-title">📥 Export All Data</div>
-    <div class="export-grid">
-      <button class="export-btn">
-        <span class="export-icon">📄</span>
-        <span>PDF</span>
-      </button>
-      <button class="export-btn">
-        <span class="export-icon">📊</span>
-        <span>Excel</span>
-      </button>
-      <button class="export-btn">
-        <span class="export-icon">📋</span>
-        <span>CSV</span>
-      </button>
-      <button class="export-btn">
-        <span class="export-icon">🖨️</span>
-        <span>Print</span>
-      </button>
+<!-- Export Confirmation Modal (lightweight) -->
+<div id="exportConfirmModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:9999; align-items:center; justify-content:center;">
+  <div style="background:#fff; width:95%; max-width:520px; border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,.25); overflow:hidden; font-family:Poppins, sans-serif;">
+    <div style="padding:16px 20px; background:linear-gradient(135deg,#3b82f6,#0ea5e9); color:#fff; font-weight:700;">Confirm Export</div>
+    <div style="padding:16px 20px; color:#1f2937;">
+      <div style="margin-bottom:12px;">Do you want to export the report?</div>
+      <div style="display:flex; gap:10px; align-items:center; margin-top:8px;">
+        <label for="exportFileName" style="font-weight:600; min-width:110px;">File name</label>
+        <input id="exportFileName" type="text" style="flex:1; padding:10px 12px; border:2px solid #e5e7eb; border-radius:10px;" placeholder="reports_<?= date('Y-m-d') ?>">
+      </div>
+      <div style="display:flex; gap:10px; align-items:center; margin-top:12px;">
+        <label style="font-weight:600; min-width:110px;">Format</label>
+        <div id="exportFormatDisplay" style="padding:6px 10px; background:#f3f4f6; border-radius:8px; font-weight:600;">CSV</div>
+      </div>
+    </div>
+    <div style="padding:12px 20px; background:#f9fafb; display:flex; gap:10px; justify-content:flex-end;">
+      <button id="exportCancelBtn" style="padding:.7rem 1.2rem; border:2px solid #e5e7eb; background:#fff; border-radius:10px; font-weight:700;">Cancel</button>
+      <button id="exportConfirmBtn" style="padding:.7rem 1.2rem; background:#10b981; color:#fff; border:none; border-radius:10px; font-weight:700;">Export</button>
     </div>
   </div>
+  
 </div>
 
 
+<!-- Embed reports data as JSON so AJAX injection still has data available -->
+<script type="application/json" id="reports-data">
+<?= json_encode([
+  'collectionRates' => $collectionRates ?? array_fill(0, 12, 0),
+  'collectionAmounts' => $collectionAmounts ?? array_fill(0, 12, 0),
+  'paidHouseholds' => (int)($paidHouseholds ?? 0),
+  'pendingCount' => (int)($pendingCount ?? 0),
+  'latePayments' => (int)($latePayments ?? 0),
+  'normalCount' => (int)($normalCount ?? 0),
+  'seniorCount' => (int)($seniorCount ?? 0),
+  'aloneCount' => (int)($aloneCount ?? 0),
+  'rateNormal' => (float)($rateNormal ?? 60),
+  'rateSenior' => (float)($rateSenior ?? 48),
+  'rateAlone' => (float)($rateAlone ?? 30),
+  'year' => (int)date('Y')
+], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>
+</script>
+
 <script>
-// Provide reports data for AJAX initializers
-// Ensure we don't duplicate the JSON data block
-try { const old = document.getElementById('reports-data'); if (old) old.remove(); } catch(e) {}
-const reportsDataEl = document.createElement('script');
-reportsDataEl.type = 'application/json';
-reportsDataEl.id = 'reports-data';
-reportsDataEl.textContent = JSON.stringify({
-  collectionRates: <?= json_encode($collectionRates ?? array_fill(0, 12, 0)) ?>,
-  collectionAmounts: <?= json_encode($collectionAmounts ?? array_fill(0, 12, 0)) ?>,
-  paidHouseholds: <?= (int)($paidHouseholds ?? 0) ?>,
-  pendingCount: <?= (int)($pendingCount ?? 0) ?>,
-  latePayments: <?= (int)($latePayments ?? 0) ?>,
-  normalCount: <?= (int)($normalCount ?? 0) ?>,
-  seniorCount: <?= (int)($seniorCount ?? 0) ?>,
-  aloneCount: <?= (int)($aloneCount ?? 0) ?>,
-  rateNormal: <?= (float)($rateNormal ?? 60) ?>,
-  rateSenior: <?= (float)($rateSenior ?? 48) ?>,
-  rateAlone: <?= (float)($rateAlone ?? 30) ?>,
-  year: <?= (int)date('Y') ?>
-});
-document.body.appendChild(reportsDataEl);
+
+// --- Debug instrumentation ---
+(function(){
+  try {
+    console.info('[Reports] Script loaded v1.3');
+    const originalAlert = window.alert;
+    window.alert = function(msg){
+      try {
+        console.warn('[Reports][DEBUG] window.alert called with:', msg);
+        console.debug('[Reports][DEBUG] alert stack:', new Error('stack').stack);
+      } catch(ex) {}
+      return originalAlert.call(window, msg);
+    };
+  } catch(err) {
+    console.error('[Reports] Debug init error:', err);
+  }
+})();
 
 function showNoData(canvasId, message) {
   const canvas = document.getElementById(canvasId);
@@ -1076,26 +1090,143 @@ if (miniPaymentCtx) {
 }
 
 // Export functionality
-document.querySelectorAll('.export-btn').forEach(btn => {
-  btn.addEventListener('click', function() {
-    const format = this.textContent.trim();
-    alert(`Exporting reports as ${format}...`);
+// ===== Export handling with confirmation and filename =====
+(function(){
+  const exportModal = document.getElementById('exportConfirmModal');
+  const fileInput = document.getElementById('exportFileName');
+  const formatDisplay = document.getElementById('exportFormatDisplay');
+  const cancelBtn = document.getElementById('exportCancelBtn');
+  const confirmBtn = document.getElementById('exportConfirmBtn');
+  let pendingFormat = 'csv';
+  let pendingUrl = null; // server endpoint to GET
+
+  function openExportModal(fmt){
+    console.log('[Reports] openExportModal called with format:', fmt, 'url:', pendingUrl);
+    pendingFormat = (fmt || 'csv').toLowerCase();
+    formatDisplay.textContent = pendingFormat.toUpperCase();
+    if(!fileInput.value){ fileInput.value = `reports_${new Date().toISOString().slice(0,10)}`; }
+    if (!exportModal) {
+      console.error('[Reports] exportModal element not found!');
+      return;
+    }
+    exportModal.style.display = 'flex';
+    console.log('[Reports] export modal opened');
+  }
+  function closeExportModal(){ exportModal.style.display='none'; }
+
+  // Intercept export clicks globally (capture) to block legacy handlers
+  document.addEventListener('click', function(ev){
+    const target = ev.target && ev.target.closest ? ev.target.closest('.export-btn, .btn-export') : null;
+    if (!target) return;
+    ev.preventDefault();
+    if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+    ev.stopPropagation();
+    const isGridBtn = target.classList.contains('export-btn');
+    const fmt = isGridBtn ? (target.getAttribute('data-format') || 'csv') : 'csv';
+    console.log('[Reports] Export click intercepted. Target:', target, 'format:', fmt);
+    pendingUrl = target.getAttribute('data-export-url') || '<?= site_url('admin/exportReports') ?>';
+    openExportModal(fmt);
+  }, true);
+
+  cancelBtn.addEventListener('click', closeExportModal);
+
+  function buildCsv(){
+    console.log('[Reports] buildCsv invoked');
+    try {
+      const dataEl = document.getElementById('reports-data');
+      const data = dataEl ? JSON.parse(dataEl.textContent || '{}') : {};
+      console.log('[Reports] CSV data snapshot:', data);
+      const lines = [];
+      // Section: Monthly Collection
+      lines.push('Section,Monthly Collection');
+      lines.push('Month,Collection Rate (%),Amount (PHP)');
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const rates = data.collectionRates || [];
+      const amts = data.collectionAmounts || [];
+      for(let i=0;i<12;i++){
+        lines.push(`${months[i]},${rates[i]??0},${amts[i]??0}`);
+      }
+      lines.push('');
+      // Section: Payment Status
+      lines.push('Section,Payment Status');
+      lines.push('Paid Households,Pending,Late');
+      lines.push(`${data.paidHouseholds||0},${data.pendingCount||0},${data.latePayments||0}`);
+      lines.push('');
+      // Section: Rate Distribution
+      lines.push('Section,Rate Distribution');
+      lines.push('Normal,Senior,Alone');
+      lines.push(`${data.normalCount||0},${data.seniorCount||0},${data.aloneCount||0}`);
+      lines.push('');
+      // Section: Rates
+      lines.push('Section,Rates (PHP)');
+      lines.push('Normal,Senior,Alone');
+      lines.push(`${data.rateNormal||60},${data.rateSenior||48},${data.rateAlone||30}`);
+      return lines.join('\r\n');
+    } catch(e){
+      alert('Failed to prepare CSV: ' + e.message);
+      return '';
+    }
+  }
+
+  function triggerDownload(content, filename, mime){
+    console.log('[Reports] triggerDownload:', { filename, mime });
+    const blob = new Blob([content], {type: mime||'text/plain;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 0);
+  }
+
+  confirmBtn.addEventListener('click', function(){
+    const baseName = (fileInput.value || `reports_${new Date().toISOString().slice(0,10)}`).trim();
+    if(!baseName){ alert('Please enter a file name.'); return; }
+    const fmt = pendingFormat;
+    console.log('[Reports] Confirm export clicked:', { baseName, fmt });
+
+    if (fmt === 'print' || fmt === 'pdf') {
+      // Let users choose PDF via browser print dialog
+      closeExportModal();
+      console.log('[Reports] Opening print dialog');
+      window.print();
+      return;
+    }
+
+    if (fmt === 'excel' || fmt === 'csv') {
+      // Prefer server-side endpoint; fallback to client CSV
+      if (pendingUrl) {
+        const href = `${pendingUrl}?format=${encodeURIComponent(fmt)}&filename=${encodeURIComponent(baseName)}`;
+        console.log('[Reports] Navigating to server export:', href);
+        closeExportModal();
+        window.location.href = href;
+      } else {
+        const csv = buildCsv();
+        if (!csv) { return; }
+        const name = baseName + '.csv';
+        triggerDownload(csv, name, 'text/csv;charset=utf-8;');
+        closeExportModal();
+      }
+      return;
+    }
+
+    // Fallback
+    closeExportModal();
+    alert('Unsupported export format.');
   });
-});
+})();
 
 // View report
 document.querySelectorAll('.btn-view').forEach(btn => {
   btn.addEventListener('click', function() {
+    console.log('[Reports] View clicked');
     alert('Viewing detailed report...');
   });
 });
 
 // Individual card exports
-document.querySelectorAll('.btn-export').forEach(btn => {
-  btn.addEventListener('click', function() {
-    alert('Exporting this report...');
-  });
-});
+// per-card export now handled above with confirmation modal
 </script>
 </body>
 </html>
