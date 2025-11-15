@@ -879,17 +879,330 @@ function loadAjaxPage(url) {
         url: url,
         type: "GET",
         success: function(data) {
-            $("#mainContent").html(data);
+            try {
+                const nodes = $.parseHTML(data, document, true);
+                const $mc = $("#mainContent");
+                $mc.empty().append(nodes);
+            } catch (e) {
+                // Fallback if parsing fails
+                const $fallback = $('<div/>', { class: 'alert alert-danger m-3', role: 'alert' })
+                    .append($('<i/>', { class: 'fas fa-exclamation-triangle me-2' }))
+                    .append(document.createTextNode('Failed to render content.'));
+                $("#mainContent").empty().append($fallback);
+            }
 
             if (typeof initTransactionPage === 'function' && $("#mainContent").find('#paymentTableBody').length) {
                 initTransactionPage();
             }
+
+            // Initialize dashboard charts if dashboard content is loaded
+            if ($("#mainContent").find('#incomeChart').length || $("#mainContent").find('#revenueChart').length) {
+                initializeDashboardCharts();
+            }
+
+            // Initialize reports charts if reports content is loaded
+            if ($("#mainContent").find('#collectionChart').length || $("#mainContent").find('#paymentStatusChart').length) {
+                initializeReportsCharts();
+            }
         },
         error: function(xhr, status, error) {
-            console.error("AJAX Error:", status, error);
-            $("#mainContent").html("<p class='text-danger p-3'>Failed to load content.</p>");
+            const $err = $('<div/>', { class: 'alert alert-danger m-3', role: 'alert' })
+                .append($('<i/>', { class: 'fas fa-exclamation-triangle me-2' }))
+                .append(document.createTextNode('Failed to load content. Please try again.'));
+            $("#mainContent").empty().append($err);
         }
     });
+}
+
+// Dashboard Charts Initialization Function
+function initializeDashboardCharts() {
+    // Check if data is available
+    if (typeof window.dashboardData === 'undefined') {
+        return;
+    }
+
+    const data = window.dashboardData;
+
+    // Earnings Overview Line Chart
+    const incomeCtx = document.getElementById('incomeChart');
+    if (incomeCtx) {
+        new Chart(incomeCtx, {
+            type: 'line',
+            data: {
+                labels: data.months || [],
+                datasets: [{
+                    label: 'Earnings',
+                    data: data.incomeData || [],
+                    backgroundColor: 'rgba(78, 115, 223, 0.05)',
+                    borderColor: 'rgba(78, 115, 223, 1)',
+                    borderWidth: 2,
+                    pointRadius: 3,
+                    pointBackgroundColor: 'rgba(78, 115, 223, 1)',
+                    pointBorderColor: 'rgba(78, 115, 223, 1)',
+                    pointHoverRadius: 5,
+                    pointHoverBackgroundColor: 'rgba(78, 115, 223, 1)',
+                    pointHoverBorderColor: 'rgba(78, 115, 223, 1)',
+                    pointHitRadius: 10,
+                    pointBorderWidth: 2,
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgb(255,255,255)',
+                        bodyColor: '#858796',
+                        titleMarginBottom: 10,
+                        titleColor: '#6e707e',
+                        titleFont: {
+                            size: 14
+                        },
+                        borderColor: '#dddfeb',
+                        borderWidth: 1,
+                        padding: 15,
+                        displayColors: false,
+                        intersect: false,
+                        mode: 'index',
+                        caretPadding: 10,
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed.y !== null) {
+                                    label += '₱' + context.parsed.y.toFixed(2);
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            display: false,
+                            drawBorder: false
+                        },
+                        ticks: {
+                            maxTicksLimit: 7
+                        }
+                    },
+                    y: {
+                        ticks: {
+                            maxTicksLimit: 5,
+                            padding: 10,
+                            callback: function(value) {
+                                return '₱' + value.toFixed(0);
+                            }
+                        },
+                        grid: {
+                            color: 'rgb(234, 236, 244)',
+                            drawBorder: false,
+                            borderDash: [2],
+                            zeroLineColor: 'rgb(234, 236, 244)',
+                            zeroLineBorderDash: [2]
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Revenue Sources Doughnut Chart
+    const revenueCtx = document.getElementById('revenueChart');
+    if (revenueCtx) {
+        const normalRev = data.normalRevenue || 0;
+        const seniorRev = data.seniorRevenue || 0;
+        const aloneRev = data.aloneRevenue || 0;
+        
+        new Chart(revenueCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Normal Rate (₱60)', 'Senior Citizen (₱48)', 'Living Alone (₱30)'],
+                datasets: [{
+                    data: [normalRev, seniorRev, aloneRev],
+                    backgroundColor: ['#4e73df', '#1cc88a', '#36b9cc'],
+                    hoverBackgroundColor: ['#2e59d9', '#17a673', '#2c9faf'],
+                    hoverBorderColor: "rgba(234, 236, 244, 1)"
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'bottom',
+                        labels: {
+                            font: {
+                                size: 11
+                            },
+                            padding: 10
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgb(255,255,255)',
+                        bodyColor: '#858796',
+                        titleColor: '#6e707e',
+                        borderColor: '#dddfeb',
+                        borderWidth: 1,
+                        padding: 15,
+                        displayColors: true,
+                        caretPadding: 10,
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.label || '';
+                                if (context.parsed !== null) {
+                                    label += ': ₱' + context.parsed.toFixed(2);
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                },
+                cutout: '70%'
+            }
+        });
+    }
+}
+
+// Reports Charts Initialization Function (for AJAX-loaded reports view)
+function initializeReportsCharts() {
+    if (typeof Chart === 'undefined') return;
+
+    function getReportsData() {
+        const el = document.getElementById('reports-data');
+        if (!el) return null;
+        try { return JSON.parse(el.textContent || '{}'); } catch (e) { return null; }
+    }
+
+    function showNoDataInline(canvasId, message) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+        const wrapper = canvas.parentElement || canvas;
+        const placeholder = document.createElement('div');
+        placeholder.textContent = message || 'No data to display';
+        placeholder.style.cssText = 'display:flex;align-items:center;justify-content:center;height:160px;color:#6b7280;background:#f9fafb;border:1px dashed #e5e7eb;border-radius:8px;font-family:Poppins, sans-serif;font-weight:600;';
+        canvas.style.display = 'none';
+        wrapper.appendChild(placeholder);
+    }
+
+    const data = getReportsData() || {};
+
+    // Monthly Collection Rate
+    (function initCollection() {
+        const canvas = document.getElementById('collectionChart');
+        if (!canvas) return;
+        const existing = Chart.getChart(canvas);
+        if (existing) existing.destroy();
+        const rates = Array.isArray(data.collectionRates) ? data.collectionRates : new Array(12).fill(0);
+        const amounts = Array.isArray(data.collectionAmounts) ? data.collectionAmounts : new Array(12).fill(0);
+        const sum = arr => (arr||[]).reduce((a,b)=>a+(Number(b)||0),0);
+        if (sum(rates) === 0 && sum(amounts) === 0) {
+            showNoDataInline('collectionChart', 'No monthly collections yet');
+            return;
+        }
+        new Chart(canvas.getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+                datasets: [{
+                    label: 'Collection Rate (%)',
+                    data: rates,
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59,130,246,0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointBackgroundColor: '#3b82f6',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    pointRadius: 3,
+                    yAxisID: 'y'
+                },{
+                    label: 'Amount Collected (₱)',
+                    data: amounts,
+                    borderColor: '#10b981',
+                    backgroundColor: 'rgba(16,185,129,0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointBackgroundColor: '#10b981',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    pointRadius: 3,
+                    yAxisID: 'y1'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                interaction: { mode: 'index', intersect: false },
+                scales: {
+                    y: { beginAtZero: true, position: 'left' },
+                    y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+    })();
+
+    // Payment Status (Doughnut)
+    (function initPaymentStatus() {
+        const canvas = document.getElementById('paymentStatusChart');
+        if (!canvas) return;
+        const existing = Chart.getChart(canvas);
+        if (existing) existing.destroy();
+        const paid = Number(data.paidHouseholds||0);
+        const pending = Number(data.pendingCount||0);
+        const late = Number(data.latePayments||0);
+        const total = paid+pending+late;
+        if (total === 0) { showNoDataInline('paymentStatusChart', 'No payment status data yet'); return; }
+        new Chart(canvas.getContext('2d'), {
+            type: 'doughnut',
+            data: { labels: ['Paid Households','Pending Payment','Late Payment'], datasets: [{ data: [paid,pending,late], backgroundColor: ['#10b981','#f59e0b','#ef4444'], borderWidth: 0 }] },
+            options: { responsive: true, maintainAspectRatio: true }
+        });
+    })();
+
+    // Rate Distribution (Pie)
+    (function initRateDistribution() {
+        const canvas = document.getElementById('rateDistributionChart');
+        if (!canvas) return;
+        const existing = Chart.getChart(canvas);
+        if (existing) existing.destroy();
+        const n = Number(data.normalCount||0), s = Number(data.seniorCount||0), a = Number(data.aloneCount||0);
+        if (n+s+a === 0) { showNoDataInline('rateDistributionChart', 'No household distribution data'); return; }
+        new Chart(canvas.getContext('2d'), {
+            type: 'pie',
+            data: { labels: [`Normal (₱${data.rateNormal||60})`,`Senior (₱${data.rateSenior||48})`,`Alone (₱${data.rateAlone||30})`], datasets: [{ data: [n,s,a], backgroundColor: ['#3b82f6','#10b981','#f59e0b'], borderWidth: 0 }] },
+            options: { responsive: true, maintainAspectRatio: true }
+        });
+    })();
+
+    // Mini Payment (Bar)
+    (function initMini() {
+        const canvas = document.getElementById('miniPaymentChart');
+        if (!canvas) return;
+        const existing = Chart.getChart(canvas);
+        if (existing) existing.destroy();
+        const paid = Number(data.paidHouseholds||0);
+        const pending = Number(data.pendingCount||0);
+        const late = Number(data.latePayments||0);
+        if (paid+pending+late === 0) { showNoDataInline('miniPaymentChart', 'No payment data yet'); return; }
+        new Chart(canvas.getContext('2d'), {
+            type: 'bar',
+            data: { labels: ['Paid','Pending','Late'], datasets: [{ label: 'Households', data: [paid,pending,late], backgroundColor: ['#10b981','#f59e0b','#ef4444'], borderWidth: 0, borderRadius: 6 }] },
+            options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true }, x: { grid: { display: false } } } }
+        });
+    })();
 }
 
 $(document).ready(function() {

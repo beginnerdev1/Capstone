@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Fixed-Rate Water Bill Reports</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;900&display=swap" rel="stylesheet">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
 :root {
   --primary: #3b82f6;
@@ -686,7 +686,7 @@ body {
   <div class="chart-container">
     <div class="chart-title">
       <span>💰</span>
-      <span>Monthly Collection Rate (2024)</span>
+      <span>Monthly Collection Rate (<?= date('Y') ?>)</span>
     </div>
     <canvas id="collectionChart" class="chart-canvas"></canvas>
   </div>
@@ -695,7 +695,7 @@ body {
   <div class="chart-container">
     <div class="chart-title">
       <span>📊</span>
-      <span>Payment Status Overview</span>
+      <span>Payment Status Overview<?= isset($statusScope) && $statusScope === 'YTD' ? ' (YTD)' : '' ?></span>
     </div>
     <canvas id="paymentStatusChart" class="chart-canvas"></canvas>
   </div>
@@ -726,6 +726,40 @@ body {
 
 
 <script>
+// Provide reports data for AJAX initializers
+// Ensure we don't duplicate the JSON data block
+try { const old = document.getElementById('reports-data'); if (old) old.remove(); } catch(e) {}
+const reportsDataEl = document.createElement('script');
+reportsDataEl.type = 'application/json';
+reportsDataEl.id = 'reports-data';
+reportsDataEl.textContent = JSON.stringify({
+  collectionRates: <?= json_encode($collectionRates ?? array_fill(0, 12, 0)) ?>,
+  collectionAmounts: <?= json_encode($collectionAmounts ?? array_fill(0, 12, 0)) ?>,
+  paidHouseholds: <?= (int)($paidHouseholds ?? 0) ?>,
+  pendingCount: <?= (int)($pendingCount ?? 0) ?>,
+  latePayments: <?= (int)($latePayments ?? 0) ?>,
+  normalCount: <?= (int)($normalCount ?? 0) ?>,
+  seniorCount: <?= (int)($seniorCount ?? 0) ?>,
+  aloneCount: <?= (int)($aloneCount ?? 0) ?>,
+  rateNormal: <?= (float)($rateNormal ?? 60) ?>,
+  rateSenior: <?= (float)($rateSenior ?? 48) ?>,
+  rateAlone: <?= (float)($rateAlone ?? 30) ?>,
+  year: <?= (int)date('Y') ?>
+});
+document.body.appendChild(reportsDataEl);
+
+function showNoData(canvasId, message) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return true;
+  const totalWrapper = canvas.parentElement || canvas;
+  const placeholder = document.createElement('div');
+  placeholder.textContent = message || 'No data to display';
+  placeholder.style.cssText = 'display:flex;align-items:center;justify-content:center;height:160px;color:#6b7280;background:#f9fafb;border:1px dashed #e5e7eb;border-radius:8px;font-family:Poppins, sans-serif;font-weight:600;';
+  canvas.style.display = 'none';
+  totalWrapper.appendChild(placeholder);
+  return true;
+}
+
 // Set default dates (current year)
 const today = new Date();
 const startOfYear = new Date(today.getFullYear(), 0, 1);
@@ -734,14 +768,21 @@ document.getElementById('startDate').valueAsDate = startOfYear;
 document.getElementById('endDate').valueAsDate = today;
 
 // Monthly Collection Rate Chart
-const collectionCtx = document.getElementById('collectionChart').getContext('2d');
+const collectionCanvas = document.getElementById('collectionChart');
+const _cr = <?= json_encode($collectionRates ?? array_fill(0, 12, 0)) ?>;
+const _ca = <?= json_encode($collectionAmounts ?? array_fill(0, 12, 0)) ?>;
+const sumArray = arr => (arr || []).reduce((a,b)=>a+(Number(b)||0),0);
+if (collectionCanvas && sumArray(_cr) === 0 && sumArray(_ca) === 0) {
+  showNoData('collectionChart', 'No monthly collections yet');
+} else if (collectionCanvas) {
+const collectionCtx = collectionCanvas.getContext('2d');
 const collectionChart = new Chart(collectionCtx, {
   type: 'line',
   data: {
     labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
     datasets: [{
       label: 'Collection Rate (%)',
-      data: <?= $collectionRates ?? '[0,0,0,0,0,0,0,0,0,0,0,0]' ?>,
+      data: _cr,
       borderColor: '#3b82f6',
       backgroundColor: 'rgba(59, 130, 246, 0.1)',
       borderWidth: 3,
@@ -754,7 +795,7 @@ const collectionChart = new Chart(collectionCtx, {
       pointHoverRadius: 7
     }, {
       label: 'Amount Collected (₱)',
-      data: <?= $collectionAmounts ?? '[0,0,0,0,0,0,0,0,0,0,0,0]' ?>,
+      data: _ca,
       borderColor: '#10b981',
       backgroundColor: 'rgba(16, 185, 129, 0.1)',
       borderWidth: 3,
@@ -818,8 +859,7 @@ const collectionChart = new Chart(collectionCtx, {
             family: 'Poppins'
           }
         },
-        min: 85,
-        max: 105,
+        beginAtZero: true,
         grid: {
           color: 'rgba(0, 0, 0, 0.05)'
         }
@@ -837,8 +877,7 @@ const collectionChart = new Chart(collectionCtx, {
             family: 'Poppins'
           }
         },
-        min: 6000,
-        max: 7000,
+        beginAtZero: true,
         grid: {
           drawOnChartArea: false,
         }
@@ -858,15 +897,23 @@ const collectionChart = new Chart(collectionCtx, {
     }
   }
 });
+}
 
 // Payment Status Chart (Doughnut)
-const statusCtx = document.getElementById('paymentStatusChart').getContext('2d');
+const paymentCanvas = document.getElementById('paymentStatusChart');
+const _paid = <?= (int)($paidHouseholds ?? 0) ?>;
+const _pending = <?= (int)($pendingCount ?? 0) ?>;
+const _late = <?= (int)($latePayments ?? 0) ?>;
+if (paymentCanvas && (_paid + _pending + _late) === 0) {
+  showNoData('paymentStatusChart', 'No payment status data yet');
+} else if (paymentCanvas) {
+const statusCtx = paymentCanvas.getContext('2d');
 const paymentStatusChart = new Chart(statusCtx, {
   type: 'doughnut',
   data: {
     labels: ['Paid Households', 'Pending Payment', 'Late Payment'],
     datasets: [{
-      data: [<?= $paidHouseholds ?? 0 ?>, <?= $pendingCount ?? 0 ?>, <?= $latePayments ?? 0 ?>],
+      data: [_paid, _pending, _late],
       backgroundColor: [
         '#10b981',
         '#f59e0b',
@@ -911,7 +958,7 @@ const paymentStatusChart = new Chart(statusCtx, {
             const label = context.label || '';
             const value = context.parsed || 0;
             const total = context.dataset.data.reduce((a, b) => a + b, 0);
-            const percentage = ((value / total) * 100).toFixed(1);
+            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
             return `${label}: ${value} (${percentage}%)`;
           }
         }
@@ -919,16 +966,23 @@ const paymentStatusChart = new Chart(statusCtx, {
     }
   }
 });
+}
 
 // Rate Distribution Chart (Pie Chart)
 const rateDistCtx = document.getElementById('rateDistributionChart');
 if (rateDistCtx) {
+  const _n = <?= (int)($normalCount ?? 0) ?>;
+  const _s = <?= (int)($seniorCount ?? 0) ?>;
+  const _a = <?= (int)($aloneCount ?? 0) ?>;
+  if ((_n + _s + _a) === 0) {
+    showNoData('rateDistributionChart', 'No household distribution data');
+  } else {
   new Chart(rateDistCtx.getContext('2d'), {
     type: 'pie',
     data: {
       labels: ['Normal (₱<?= $rateNormal ?? 60 ?>)', 'Senior (₱<?= $rateSenior ?? 48 ?>)', 'Alone (₱<?= $rateAlone ?? 30 ?>)'],
       datasets: [{
-        data: [<?= $normalCount ?? 0 ?>, <?= $seniorCount ?? 0 ?>, <?= $aloneCount ?? 0 ?>],
+        data: [_n, _s, _a],
         backgroundColor: ['#3b82f6', '#10b981', '#f59e0b'],
         borderWidth: 0,
         hoverOffset: 8
@@ -961,6 +1015,64 @@ if (rateDistCtx) {
       }
     }
   });
+  }
+}
+
+// Mini Payment Chart (Community Statistics Card)
+const miniPaymentCtx = document.getElementById('miniPaymentChart');
+if (miniPaymentCtx) {
+  if ((_paid + _pending + _late) === 0) {
+    showNoData('miniPaymentChart', 'No payment data yet');
+  } else {
+  new Chart(miniPaymentCtx.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: ['Paid', 'Pending', 'Late'],
+      datasets: [{
+        label: 'Households',
+        data: [_paid, _pending, _late],
+        backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
+        borderWidth: 0,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          padding: 10,
+          cornerRadius: 6,
+          titleFont: { size: 12, weight: 700, family: 'Poppins' },
+          bodyFont: { size: 11, family: 'Poppins' }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            font: { size: 10, family: 'Poppins' }
+          },
+          grid: {
+            color: 'rgba(0, 0, 0, 0.05)'
+          }
+        },
+        x: {
+          grid: {
+            display: false
+          },
+          ticks: {
+            font: { size: 10, weight: 600, family: 'Poppins' }
+          }
+        }
+      }
+    }
+  });
+  }
 }
 
 // Export functionality
