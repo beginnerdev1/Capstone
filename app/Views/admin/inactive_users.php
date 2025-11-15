@@ -104,6 +104,9 @@
 
 <script>
 (function(){
+  const INACTIVE_API = "<?= site_url('admin/getInactiveUsers') ?>";
+  const ARCHIVED_API_BASE = "<?= site_url('admin/archivedBills') ?>";
+  const REACTIVATE_API_BASE = "<?= site_url('admin/reactivateUser') ?>";
   const $tableBody = $('#inactiveUsersTable tbody');
 
   function buildQuery() {
@@ -113,7 +116,7 @@
 
   function loadInactive() {
     const qs = buildQuery();
-    const url = `${window.baseUrl || ''}/admin/getInactiveUsers?${qs}`.replace(/\?$/,'');
+    const url = `${INACTIVE_API}${qs ? '?' + qs : ''}`;
     $.getJSON(url).done(function(rows){
       $tableBody.empty();
       if(!rows || rows.length === 0){
@@ -150,7 +153,7 @@
   // Archived bills modal
   $(document).on('click', '.view-archived', function(){
     const id = $(this).data('id');
-    const url = `${window.baseUrl || ''}/admin/archivedBills/${id}`;
+    const url = `${ARCHIVED_API_BASE}/${id}`;
     $.getJSON(url).done(function(bills){
       const $tb = $('#archivedBillsTable tbody');
       $tb.empty();
@@ -184,7 +187,7 @@
   });
   $(document).on('click', '#confirmReactivate', function(){
     const userId = $('#reactivateUserId').val();
-    const url = `${window.baseUrl || ''}/admin/reactivateUser/${userId}`;
+    const url = `${REACTIVATE_API_BASE}/${userId}`;
     $.post(url, {}).done(function(res){
       if(res && res.success){
         loadInactive();
