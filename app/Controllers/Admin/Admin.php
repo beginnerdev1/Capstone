@@ -370,10 +370,12 @@ class Admin extends BaseController
         $search = $this->request->getVar('search');
         $purok = $this->request->getVar('purok');
         $status = $this->request->getVar('status');
-
+        // Build base query including pending bill counts per user (aggregate join)
         $builder = $this->usersModel
-            ->select('users.*, user_information.first_name, user_information.last_name, user_information.purok')
-            ->join('user_information', 'user_information.user_id = users.id', 'left');
+            ->select('users.id, users.email, users.status, user_information.first_name, user_information.last_name, user_information.purok, SUM(CASE WHEN billings.status = "Pending" THEN 1 ELSE 0 END) as pending_bills')
+            ->join('user_information', 'user_information.user_id = users.id', 'left')
+            ->join('billings', 'billings.user_id = users.id', 'left')
+            ->groupBy('users.id');
 
         if ($search) {
             $builder->groupStart()
@@ -409,7 +411,8 @@ class Admin extends BaseController
                 'name' => ($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''),
                 'purok' => $user['purok'] ?? 'N/A',
                 'email' => $user['email'],
-                'status' => $statusMap[$user['status']] ?? 'Unknown'
+                'status' => $statusMap[$user['status']] ?? 'Unknown',
+                'pending_bills' => (int)($user['pending_bills'] ?? 0),
             ];
         }
 
@@ -2072,6 +2075,24 @@ class Admin extends BaseController
                 return $this->response->setJSON(['success' => false, 'message' => 'User not found.']);
             }
             return redirect()->back()->with('error', 'User not found.');
+        }
+
+        // Block deactivation if user has outstanding balance/pending bills
+        try {
+            $outstanding = $this->billingModel
+                ->where('user_id', $id)
+                ->where('status', 'Pending')
+                ->countAllResults();
+        } catch (\Throwable $e) {
+            $outstanding = 0; // Fail open on count error to avoid false positives
+        }
+        if ($outstanding > 0) {
+            $db->transRollback();
+            $msg = 'Cannot deactivate: user has pending bill(s). Please settle or cancel pending bills first.';
+            if ($this->request->isAJAX() || $this->request->is('post')) {
+                return $this->response->setJSON(['success' => false, 'message' => $msg]);
+            }
+            return redirect()->back()->with('error', $msg);
         }
 
         $info = $this->userInfoModel->getByUserId($id) ?? [];

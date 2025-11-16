@@ -313,6 +313,15 @@ function initRegisteredUsersPage() {
                     else if(statusLower==='rejected') badgeClass='danger';
                     else if(statusLower==='suspended') badgeClass='dark';
                     const fullName = user.name || '-';
+                    const pendingBills = parseInt(user.pending_bills || 0, 10);
+                    const canDeactivate = pendingBills === 0 && statusLower === 'approved';
+                    const deactivateTitle = !canDeactivate
+                        ? (pendingBills > 0 ? 'Cannot deactivate: pending bill(s) exist' : 'Only approved users can be deactivated')
+                        : 'Deactivate user';
+                    const deactivateBtn = `
+                        <button class="btn btn-sm btn-outline-danger deactivateUserBtn" data-id="${user.id}" data-name="${fullName}" ${canDeactivate ? '' : 'disabled'} title="${deactivateTitle}">
+                            <i class="fas fa-user-slash"></i> Deactivate
+                        </button>`;
                     tbody.append(`
                         <tr>
                             <td>${index+1}</td>
@@ -321,12 +330,10 @@ function initRegisteredUsersPage() {
                             <td>${user.purok||'-'}</td>
                             <td><span class="badge bg-${badgeClass}">${user.status||'-'}</span></td>
                             <td>
-                                <button class="btn btn-sm btn-primary viewUserBtn" data-id="${user.id}">
+                                <button class="btn btn-sm btn-primary viewUserBtn" data-id="${user.id}" title="View user details">
                                     <i class="fas fa-eye"></i> View
                                 </button>
-                                <button class="btn btn-sm btn-outline-danger deactivateUserBtn" data-id="${user.id}" data-name="${fullName}">
-                                    <i class="fas fa-user-slash"></i> Deactivate
-                                </button>
+                                ${deactivateBtn}
                             </td>
                         </tr>
                     `);
@@ -566,4 +573,41 @@ function initRegisteredUsersPage() {
 }
 
 $(document).ready(function(){ initRegisteredUsersPage(); });
+</script>
+<script>
+// Fallback: if the page is loaded directly (not via Dashboard wrapper),
+// auto-inject a per-view deactivate modal so legacy handlers work.
+(function(){
+    if (!document.getElementById('globalDeactivateModal') && !document.getElementById('deactivateUserModal')) {
+        const html = `
+        <div class="modal fade" id="deactivateUserModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Deactivate <span id="deactivateUserName"></span></h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="deactivateUserForm">
+                            <div class="mb-3">
+                                <label for="deactivateReason" class="form-label">Reason (optional)</label>
+                                <textarea class="form-control" id="deactivateReason" name="reason" rows="3" placeholder="Provide a reason (optional)"></textarea>
+                            </div>
+                        </form>
+                        <div class="alert alert-warning mb-0" role="alert">
+                            <i class="fas fa-exclamation-triangle me-2"></i>This will archive the user's last 2 years of billings.
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-danger" id="confirmDeactivateBtn">
+                            <i class="fas fa-user-slash me-1"></i>Deactivate
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+        document.body.insertAdjacentHTML('beforeend', html);
+    }
+})();
 </script>
