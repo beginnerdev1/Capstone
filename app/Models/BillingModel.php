@@ -59,7 +59,7 @@ class BillingModel extends Model
     {
         return $this->where('id', $billingId)
             ->set([
-                'status' => $status,
+                'status' => $status, // ✅ Already correct - 'Paid' matches ENUM
                 'paid_date' => date('Y-m-d')
             ])
             ->update();
@@ -70,6 +70,7 @@ class BillingModel extends Model
      */
     public function countByStatus($status)
     {
+        // ✅ This method is fine as it accepts the status parameter
         return $this->where('status', $status)->countAllResults();
     }
 
@@ -79,7 +80,7 @@ class BillingModel extends Model
     public function getTotalCollected()
     {
         $result = $this->selectSum('amount_due')
-            ->where('status', 'Paid')
+            ->where('status', 'Paid') // ✅ Already correct
             ->get()
             ->getRow();
 
@@ -91,15 +92,46 @@ class BillingModel extends Model
      */
     public function getPendingBillingsByUserAndMonth($userId, $month = null)
     {
-        $builder = $this->db->table('billings');
-        $builder->where('user_id', $userId);
-        $builder->where('status', 'pending');
+        try {
+            // Validate user ID
+            if (empty($userId) || !is_numeric($userId)) {
+                log_message('error', "Invalid user ID provided: " . var_export($userId, true));
+                return [];
+            }
 
-        if ($month) {
-            // billing_month should be in 'YYYY-MM' format
-            $builder->where('billing_month', $month);
+            $builder = $this->db->table('billings');
+            $builder->where('user_id', (int)$userId);
+            
+            // ✅ FIX: Use 'Pending' with capital P to match ENUM values
+            $builder->where('status', 'Pending');
+
+            if ($month) {
+                // Handle different month formats
+                if (preg_match('/^\d{4}-\d{2}$/', $month)) {
+                    // YYYY-MM format
+                    $builder->where('billing_month', $month);
+                } elseif (preg_match('/^\d{4}-\d{2}-\d{2}$/', $month)) {
+                    // YYYY-MM-DD format - extract year-month part
+                    $yearMonth = substr($month, 0, 7);
+                    $builder->where('billing_month', $yearMonth);
+                } else {
+                    log_message('warning', "Invalid month format provided: {$month}");
+                }
+            }
+
+            // Add order by to get most recent first
+            $builder->orderBy('created_at', 'DESC');
+
+            $result = $builder->get()->getResultArray();
+            
+            // Debug logging
+            log_message('info', "getPendingBillings - UserID: {$userId}, Month: {$month}, Found: " . count($result) . " billings");
+            
+            return $result;
+
+        } catch (\Exception $e) {
+            log_message('error', "BillingModel getPendingBillingsByUserAndMonth error: " . $e->getMessage());
+            return [];
         }
-
-        return $builder->get()->getResultArray();
     }
 }

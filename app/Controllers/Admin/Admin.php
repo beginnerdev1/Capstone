@@ -822,55 +822,128 @@ class Admin extends BaseController
     // Get users by Purok (AJAX) - Transaction Payments
     public function getUsersByPurok($purok)
     {
-        $userModel = new \App\Models\UserInformationModel();
-        $purok = (int) $purok;
-        
-        // Check if we should exclude users with existing billings
-        $excludeBilled = $this->request->getGet('exclude_billed');
-        $month = $this->request->getGet('month');
-        
-        // Debug logging
-        log_message('info', "getUsersByPurok Debug - Purok: {$purok}, Exclude Billed: {$excludeBilled}, Month: {$month}");
-        
-        $builder = $userModel->select('user_information.user_id, user_information.first_name, user_information.last_name')
-            ->join('users', 'users.id = user_information.user_id', 'inner')
-            ->where('user_information.purok', $purok)
-            ->whereIn('users.status', ['approved', 'Approved']) // Handle both status values
-            ->orderBy('user_information.first_name', 'ASC');
-        
-        // If exclude_billed is set and month is provided, filter out users with existing billings
-        if ($excludeBilled && $month) {
-            // Ensure month is in YYYY-MM format
-            if (preg_match('/^\d{4}-\d{2}$/', $month)) {
-                $builder->whereNotExists(function($subquery) use ($month) {
-                    $subquery->select('1')
-                        ->from('billings')
-                        ->where('billings.user_id = user_information.user_id')
-                        ->where('DATE_FORMAT(billings.billing_month, "%Y-%m") = "' . $month . '"');
-                });
+        try {
+            $userModel = new \App\Models\UserInformationModel();
+            $purok = (int) $purok;
+            
+            // Check if we should exclude users with existing billings
+            $excludeBilled = $this->request->getGet('exclude_billed');
+            $month = $this->request->getGet('month');
+            
+            // Debug logging
+            log_message('info', "getUsersByPurok Debug - Purok: {$purok}, Exclude Billed: {$excludeBilled}, Month: {$month}");
+            
+            $builder = $userModel->select('user_information.user_id, user_information.first_name, user_information.last_name')
+                ->join('users', 'users.id = user_information.user_id', 'inner')
+                ->where('user_information.purok', $purok)
+                ->whereIn('users.status', ['approved', 'Approved']) // Handle both status values
+                ->orderBy('user_information.first_name', 'ASC');
+            
+            // If exclude_billed is set and month is provided, filter out users with existing billings
+            if ($excludeBilled && $month) {
+                // Ensure month is in YYYY-MM format
+                if (preg_match('/^\d{4}-\d{2}$/', $month)) {
+                    // ✅ FIX: Use CodeIgniter 4 compatible subquery syntax
+                    $db = \Config\Database::connect();
+                    $subquery = $db->table('billings')
+                        ->select('user_id')
+                        ->where('DATE_FORMAT(billing_month, "%Y-%m")', $month)
+                        ->getCompiledSelect();
+                    
+                    // Use whereNotIn with the compiled subquery
+                    $builder->where("user_information.user_id NOT IN ($subquery)", null, false);
+                    
+                    log_message('info', "getUsersByPurok - Filtering out users with existing billings for month: {$month}");
+                }
             }
+            
+            $users = $builder->findAll();
+            
+            // More detailed debug logging
+            log_message('info', "getUsersByPurok Result - Found " . count($users) . " users");
+            foreach ($users as $user) {
+                log_message('info', "User: ID {$user['user_id']}, Name: {$user['first_name']} {$user['last_name']}");
+            }
+            
+            return $this->response->setJSON($users);
+            
+        } catch (\Exception $e) {
+            log_message('error', "getUsersByPurok error: " . $e->getMessage());
+            return $this->response->setJSON([
+                'error' => true,
+                'message' => 'Failed to fetch users: ' . $e->getMessage()
+            ]);
         }
-        
-        $users = $builder->findAll();
-        
-        // More detailed debug logging
-        log_message('info', "getUsersByPurok Result - Found " . count($users) . " users");
-        foreach ($users as $user) {
-            log_message('info', "User: ID {$user['user_id']}, Name: {$user['first_name']} {$user['last_name']}");
-        }
-        
-        return $this->response->setJSON($users);
     }
+
 
     // Get pending billings for a user (AJAX) - transaction Payments
     public function getPendingBillings($userId)
     {
-        $month = $this->request->getGet('month');
-        $billingModel = new \App\Models\BillingModel();
+        try {
+            $month = $this->request->getGet('month');
+            $billingModel = new \App\Models\BillingModel();
 
-        $billings = $billingModel->getPendingBillingsByUserAndMonth($userId, $month);
+            // Add debug logging
+            log_message('info', "getPendingBillings - UserID: {$userId}, Month: {$month}");
 
-        return $this->response->setJSON($billings);
+            // Validate user ID
+            if (!$userId || !is_numeric($userId)) {
+                log_message('error', "Invalid user ID provided: {$userId}");
+                return $this->response->setJSON([
+                    'error' => true,
+                    'message' => 'Invalid user ID'
+                ]);
+            }
+
+            // Validate user exists
+            $userModel = new \App\Models\UsersModel();
+            $user = $userModel->find($userId);
+            if (!$user) {
+                log_message('error', "User not found: {$userId}");
+                return $this->response->setJSON([
+                    'error' => true,
+                    'message' => 'User not found'
+                ]);
+            }
+
+            $billings = $billingModel->getPendingBillingsByUserAndMonth($userId, $month);
+            
+            // Add debug logging for results
+            log_message('info', "getPendingBillings - Found " . count($billings) . " billings for specific month");
+            
+            if (empty($billings) && !empty($month)) {
+                // If no billings for specific month, try to get any pending billings for this user
+                log_message('info', "No billings for month {$month}, trying all pending billings for user {$userId}");
+                $billings = $billingModel->getPendingBillingsByUserAndMonth($userId, null);
+                log_message('info', "Found " . count($billings) . " total pending billings for user");
+            }
+
+            // Ensure we return a proper array structure
+            $formattedBillings = [];
+            foreach ($billings as $billing) {
+                $formattedBillings[] = [
+                    'id' => $billing['id'],
+                    'bill_no' => $billing['bill_no'] ?? 'BILL-' . $billing['id'],
+                    'amount_due' => (float)$billing['amount_due'],
+                    'status' => $billing['status'],
+                    'billing_month' => $billing['billing_month'],
+                    'due_date' => $billing['due_date'],
+                    'created_at' => $billing['created_at']
+                ];
+            }
+
+            log_message('info', "getPendingBillings - Returning " . count($formattedBillings) . " formatted billings");
+
+            return $this->response->setJSON($formattedBillings);
+
+        } catch (\Exception $e) {
+            log_message('error', "getPendingBillings error: " . $e->getMessage());
+            return $this->response->setJSON([
+                'error' => true,
+                'message' => 'Failed to fetch billings: ' . $e->getMessage()
+            ]);
+        }
     }
 
     // Add counter payment (AJAX) - Transaction Payments
