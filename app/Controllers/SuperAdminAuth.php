@@ -5,6 +5,7 @@ namespace App\Controllers;
 use CodeIgniter\Controller;
 use App\Models\SuperAdminModel;
 use App\Models\AdminModel;
+use App\Models\AdminActivityLogModel;
 
 class SuperAdminAuth extends Controller
 {
@@ -34,6 +35,20 @@ class SuperAdminAuth extends Controller
             ]);
 
             session()->remove('superadmin_code_verified');
+            // Log login
+            try {
+                $logModel = new AdminActivityLogModel();
+                $logId = $logModel->insert([
+                    'actor_type' => 'superadmin',
+                    'actor_id'   => $super_admin['id'],
+                    'action'     => 'login',
+                    'route'      => '/superadmin/login',
+                    'method'     => 'POST',
+                    'ip_address' => $this->request->getIPAddress(),
+                    'user_agent' => substr((string)($this->request->getUserAgent() ?? ''), 0, 255),
+                ], true);
+                session()->set('superadmin_activity_log_id', $logId);
+            } catch (\Throwable $e) { }
             return redirect()->to('/superadmin');
         }
 
@@ -42,6 +57,13 @@ class SuperAdminAuth extends Controller
 
     public function logout()
     {
+        try {
+            $logId = session()->get('superadmin_activity_log_id');
+            if ($logId) {
+                $logModel = new AdminActivityLogModel();
+                $logModel->update($logId, ['logged_out_at' => date('Y-m-d H:i:s')]);
+            }
+        } catch (\Throwable $e) { }
         session()->destroy();
         return redirect()->to('/superadmin/login');
     }

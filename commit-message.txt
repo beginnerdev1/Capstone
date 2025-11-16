@@ -1,0 +1,14 @@
+﻿feat(admin): activity logs (view+JSON+CSV+confirm) + login/logout logging
+
+Admin highlights:
+- Routes: add admin/logs, admin/getLogs, admin/exportLogs
+- Controller: implement Admin::logs(), Admin::getLogs() with filters (date, action, method, q), and Admin::exportLogs() with CSV streaming
+- View: new app/Views/admin/logs.php with filter UI, refresh, and CSV export confirmation modal showing a human-readable summary
+- UI: add Activity Logs link to Admin sidebar (AJAX layout)
+- Auth: in AdminAuth, create a login log and persist its id in session; on logout update logged_out_at
+- Filter: register ActivityLogger and apply after-response to admin/* and superadmin/*; logs non-GET actions and masks password fields
+
+Related changes (included in this commit):
+- migrations/models: add CreateAdminActivityLogs migration and AdminActivityLogModel; add CreateAdminArchivedTable migration and AdminArchivedModel for retire/archive flow
+- superadmin: convert to AJAX layout (dashboard-content), responsive sidebar, users view overhaul (first/middle/last name, email, username, position, password+confirm, optional profile picture), unique position enforcement, retire (archive) endpoint and UI, settings placeholder
+- routes: wire admin logs endpoints; add superadmin logs/getLogs/exportLogs and retireUser; adjust dashboard/content routes

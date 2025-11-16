@@ -164,6 +164,88 @@ class Admin extends BaseController
         return view('admin/dashboard-content', $data);
     }
 
+    // Activity logs view (admin)
+    public function logs()
+    {
+        return view('admin/logs');
+    }
+
+    // JSON: latest admin logs
+    public function getLogs()
+    {
+        $limit = (int) ($this->request->getGet('limit') ?? 200);
+        $limit = max(1, min(500, $limit));
+        $model = new \App\Models\AdminActivityLogModel();
+        $builder = $model->where('actor_type', 'admin');
+
+        $action = trim($this->request->getGet('action') ?? '');
+        $method = trim($this->request->getGet('method') ?? '');
+        $actorId = (int) ($this->request->getGet('actor_id') ?? 0);
+        $q = trim($this->request->getGet('q') ?? '');
+        $start = trim($this->request->getGet('start') ?? '');
+        $end = trim($this->request->getGet('end') ?? '');
+
+        if ($actorId > 0) { $builder->where('actor_id', $actorId); }
+        if ($action !== '') { $builder->where('action', $action); }
+        if ($method !== '') { $builder->where('method', strtoupper($method)); }
+        if ($start !== '') { $builder->where('created_at >=', $start . ' 00:00:00'); }
+        if ($end !== '') { $builder->where('created_at <=', $end . ' 23:59:59'); }
+        if ($q !== '') {
+            $builder->groupStart()
+                ->like('route', $q)
+                ->orLike('resource', $q)
+                ->orLike('details', $q)
+            ->groupEnd();
+        }
+        $rows = $builder->orderBy('id','DESC')->findAll($limit);
+        return $this->response->setJSON($rows);
+    }
+
+    // CSV export for admin logs (read-only)
+    public function exportLogs()
+    {
+        $model = new \App\Models\AdminActivityLogModel();
+        $builder = $model->where('actor_type', 'admin');
+        $action = trim($this->request->getGet('action') ?? '');
+        $method = trim($this->request->getGet('method') ?? '');
+        $actorId = (int) ($this->request->getGet('actor_id') ?? 0);
+        $q = trim($this->request->getGet('q') ?? '');
+        $start = trim($this->request->getGet('start') ?? '');
+        $end = trim($this->request->getGet('end') ?? '');
+        if ($actorId > 0) { $builder->where('actor_id', $actorId); }
+        if ($action !== '') { $builder->where('action', $action); }
+        if ($method !== '') { $builder->where('method', strtoupper($method)); }
+        if ($start !== '') { $builder->where('created_at >=', $start . ' 00:00:00'); }
+        if ($end !== '') { $builder->where('created_at <=', $end . ' 23:59:59'); }
+        if ($q !== '') {
+            $builder->groupStart()->like('route', $q)->orLike('resource', $q)->orLike('details', $q)->groupEnd();
+        }
+
+        $rows = $builder->orderBy('id','DESC')->findAll(2000);
+        $fh = fopen('php://temp', 'w+');
+        fputcsv($fh, ['Time','Actor','Action','Method','Route','Resource','IP','User Agent','Logged Out']);
+        foreach ($rows as $r) {
+            fputcsv($fh, [
+                $r['created_at'] ?? '',
+                ($r['actor_type'] ?? '') . '#' . ($r['actor_id'] ?? ''),
+                $r['action'] ?? '',
+                $r['method'] ?? '',
+                $r['route'] ?? '',
+                $r['resource'] ?? '',
+                $r['ip_address'] ?? '',
+                $r['user_agent'] ?? '',
+                $r['logged_out_at'] ?? '',
+            ]);
+        }
+        rewind($fh);
+        $csv = stream_get_contents($fh);
+        fclose($fh);
+        return $this->response
+            ->setHeader('Content-Type', 'text/csv')
+            ->setHeader('Content-Disposition', 'attachment; filename="admin-activity-logs.csv"')
+            ->setBody($csv);
+    }
+
     /**
      * Get dashboard statistics as JSON (optimized API endpoint)
      * @return \CodeIgniter\HTTP\ResponseInterface

@@ -4,165 +4,231 @@
   <div class="row">
     <div class="col">
       <div class="card shadow-sm mb-4">
-        <div class="card-header bg-primary text-white">
-          <h3 class="mb-0">Create User Account</h3>
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+          <h3 class="mb-0">Admin Accounts</h3>
+          <button class="btn btn-light" id="btnNewAdmin"><i class="fas fa-plus me-1"></i>Create Admin</button>
         </div>
-
-        <!-- ✅ User Input Form -->
         <div class="card-body">
-          <form id="createUserForm" method="post" action="<?= base_url('superadmin/createUser') ?>">
-            <div class="row g-3">
-              <div class="col-md-3">
-                <input type="text" name="name" class="form-control" placeholder="Full Name" required>
-              </div>
-              <div class="col-md-3">
-                <input type="email" name="email" class="form-control" placeholder="Email" required>
-              </div>
-              <div class="col-md-3">
-                <input type="text" name="username" class="form-control" placeholder="Username" required>
-              </div>
-              <div class="col-md-3">
-                <select name="position" class="form-select" required>
-                  <option value="President">President</option>
-                  <option value="Vice President">Vice President</option>
-                  <option value="Secretary">Secretary</option>
-                  <option value="Treasurer">Treasurer</option>
-                </select>
-              </div>
-            </div>
-            <div class="mt-3 text-end">
-              <button type="submit" class="btn btn-success">Create Account</button>
-            </div>
-          </form>
-        </div>
-
-        <!-- User Table -->
-        <div class="table-responsive px-3">
-        <table class="table table-striped table-bordered table-hover">
-            <thead class="table-dark">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle" id="adminsTable">
+              <thead class="table-light">
                 <tr>
-                    <th>#</th>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Username</th>
-                    <th>Status</th>
+                  <th>#</th>
+                  <th>Full Name</th>
+                  <th>Username</th>
+                  <th>Email</th>
+                  <th>Position</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                  <th>Actions</th>
                 </tr>
-            </thead>
-            <tbody id="user-table-body">
-                <!-- Users will be injected here -->
-            </tbody>
-        </table>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div id="adminsAlerts" class="mt-2"></div>
         </div>
-
-      
-        <!-- ✅ Pagination
-        <div class="card-footer py-3">
-          <nav aria-label="Table pagination">
-            <ul class="pagination justify-content-end mb-0" id="pagination-links">
-            </ul>
-          </nav>
-        </div>  -->
       </div>
     </div>
   </div>
 </div>
 
-
-
-
+<!-- New Admin Modal -->
+<div class="modal fade" id="newAdminModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Create Admin Account</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="newAdminForm" enctype="multipart/form-data">
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label">First Name</label>
+              <input type="text" name="first_name" class="form-control" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Middle Name</label>
+              <input type="text" name="middle_name" class="form-control" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Last Name</label>
+              <input type="text" name="last_name" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Email</label>
+              <input type="email" name="email" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Username</label>
+              <input type="text" name="username" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Position</label>
+              <select name="position" class="form-select" required>
+                <option value="President">President</option>
+                <option value="Vice President">Vice President</option>
+                <option value="Secretary">Secretary</option>
+                <option value="Treasurer">Treasurer</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Profile Picture (optional)</label>
+              <input type="file" name="profile_picture" class="form-control" accept="image/*">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Password (min 8)</label>
+              <input type="password" name="password" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Confirm Password</label>
+              <input type="password" name="confirm_password" class="form-control" required>
+            </div>
+          </div>
+        </form>
+        <div id="newAdminAlerts" class="mt-3"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary" id="saveAdminBtn"><i class="fas fa-save me-1"></i>Save</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script>
-$(document).ready(function () {
-    // ✅ Load users from controller
-    function loadUsers() {
-        $.ajax({
-            url: "<?= base_url('superadmin/getUsers') ?>",
-            type: "GET",
-            dataType: "json",
-            success: function (users) {
-                const tbody = $("#user-table-body");
-                tbody.empty();
+(function(){
+  function buildFullName(r){
+    return [r.first_name, r.middle_name, r.last_name].filter(Boolean).join(' ');
+  }
 
-                users.forEach((user, index) => {
-                    const statusBadge = user.is_verified == 1
-                        ? '<span class="badge bg-success">Active</span>'
-                        : '<span class="badge bg-secondary">Inactive</span>';
-
-                    tbody.append(`
-                        <tr>
-                            <td>${index + 1}</td>
-                            <td>${user.name}</td>
-                            <td>${user.email}</td>
-                            <td>${user.username}</td>
-                            <td>${statusBadge}</td>
-                        </tr>
-                    `);
-                });
-            },
-            error: function (xhr) {
-                console.log(xhr.responseText);
-                alert("Failed to load users.");
-            }
-        });
-    } // ✅ ← You forgot this closing bracket!
-
-    // ✅ Submit form via AJAX to SuperAdmin::createUser
-    $("#createUserForm").on("submit", function (e) {
-        e.preventDefault();
-
-        const formData = $(this).serializeArray();
-        const name = formData.find(f => f.name === "name").value.trim();
-        const email = formData.find(f => f.name === "email").value.trim();
-        const username = formData.find(f => f.name === "username").value.trim();
-        const position = formData.find(f => f.name === "position").value.trim();
-
-        // ✅ Check duplicates in table
-        let duplicate = false;
-        $("#user-table-body tr").each(function () {
-            const rowName = $(this).find("td:nth-child(2)").text().trim();
-            const rowEmail = $(this).find("td:nth-child(3)").text().trim();
-            const rowUsername = $(this).find("td:nth-child(4)").text().trim();
-            const rowPosition = $(this).find("td:nth-child(5)").text().trim();
-
-            if (
-                rowName === name &&
-                rowEmail === email &&
-                rowUsername === username &&
-                rowPosition === position
-            ) {
-                duplicate = true;
-                return false; // stop loop
-            }
-        });
-
-        if (duplicate) {
-            alert("⚠️ User with the same details already exists.");
-            return; // stop submission
-        }
-
-        // ✅ Continue AJAX if no duplicate
-        $.ajax({
-            url: "<?= base_url('superadmin/createUser') ?>",
-            type: "POST",
-            data: $(this).serialize(),
-            dataType: "json",
-            success: function (response) {
-                if (response.status === "success") {
-                    alert(response.message);
-                    $("#createUserForm")[0].reset();
-                    loadUsers(); // reload table
-                } else {
-                    alert(response.message);
-                }
-            },
-            error: function (xhr) {
-                console.log(xhr.responseText);
-                alert("Something went wrong. Please try again.");
-            }
-        });
+  function loadAdmins(){
+    $.getJSON('<?= site_url('superadmin/getUsers') ?>').done(function(rows){
+      const $tb = $('#adminsTable tbody');
+      $tb.empty();
+      if(!rows || rows.length === 0){
+        $tb.append('<tr><td colspan="8" class="text-center text-muted py-4">No admins found</td></tr>');
+        return;
+      }
+      rows.forEach((r, idx) => {
+        const status = r.is_verified ? '<span class="badge bg-success">Verified</span>' : '<span class="badge bg-secondary">Unverified</span>';
+        const actions = `<button class=\"btn btn-sm btn-outline-danger retire-btn\" data-id=\"${r.id}\"><i class=\"fas fa-user-slash me-1\"></i>Retire</button>`;
+        $tb.append(`
+          <tr>
+            <td>${idx+1}</td>
+            <td>${buildFullName(r)}</td>
+            <td>${r.username || ''}</td>
+            <td>${r.email || ''}</td>
+            <td>${r.position || ''}</td>
+            <td>${status}</td>
+            <td>${r.created_at || ''}</td>
+            <td>${actions}</td>
+          </tr>`);
+      });
     });
+  }
 
-    // ✅ Initial load
-    loadUsers();
-});
+  // Open create modal
+  $(document).on('click', '#btnNewAdmin', function(){
+    $('#newAdminForm')[0].reset();
+    $('#newAdminAlerts').empty();
+    new bootstrap.Modal(document.getElementById('newAdminModal')).show();
+  });
+
+  // Save new admin
+  $(document).on('click', '#saveAdminBtn', function(){
+    const btn = $(this);
+    $('#newAdminAlerts').empty();
+    const form = document.getElementById('newAdminForm');
+    const fd = new FormData(form);
+    const pwd = fd.get('password');
+    const cpw = fd.get('confirm_password');
+    if(pwd.length < 8){
+      $('#newAdminAlerts').html('<div class="alert alert-danger">Password must be at least 8 characters.</div>');
+      return;
+    }
+    if(pwd !== cpw){
+      $('#newAdminAlerts').html('<div class="alert alert-danger">Passwords do not match.</div>');
+      return;
+    }
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Saving...');
+    $.ajax({
+      url: '<?= site_url('superadmin/createUser') ?>',
+      method: 'POST',
+      data: fd,
+      processData: false,
+      contentType: false,
+      success: function(res){
+        if(res && res.status === 'success'){
+          $('#newAdminAlerts').html('<div class="alert alert-success">'+res.message+'</div>');
+          form.reset();
+          loadAdmins();
+          setTimeout(()=>{ bootstrap.Modal.getInstance(document.getElementById('newAdminModal')).hide(); }, 900);
+        } else {
+          const msg = (res && res.message) ? res.message : 'Failed to create admin';
+          $('#newAdminAlerts').html('<div class="alert alert-danger">'+msg+'</div>');
+        }
+      },
+      error: function(){
+        $('#newAdminAlerts').html('<div class="alert alert-danger">Request failed.</div>');
+      },
+      complete: function(){
+        btn.prop('disabled', false).html('<i class="fas fa-save me-1"></i>Save');
+      }
+    });
+  });
+
+  // Retire button click
+  $(document).on('click', '.retire-btn', function(){
+    const id = $(this).data('id');
+    $('#retireAdminId').val(id);
+    $('#retireConfirmText').text('Are you sure you want to retire this admin? This action archives the account and frees the position.');
+    new bootstrap.Modal(document.getElementById('retireModal')).show();
+  });
+
+  // Confirm retire
+  $(document).on('click', '#confirmRetireBtn', function(){
+    const btn = $(this);
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Processing...');
+    const id = $('#retireAdminId').val();
+    $.post('<?= site_url('superadmin/retireUser') ?>', {id}).done(function(res){
+      if(res && res.status === 'success'){
+        $('#retireAlerts').html('<div class="alert alert-success">'+res.message+'</div>');
+        loadAdmins();
+        setTimeout(()=>{ bootstrap.Modal.getInstance(document.getElementById('retireModal')).hide(); $('#retireAlerts').empty(); }, 900);
+      } else {
+        const msg = (res && res.message) ? res.message : 'Failed to retire admin';
+        $('#retireAlerts').html('<div class="alert alert-danger">'+msg+'</div>');
+      }
+    }).fail(function(){
+      $('#retireAlerts').html('<div class="alert alert-danger">Request failed.</div>');
+    }).always(function(){
+      btn.prop('disabled', false).html('<i class="fas fa-user-slash me-1"></i>Confirm Retire');
+    });
+  });
+
+  loadAdmins();
+})();
 </script>
+
+<!-- Retire Confirmation Modal -->
+<div class="modal fade" id="retireModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Retire Admin</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p id="retireConfirmText" class="mb-3"></p>
+        <input type="hidden" id="retireAdminId" value="">
+        <div id="retireAlerts"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-danger" id="confirmRetireBtn"><i class="fas fa-user-slash me-1"></i>Confirm Retire</button>
+      </div>
+    </div>
+  </div>
+</div>
