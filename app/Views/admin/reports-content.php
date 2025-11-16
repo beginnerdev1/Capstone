@@ -1,318 +1,663 @@
 <style>
 :root {
-  --primary: #3b82f6;
-  --primary-dark: #1d4ed8;
-  --secondary: #0ea5e9;
-  --success: #10b981;
-  --warning: #f59e0b;
-  --danger: #ef4444;
-  --border: #e5e7eb;
-  --dark: #1f2937;
-  --light: #f9fafb;
-  --muted: #6b7280;
+  --primary: #4e73df;
+  --primary-dark: #224abe;
+  --secondary: #858796;
+  --success: #1cc88a;
+  --warning: #f6c23e;
+  --danger: #e74a3b;
+  --info: #36b9cc;
+  --border: #e3e6f0;
+  --dark: #5a5c69;
+  --light: #f8f9fc;
+  --muted: #858796;
+  --white: #ffffff;
+  --shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
 }
 
-* { margin: 0; padding: 0; box-sizing: border-box; }
+.main-content {
+  margin-left: 0;
+  padding: 1.5rem;
+  background-color: var(--light);
+  min-height: calc(100vh - 80px);
+}
 
-.reports-wrapper { padding: 2rem; max-width: 1400px; margin: 0 auto; }
+.page-header {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  color: white;
+  padding: 2rem;
+  border-radius: 0.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: var(--shadow);
+}
 
-.reports-header { background: linear-gradient(135deg, #3b82f6 0%, #0ea5e9 100%); color: white; padding: 3rem 2rem; border-radius: 20px; margin-bottom: 2rem; box-shadow: 0 15px 40px rgba(59, 130, 246, 0.25); }
-.header-content { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 2rem; }
-.header-title { font-size: 2.2rem; font-weight: 900; letter-spacing: -0.5px; display: flex; align-items: center; gap: 1rem; }
-.header-icon { font-size: 2.8rem; animation: bounce 2s ease-in-out infinite; }
-@keyframes bounce { 0%,100%{ transform: translateY(0);} 50%{ transform: translateY(-8px);} }
-.header-actions { display: flex; gap: 1rem; flex-wrap: wrap; }
-.btn { padding: 0.85rem 1.5rem; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; transition: all 0.3s ease; display: inline-flex; align-items: center; gap: 0.6rem; font-size: 0.9rem; }
-.btn-primary { background: rgba(255,255,255,0.2); backdrop-filter: blur(10px); border: 2px solid rgba(255,255,255,0.3); color: white; }
-.btn-primary:hover { background: rgba(255,255,255,0.3); border-color: rgba(255,255,255,0.5); transform: translateY(-2px); }
-.btn-success { background: var(--success); color: white; box-shadow: 0 4px 12px rgba(16,185,129,0.3); }
-.btn-success:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(16,185,129,0.4); }
+.page-header h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
 
-.filters-section { background: white; padding: 1.75rem; border-radius: 16px; margin-bottom: 2rem; box-shadow: 0 4px 15px rgba(0,0,0,0.08); border: 1px solid var(--border); }
-.filters-title { font-weight: 700; color: var(--dark); margin-bottom: 1.25rem; display: flex; align-items: center; gap: 0.75rem; font-size: 1.1rem; }
-.filters-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
-.filter-group { display: flex; flex-direction: column; }
-.filter-label { font-size: 0.85rem; font-weight: 700; color: var(--dark); margin-bottom: 0.6rem; }
-.filter-input, .filter-select { padding: 0.85rem; border: 2px solid var(--border); border-radius: 10px; font-size: 0.9rem; font-family: 'Poppins', sans-serif; background: var(--light); transition: all 0.3s ease; }
-.filter-input:focus, .filter-select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 4px rgba(59,130,246,0.1); background: white; }
-.filter-buttons { display: flex; gap: 0.75rem; align-items: flex-end; }
-.btn-filter { padding: 0.85rem 1.5rem; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; transition: all 0.3s ease; font-size: 0.9rem; flex: 1; }
-.btn-apply { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; box-shadow: 0 4px 15px rgba(59,130,246,0.3); }
-.btn-apply:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(59,130,246,0.4); }
-.btn-reset { background: white; color: var(--dark); border: 2px solid var(--border); }
-.btn-reset:hover { background: var(--light); border-color: var(--primary); }
+.page-header .icon {
+  font-size: 2rem;
+  animation: pulse 2s ease-in-out infinite;
+}
 
-.reports-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
-.report-card { background: white; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); border: 1px solid var(--border); overflow: hidden; transition: all 0.3s ease; }
-.report-card:hover { transform: translateY(-4px); box-shadow: 0 10px 30px rgba(0,0,0,0.12); }
-.report-header { background: linear-gradient(135deg, rgba(59,130,246,0.1) 0%, rgba(14,165,233,0.1) 100%); padding: 1.5rem; border-bottom: 2px solid var(--border); display: flex; align-items: center; gap: 1rem; }
-.report-icon { font-size: 2rem; width: 50px; height: 50px; background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white; }
-.report-info h3 { margin: 0; color: var(--dark); font-weight: 700; font-size: 1rem; }
-.report-info p { margin: 0.25rem 0 0; color: var(--muted); font-size: 0.85rem; }
-.report-body { padding: 1.5rem; }
-.report-stat { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0; border-bottom: 1px solid var(--light); }
-.report-stat:last-child { border-bottom: none; }
-.report-stat-label { color: var(--muted); font-size: 0.9rem; font-weight: 600; }
-.report-stat-value { color: var(--dark); font-size: 1.1rem; font-weight: 700; }
-.report-footer { padding: 1rem 1.5rem; background: var(--light); border-top: 1px solid var(--border); display: flex; gap: 0.75rem; justify-content: space-between; }
-.btn-small { padding: 0.6rem 1.2rem; font-size: 0.85rem; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; flex: 1; text-align: center; }
-.btn-view { background: rgba(59,130,246,0.1); color: var(--primary); border: 1.5px solid rgba(59,130,246,0.2); }
-.btn-view:hover { background: rgba(59,130,246,0.2); border-color: var(--primary); }
-.btn-export { background: linear-gradient(135deg, var(--success) 0%, #0d9488 100%); color: white; box-shadow: 0 4px 12px rgba(16,185,129,0.2); }
-.btn-export:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(16,185,129,0.3); }
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
 
-.chart-container { background: white; border-radius: 16px; padding: 2rem; box-shadow: 0 4px 15px rgba(0,0,0,0.08); border: 1px solid var(--border); margin-bottom: 2rem; }
-.chart-title { font-size: 1.3rem; font-weight: 700; color: var(--dark); margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.75rem; }
-.chart-canvas { max-height: 350px; }
+.header-actions {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
 
-.export-options { background: white; border-radius: 16px; padding: 2rem; box-shadow: 0 4px 15px rgba(0,0,0,0.08); border: 1px solid var(--border); }
-.export-title { font-size: 1.3rem; font-weight: 700; color: var(--dark); margin-bottom: 1.5rem; }
-.export-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; }
-.export-btn { padding: 1.5rem; border: 2px solid var(--border); background: white; border-radius: 12px; cursor: pointer; transition: all 0.3s ease; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 0.75rem; font-weight: 700; color: var(--dark); }
-.export-btn:hover { border-color: var(--primary); background: rgba(59,130,246,0.05); transform: translateY(-2px); }
-.export-icon { font-size: 1.75rem; }
+.btn {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 0.375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  text-decoration: none;
+}
 
+.btn-outline-light {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+}
+
+.btn-outline-light:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.5);
+  color: white;
+  transform: translateY(-1px);
+}
+
+.btn-success {
+  background: var(--success);
+  color: white;
+  border: 1px solid var(--success);
+}
+
+.btn-success:hover {
+  background: #17a673;
+  border-color: #17a673;
+  transform: translateY(-1px);
+}
+
+.card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  box-shadow: var(--shadow);
+  margin-bottom: 1.5rem;
+}
+
+.card-header {
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  padding: 1rem 1.25rem;
+  font-weight: 700;
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.card-body {
+  padding: 1.25rem;
+}
+
+.filters-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.form-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--dark);
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+.form-control {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  background: var(--white);
+  transition: all 0.3s ease;
+  width: 100%;
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 0.2rem rgba(78, 115, 223, 0.25);
+}
+
+.filter-buttons {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.btn-primary {
+  background: var(--primary);
+  border: 1px solid var(--primary);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: var(--primary-dark);
+  border-color: var(--primary-dark);
+}
+
+.btn-secondary {
+  background: var(--secondary);
+  border: 1px solid var(--secondary);
+  color: white;
+}
+
+.btn-secondary:hover {
+  background: #6c757d;
+  border-color: #6c757d;
+}
+
+.reports-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.report-card {
+  background: var(--white);
+  border-radius: 0.5rem;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.report-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0.5rem 2rem 0 rgba(58, 59, 69, 0.2);
+}
+
+.report-card-header {
+  background: linear-gradient(135deg, rgba(78, 115, 223, 0.1) 0%, rgba(34, 74, 190, 0.1) 100%);
+  padding: 1.25rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.report-icon {
+  font-size: 1.75rem;
+  width: 3.5rem;
+  height: 3.5rem;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.report-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--dark);
+  margin: 0;
+}
+
+.report-subtitle {
+  font-size: 0.875rem;
+  color: var(--muted);
+  margin: 0.25rem 0 0;
+}
+
+.report-body {
+  padding: 1.25rem;
+}
+
+.report-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #f8f9fc;
+}
+
+.report-stat:last-child {
+  border-bottom: none;
+}
+
+.stat-label {
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.stat-value {
+  color: var(--dark);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.stat-highlight {
+  border-top: 2px solid var(--primary);
+  padding-top: 1rem;
+  margin-top: 0.5rem;
+}
+
+.stat-highlight .stat-label {
+  font-weight: 700;
+}
+
+.stat-highlight .stat-value {
+  color: var(--primary);
+  font-size: 1.125rem;
+}
+
+.report-footer {
+  padding: 1rem 1.25rem;
+  background: var(--light);
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-sm {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+  border-radius: 0.375rem;
+  flex: 1;
+  text-align: center;
+}
+
+.btn-outline-primary {
+  background: transparent;
+  border: 1px solid var(--primary);
+  color: var(--primary);
+}
+
+.btn-outline-primary:hover {
+  background: var(--primary);
+  color: white;
+}
+
+.chart-container {
+  background: var(--white);
+  border-radius: 0.5rem;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+  margin-bottom: 1.5rem;
+}
+
+.chart-header {
+  padding: 1.25rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--white);
+  border-radius: 0.5rem 0.5rem 0 0;
+}
+
+.chart-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--dark);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.chart-body {
+  padding: 1.25rem;
+}
+
+.chart-canvas {
+  max-height: 300px;
+}
+
+.mini-chart {
+  max-height: 120px;
+}
+
+/* Responsive Design */
 @media (max-width: 768px) {
-  .reports-wrapper { padding: 1rem; }
-  .reports-header { padding: 1.5rem; }
-  .header-content { flex-direction: column; gap: 1rem; }
-  .header-title { font-size: 1.5rem; }
-  .header-actions { width: 100%; }
-  .header-actions .btn { flex: 1; }
-  .filters-grid { grid-template-columns: 1fr; }
-  .filter-buttons { flex-direction: column; }
-  .filter-buttons .btn-filter { width: 100%; }
-  .reports-grid { grid-template-columns: 1fr; }
-  .chart-container, .export-options { padding: 1.5rem; }
-  .export-grid { grid-template-columns: repeat(2, 1fr); }
+  .main-content {
+    padding: 1rem;
+  }
+  
+  .page-header {
+    padding: 1.5rem;
+  }
+  
+  .page-header h1 {
+    font-size: 1.5rem;
+  }
+  
+  .filters-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .filter-buttons {
+    flex-direction: column;
+  }
+  
+  .reports-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .header-actions {
+    flex-direction: column;
+  }
+  
+  .report-footer {
+    flex-direction: column;
+  }
 }
 
 @media (max-width: 480px) {
-  .reports-wrapper { padding: 0.75rem; }
-  .reports-header { padding: 1.25rem; }
-  .header-title { font-size: 1.25rem; }
-  .header-icon { font-size: 2rem; }
-  .filters-section { padding: 1.25rem; }
-  .report-card { border-radius: 12px; }
+  .main-content {
+    padding: 0.75rem;
+  }
+  
+  .page-header {
+    padding: 1rem;
+  }
+  
+  .card-body {
+    padding: 1rem;
+  }
 }
 </style>
 
-<div class="reports-wrapper">
-  <!-- Header -->
-  <div class="reports-header">
-    <div class="header-content">
-      <div class="header-title">
-        <span class="header-icon">📊</span>
-        <span>Fixed-Rate Water Bill Reports</span>
-      </div>
-      <div class="header-actions">
-        <a class="btn btn-primary reports-refresh" href="<?= site_url('admin/reports') ?>">
-          <span>🔄</span>
-          <span>Refresh</span>
-        </a>
-        <a class="btn btn-success export-btn" data-format="csv" data-export-url="<?= site_url('admin/exportReports') ?>" href="<?= site_url('admin/exportReports') ?>?format=csv&filename=reports_<?= date('Y-m-d') ?>" target="_blank" rel="noopener">
-          <span>📥</span>
-          <span>Export All</span>
-        </a>
+<div class="main-content">
+  <!-- Page Header -->
+  <div class="page-header">
+    <h1>
+      <span class="icon">📊</span>
+      Fixed-Rate Water Bill Reports
+    </h1>
+    <div class="header-actions">
+      <a href="<?= site_url('admin/reports') ?>" class="btn btn-outline-light ajax-link">
+        <i class="fas fa-sync-alt"></i>
+        Refresh
+      </a>
+      <a href="<?= site_url('admin/exportReports') ?>?format=csv&filename=reports_<?= date('Y-m-d') ?>" 
+         class="btn btn-success" target="_blank" rel="noopener">
+        <i class="fas fa-download"></i>
+        Export All
+      </a>
+    </div>
+  </div>
+
+  <!-- Filters Card -->
+  <div class="card">
+    <div class="card-header">
+      <i class="fas fa-filter"></i>
+      Filter Reports
+    </div>
+    <div class="card-body">
+      <div class="filters-grid">
+        <div class="form-group">
+          <label class="form-label">Start Date</label>
+          <input type="date" class="form-control" id="startDate">
+        </div>
+        <div class="form-group">
+          <label class="form-label">End Date</label>
+          <input type="date" class="form-control" id="endDate">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Report Type</label>
+          <select class="form-control" id="reportType">
+            <option value="">All Reports</option>
+            <option value="collection">Collection Status</option>
+            <option value="payment">Payment History</option>
+            <option value="household">Household Summary</option>
+          </select>
+        </div>
+        <div class="filter-buttons">
+          <button class="btn btn-primary" id="applyFilters">
+            <i class="fas fa-search"></i>
+            Apply
+          </button>
+          <button class="btn btn-secondary" id="resetFilters">
+            <i class="fas fa-undo"></i>
+            Reset
+          </button>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- Filters -->
-  <div class="filters-section">
-    <div class="filters-title">🔍 Filter Reports</div>
-    <div class="filters-grid">
-      <div class="filter-group">
-        <label class="filter-label">Start Date</label>
-        <input type="date" class="filter-input" id="startDate">
-      </div>
-      <div class="filter-group">
-        <label class="filter-label">End Date</label>
-        <input type="date" class="filter-input" id="endDate">
-      </div>
-      <div class="filter-group">
-        <label class="filter-label">Report Type</label>
-        <select class="filter-select">
-          <option value="">All Reports</option>
-          <option value="collection">Collection Status</option>
-          <option value="payment">Payment History</option>
-          <option value="household">Household Summary</option>
-        </select>
-      </div>
-      <div class="filter-buttons">
-        <button class="btn-filter btn-apply">Apply Filters</button>
-        <button class="btn-filter btn-reset">Reset</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Report Cards -->
+  <!-- Report Cards Grid -->
   <div class="reports-grid">
     <!-- Fixed Bill Summary Report -->
     <div class="report-card">
-      <div class="report-header">
+      <div class="report-card-header">
         <div class="report-icon">💰</div>
-        <div class="report-info">
-          <h3>Fixed Bill Summary</h3>
-          <p>Year <?= date('Y') ?> Overview</p>
+        <div>
+          <h3 class="report-title">Fixed Bill Summary</h3>
+          <p class="report-subtitle">Year <?= date('Y') ?> Overview</p>
         </div>
       </div>
       <div class="report-body">
         <div class="report-stat">
-          <span class="report-stat-label">Normal Rate (<?= $normalCount ?? 0 ?> households)</span>
-          <span class="report-stat-value">₱<?= number_format($rateNormal ?? 60, 2) ?></span>
+          <span class="stat-label">Normal Rate (<?= $normalCount ?? 0 ?> households)</span>
+          <span class="stat-value">₱<?= number_format($rateNormal ?? 60, 2) ?></span>
         </div>
         <div class="report-stat">
-          <span class="report-stat-label">Senior Citizen Rate (<?= $seniorCount ?? 0 ?> households)</span>
-          <span class="report-stat-value">₱<?= number_format($rateSenior ?? 48, 2) ?></span>
+          <span class="stat-label">Senior Citizen Rate (<?= $seniorCount ?? 0 ?> households)</span>
+          <span class="stat-value">₱<?= number_format($rateSenior ?? 48, 2) ?></span>
         </div>
         <div class="report-stat">
-          <span class="report-stat-label">Living Alone Rate (<?= $aloneCount ?? 0 ?> households)</span>
-          <span class="report-stat-value">₱<?= number_format($rateAlone ?? 30, 2) ?></span>
+          <span class="stat-label">Living Alone Rate (<?= $aloneCount ?? 0 ?> households)</span>
+          <span class="stat-value">₱<?= number_format($rateAlone ?? 30, 2) ?></span>
         </div>
-        <div class="report-stat" style="border-top: 2px solid var(--primary); padding-top: 1rem; margin-top: 0.5rem;">
-          <span class="report-stat-label" style="font-weight: 700;">Expected Monthly Collection</span>
-          <span class="report-stat-value" style="color: var(--primary); font-size: 1.25rem;">₱<?= number_format($monthlyExpected ?? 0, 2) ?></span>
+        <div class="report-stat stat-highlight">
+          <span class="stat-label">Expected Monthly Collection</span>
+          <span class="stat-value">₱<?= number_format($monthlyExpected ?? 0, 2) ?></span>
         </div>
       </div>
       <div class="report-footer">
-        <button class="btn-small btn-view">📄 View</button>
-        <a class="btn-small btn-export" href="<?= site_url('admin/exportReports') ?>?format=csv&filename=reports_<?= date('Y-m-d') ?>" target="_blank" rel="noopener">📥 Export</a>
+        <button class="btn btn-sm btn-outline-primary btn-view" data-report="summary">
+          <i class="fas fa-eye"></i> View
+        </button>
+        <a href="<?= site_url('admin/exportReports') ?>?format=csv&type=summary&filename=summary_<?= date('Y-m-d') ?>" 
+           class="btn btn-sm btn-success" target="_blank">
+          <i class="fas fa-download"></i> Export
+        </a>
       </div>
     </div>
 
     <!-- Payment Collection Report -->
     <div class="report-card">
-      <div class="report-header">
+      <div class="report-card-header">
         <div class="report-icon">💳</div>
-        <div class="report-info">
-          <h3>Payment Collection</h3>
-          <p>Collection Status</p>
+        <div>
+          <h3 class="report-title">Payment Collection</h3>
+          <p class="report-subtitle">Collection Status</p>
         </div>
       </div>
       <div class="report-body">
         <div class="report-stat">
-          <span class="report-stat-label">Collected This Month</span>
-          <span class="report-stat-value">₱<?= number_format($currentMonthCollected ?? 0, 2) ?></span>
+          <span class="stat-label">Collected This Month</span>
+          <span class="stat-value">₱<?= number_format($currentMonthCollected ?? 0, 2) ?></span>
         </div>
         <div class="report-stat">
-          <span class="report-stat-label">Paid Households</span>
-          <span class="report-stat-value"><?= $paidHouseholds ?? 0 ?> of <?= $totalHouseholds ?? 0 ?></span>
+          <span class="stat-label">Paid Households</span>
+          <span class="stat-value"><?= $paidHouseholds ?? 0 ?> of <?= $totalHouseholds ?? 0 ?></span>
         </div>
         <div class="report-stat">
-          <span class="report-stat-label">Pending Collection</span>
-          <span class="report-stat-value">₱<?= number_format($pendingAmount ?? 0, 2) ?></span>
+          <span class="stat-label">Pending Collection</span>
+          <span class="stat-value">₱<?= number_format($pendingAmount ?? 0, 2) ?></span>
         </div>
         <div class="report-stat">
-          <span class="report-stat-label">Collection Rate</span>
-          <span class="report-stat-value"><?= $collectionRate ?? 0 ?>%</span>
+          <span class="stat-label">Collection Rate</span>
+          <span class="stat-value"><?= $collectionRate ?? 0 ?>%</span>
         </div>
       </div>
       <div class="report-footer">
-        <button class="btn-small btn-view">📄 View</button>
-        <a class="btn-small btn-export" href="<?= site_url('admin/exportReports') ?>?format=csv&filename=reports_<?= date('Y-m-d') ?>" target="_blank" rel="noopener">📥 Export</a>
+        <button class="btn btn-sm btn-outline-primary btn-view" data-report="collection">
+          <i class="fas fa-eye"></i> View
+        </button>
+        <a href="<?= site_url('admin/exportReports') ?>?format=csv&type=collection&filename=collection_<?= date('Y-m-d') ?>" 
+           class="btn btn-sm btn-success" target="_blank">
+          <i class="fas fa-download"></i> Export
+        </a>
       </div>
     </div>
 
-    <!-- Rate Breakdown Card -->
+    <!-- Rate Distribution Report -->
     <div class="report-card">
-      <div class="report-header">
+      <div class="report-card-header">
         <div class="report-icon">📊</div>
-        <div class="report-info">
-          <h3>Rate Distribution</h3>
-          <p>Household Categories</p>
+        <div>
+          <h3 class="report-title">Rate Distribution</h3>
+          <p class="report-subtitle">Household Categories</p>
         </div>
       </div>
       <div class="report-body">
         <div class="report-stat">
-          <span class="report-stat-label">Normal Households</span>
-          <span class="report-stat-value"><?= $normalCount ?? 0 ?> <span style="font-size: 0.85rem; color: var(--muted);">(₱<?= number_format(($normalCount ?? 0) * ($rateNormal ?? 60), 2) ?>)</span></span>
+          <span class="stat-label">Normal Households</span>
+          <span class="stat-value"><?= $normalCount ?? 0 ?> 
+            <small class="text-muted">(₱<?= number_format(($normalCount ?? 0) * ($rateNormal ?? 60), 2) ?>)</small>
+          </span>
         </div>
         <div class="report-stat">
-          <span class="report-stat-label">Senior Citizens</span>
-          <span class="report-stat-value"><?= $seniorCount ?? 0 ?> <span style="font-size: 0.85rem; color: var(--muted);">(₱<?= number_format(($seniorCount ?? 0) * ($rateSenior ?? 48), 2) ?>)</span></span>
+          <span class="stat-label">Senior Citizens</span>
+          <span class="stat-value"><?= $seniorCount ?? 0 ?> 
+            <small class="text-muted">(₱<?= number_format(($seniorCount ?? 0) * ($rateSenior ?? 48), 2) ?>)</small>
+          </span>
         </div>
         <div class="report-stat">
-          <span class="report-stat-label">Living Alone</span>
-          <span class="report-stat-value"><?= $aloneCount ?? 0 ?> <span style="font-size: 0.85rem; color: var(--muted);">(₱<?= number_format(($aloneCount ?? 0) * ($rateAlone ?? 30), 2) ?>)</span></span>
+          <span class="stat-label">Living Alone</span>
+          <span class="stat-value"><?= $aloneCount ?? 0 ?> 
+            <small class="text-muted">(₱<?= number_format(($aloneCount ?? 0) * ($rateAlone ?? 30), 2) ?>)</small>
+          </span>
         </div>
-        <div class="report-stat" style="border-top: 2px solid var(--primary); padding-top: 1rem; margin-top: 0.5rem;">
-          <span class="report-stat-label" style="font-weight: 700;">Total Households</span>
-          <span class="report-stat-value" style="color: var(--primary);"><?= $totalHouseholds ?? 0 ?></span>
+        <div class="report-stat stat-highlight">
+          <span class="stat-label">Total Households</span>
+          <span class="stat-value"><?= $totalHouseholds ?? 0 ?></span>
         </div>
-        <div style="margin-top: 1rem; padding: 1rem; background: var(--light); border-radius: 8px;">
-          <canvas id="rateDistributionChart" style="max-height: 150px;"></canvas>
+        <div style="margin-top: 1rem; padding: 1rem; background: #f8f9fc; border-radius: 0.375rem;">
+          <canvas id="rateDistributionChart" class="mini-chart"></canvas>
         </div>
       </div>
       <div class="report-footer">
-        <button class="btn-small btn-view">📄 View</button>
-        <a class="btn-small btn-export" href="<?= site_url('admin/exportReports') ?>?format=csv&filename=reports_<?= date('Y-m-d') ?>" target="_blank" rel="noopener">📥 Export</a>
+        <button class="btn btn-sm btn-outline-primary btn-view" data-report="distribution">
+          <i class="fas fa-eye"></i> View
+        </button>
+        <a href="<?= site_url('admin/exportReports') ?>?format=csv&type=distribution&filename=distribution_<?= date('Y-m-d') ?>" 
+           class="btn btn-sm btn-success" target="_blank">
+          <i class="fas fa-download"></i> Export
+        </a>
       </div>
     </div>
 
     <!-- Community Statistics -->
     <div class="report-card">
-      <div class="report-header">
+      <div class="report-card-header">
         <div class="report-icon">🏘️</div>
-        <div class="report-info">
-          <h3>Community Statistics</h3>
-          <p>Household Overview</p>
+        <div>
+          <h3 class="report-title">Community Statistics</h3>
+          <p class="report-subtitle">Household Overview</p>
         </div>
       </div>
-      <div class="report-body" style="display: flex; flex-direction: column; gap: 0.5rem;">
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
-          <div class="report-stat" style="flex-direction: column; align-items: flex-start; padding: 0.5rem; border: none;">
-            <span class="report-stat-label">Active Households</span>
-            <span class="report-stat-value"><?= $totalHouseholds ?? 0 ?></span>
+      <div class="report-body">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+          <div style="text-align: center; padding: 0.75rem; background: #f8f9fc; border-radius: 0.375rem;">
+            <div class="stat-label">Active Households</div>
+            <div class="stat-value" style="font-size: 1.25rem; color: var(--primary);"><?= $totalHouseholds ?? 0 ?></div>
           </div>
-          <div class="report-stat" style="flex-direction: column; align-items: flex-start; padding: 0.5rem; border: none;">
-            <span class="report-stat-label">Pending Payments</span>
-            <span class="report-stat-value"><?= $pendingCount ?? 0 ?></span>
-          </div>
-        </div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
-          <div class="report-stat" style="flex-direction: column; align-items: flex-start; padding: 0.5rem; border: none;">
-            <span class="report-stat-label">Payment Compliance</span>
-            <span class="report-stat-value"><?= $collectionRate ?? 0 ?>%</span>
-          </div>
-          <div class="report-stat" style="flex-direction: column; align-items: flex-start; padding: 0.5rem; border: none;">
-            <span class="report-stat-label">Late Payments</span>
-            <span class="report-stat-value"><?= $latePayments ?? 0 ?></span>
+          <div style="text-align: center; padding: 0.75rem; background: #f8f9fc; border-radius: 0.375rem;">
+            <div class="stat-label">Pending Payments</div>
+            <div class="stat-value" style="font-size: 1.25rem; color: var(--warning);"><?= $pendingCount ?? 0 ?></div>
           </div>
         </div>
-        <div style="padding-top: 1rem;">
-          <canvas id="miniPaymentChart" style="max-height: 180px;"></canvas>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+          <div style="text-align: center; padding: 0.75rem; background: #f8f9fc; border-radius: 0.375rem;">
+            <div class="stat-label">Payment Compliance</div>
+            <div class="stat-value" style="font-size: 1.25rem; color: var(--success);"><?= $collectionRate ?? 0 ?>%</div>
+          </div>
+          <div style="text-align: center; padding: 0.75rem; background: #f8f9fc; border-radius: 0.375rem;">
+            <div class="stat-label">Late Payments</div>
+            <div class="stat-value" style="font-size: 1.25rem; color: var(--danger);"><?= $latePayments ?? 0 ?></div>
+          </div>
+        </div>
+        <div style="margin-top: 1rem;">
+          <canvas id="miniPaymentChart" class="mini-chart"></canvas>
         </div>
       </div>
       <div class="report-footer">
-        <button class="btn-small btn-view">📄 View</button>
-        <button class="btn-small btn-export">📥 Export</button>
+        <button class="btn btn-sm btn-outline-primary btn-view" data-report="community">
+          <i class="fas fa-eye"></i> View
+        </button>
+        <a href="<?= site_url('admin/exportReports') ?>?format=csv&type=community&filename=community_<?= date('Y-m-d') ?>" 
+           class="btn btn-sm btn-success" target="_blank">
+          <i class="fas fa-download"></i> Export
+        </a>
       </div>
     </div>
   </div>
 
-
-  <!-- Monthly Collection Chart -->
-  <div class="chart-container">
-    <div class="chart-title">
-      <span>💰</span>
-      <span>Monthly Collection Rate (<?= date('Y') ?>)</span>
+  <!-- Charts Section -->
+  <div class="row">
+    <div class="col-lg-8">
+      <!-- Monthly Collection Chart -->
+      <div class="chart-container">
+        <div class="chart-header">
+          <h3 class="chart-title">
+            <i class="fas fa-chart-line text-primary"></i>
+            Monthly Collection Rate (<?= date('Y') ?>)
+          </h3>
+        </div>
+        <div class="chart-body">
+          <canvas id="collectionChart" class="chart-canvas"></canvas>
+        </div>
+      </div>
     </div>
-    <canvas id="collectionChart" class="chart-canvas"></canvas>
-  </div>
-
-  <!-- Payment Status Chart -->
-  <div class="chart-container">
-    <div class="chart-title">
-      <span>📊</span>
-      <span>Payment Status Overview<?= isset($statusScope) && $statusScope === 'YTD' ? ' (YTD)' : '' ?></span>
+    <div class="col-lg-4">
+      <!-- Payment Status Chart -->
+      <div class="chart-container">
+        <div class="chart-header">
+          <h3 class="chart-title">
+            <i class="fas fa-chart-pie text-success"></i>
+            Payment Status
+          </h3>
+        </div>
+        <div class="chart-body">
+          <canvas id="paymentStatusChart" class="chart-canvas"></canvas>
+        </div>
+      </div>
     </div>
-    <canvas id="paymentStatusChart" class="chart-canvas"></canvas>
   </div>
-
 </div>
 
-<!-- Embed reports data as JSON for chart initialization under AJAX -->
+<!-- Data for Charts -->
 <script type="application/json" id="reports-data">
 <?= json_encode([
   'collectionRates' => $collectionRates ?? array_fill(0, 12, 0),
@@ -334,44 +679,292 @@
 </script>
 
 <script>
-// De-duplicate JSON data script and inject current values for AJAX path
-try { const old = document.getElementById('reports-data'); if (old) old.remove(); } catch(e) {}
-const reportsDataEl = document.createElement('script');
-reportsDataEl.type = 'application/json';
-reportsDataEl.id = 'reports-data';
-reportsDataEl.textContent = JSON.stringify({
-  collectionRates: <?= json_encode($collectionRates ?? array_fill(0, 12, 0)) ?>,
-  collectionAmounts: <?= json_encode($collectionAmounts ?? array_fill(0, 12, 0)) ?>,
-  paidHouseholds: <?= (int)($paidHouseholds ?? 0) ?>,
-  pendingCount: <?= (int)($pendingCount ?? 0) ?>,
-  latePayments: <?= (int)($latePayments ?? 0) ?>,
-  normalCount: <?= (int)($normalCount ?? 0) ?>,
-  seniorCount: <?= (int)($seniorCount ?? 0) ?>,
-  aloneCount: <?= (int)($aloneCount ?? 0) ?>,
-  rateNormal: <?= (float)($rateNormal ?? 60) ?>,
-  rateSenior: <?= (float)($rateSenior ?? 48) ?>,
-  rateAlone: <?= (float)($rateAlone ?? 30) ?>,
-  year: <?= (int)date('Y') ?>
-});
-document.body.appendChild(reportsDataEl);
-
-// Initialize filter dates and simple button handlers for partial
-(function(){
-  const today = new Date();
-  const startOfYear = new Date(today.getFullYear(), 0, 1);
-  const sd = document.getElementById('startDate');
-  const ed = document.getElementById('endDate');
-  if (sd) sd.valueAsDate = startOfYear;
-  if (ed) ed.valueAsDate = today;
-  document.querySelectorAll('.export-btn').forEach(btn => btn.addEventListener('click', function(){
-    const format = (this.textContent || '').trim();
-    alert(`Exporting reports as ${format}...`);
-  }));
-  document.querySelectorAll('.btn-view').forEach(btn => btn.addEventListener('click', function(){
-    alert('Viewing detailed report...');
-  }));
-  document.querySelectorAll('.btn-export').forEach(btn => btn.addEventListener('click', function(){
-    alert('Exporting this report...');
-  }));
+(function() {
+    'use strict';
+    
+    // Initialize when content loads
+    function initializeReports() {
+        console.log('[Reports] Initializing AJAX content...');
+        
+        // Set default dates
+        const today = new Date();
+        const startOfYear = new Date(today.getFullYear(), 0, 1);
+        
+        const startDateEl = document.getElementById('startDate');
+        const endDateEl = document.getElementById('endDate');
+        
+        if (startDateEl && !startDateEl.value) {
+            startDateEl.valueAsDate = startOfYear;
+        }
+        if (endDateEl && !endDateEl.value) {
+            endDateEl.valueAsDate = today;
+        }
+        
+        // Initialize charts
+        initializeCharts();
+        
+        // Setup event listeners
+        setupEventListeners();
+        
+        console.log('[Reports] Initialization complete');
+    }
+    
+    function initializeCharts() {
+        try {
+            const dataElement = document.getElementById('reports-data');
+            if (!dataElement) {
+                console.warn('[Reports] No data element found');
+                return;
+            }
+            
+            const data = JSON.parse(dataElement.textContent);
+            console.log('[Reports] Chart data:', data);
+            
+            // Initialize Collection Chart
+            const collectionCanvas = document.getElementById('collectionChart');
+            if (collectionCanvas && data.collectionRates) {
+                initCollectionChart(collectionCanvas, data);
+            }
+            
+            // Initialize Payment Status Chart
+            const statusCanvas = document.getElementById('paymentStatusChart');
+            if (statusCanvas) {
+                initPaymentStatusChart(statusCanvas, data);
+            }
+            
+            // Initialize Rate Distribution Chart
+            const rateCanvas = document.getElementById('rateDistributionChart');
+            if (rateCanvas) {
+                initRateDistributionChart(rateCanvas, data);
+            }
+            
+            // Initialize Mini Payment Chart
+            const miniCanvas = document.getElementById('miniPaymentChart');
+            if (miniCanvas) {
+                initMiniPaymentChart(miniCanvas, data);
+            }
+            
+        } catch (error) {
+            console.error('[Reports] Chart initialization error:', error);
+        }
+    }
+    
+    function initCollectionChart(canvas, data) {
+        const ctx = canvas.getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+                datasets: [{
+                    label: 'Collection Rate (%)',
+                    data: data.collectionRates || [],
+                    borderColor: '#4e73df',
+                    backgroundColor: 'rgba(78, 115, 223, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4
+                }, {
+                    label: 'Amount Collected (₱)',
+                    data: data.collectionAmounts || [],
+                    borderColor: '#1cc88a',
+                    backgroundColor: 'rgba(28, 200, 138, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    yAxisID: 'y1'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    }
+                },
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        beginAtZero: true
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        beginAtZero: true,
+                        grid: {
+                            drawOnChartArea: false
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    function initPaymentStatusChart(canvas, data) {
+        const ctx = canvas.getContext('2d');
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Paid', 'Pending', 'Late'],
+                datasets: [{
+                    data: [data.paidHouseholds || 0, data.pendingCount || 0, data.latePayments || 0],
+                    backgroundColor: ['#1cc88a', '#f6c23e', '#e74a3b'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+    }
+    
+    function initRateDistributionChart(canvas, data) {
+        const ctx = canvas.getContext('2d');
+        new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: ['Normal', 'Senior', 'Alone'],
+                datasets: [{
+                    data: [data.normalCount || 0, data.seniorCount || 0, data.aloneCount || 0],
+                    backgroundColor: ['#4e73df', '#1cc88a', '#f6c23e'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        });
+    }
+    
+    function initMiniPaymentChart(canvas, data) {
+        const ctx = canvas.getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Paid', 'Pending', 'Late'],
+                datasets: [{
+                    data: [data.paidHouseholds || 0, data.pendingCount || 0, data.latePayments || 0],
+                    backgroundColor: ['#1cc88a', '#f6c23e', '#e74a3b'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        display: false
+                    },
+                    x: {
+                        display: false
+                    }
+                }
+            }
+        });
+    }
+    
+    function setupEventListeners() {
+        // Filter apply button
+        const applyBtn = document.getElementById('applyFilters');
+        if (applyBtn) {
+            applyBtn.addEventListener('click', function() {
+                console.log('[Reports] Apply filters clicked');
+                applyFilters();
+            });
+        }
+        
+        // Filter reset button
+        const resetBtn = document.getElementById('resetFilters');
+        if (resetBtn) {
+            resetBtn.addEventListener('click', function() {
+                console.log('[Reports] Reset filters clicked');
+                resetFilters();
+            });
+        }
+        
+        // View buttons
+        document.querySelectorAll('.btn-view').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const reportType = this.getAttribute('data-report');
+                console.log('[Reports] View report:', reportType);
+                viewReport(reportType);
+            });
+        });
+    }
+    
+    function applyFilters() {
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+        const reportType = document.getElementById('reportType').value;
+        
+        const params = new URLSearchParams();
+        if (startDate) params.set('start', startDate);
+        if (endDate) params.set('end', endDate);
+        if (reportType) params.set('type', reportType);
+        
+        const url = '<?= site_url("admin/reports") ?>' + (params.toString() ? '?' + params.toString() : '');
+        
+        // Use the dashboard's AJAX loading function
+        if (typeof loadAjaxPage === 'function') {
+            loadAjaxPage(url);
+        } else {
+            window.location.href = url;
+        }
+    }
+    
+    function resetFilters() {
+        document.getElementById('startDate').value = '';
+        document.getElementById('endDate').value = '';
+        document.getElementById('reportType').value = '';
+        
+        const today = new Date();
+        const startOfYear = new Date(today.getFullYear(), 0, 1);
+        document.getElementById('startDate').valueAsDate = startOfYear;
+        document.getElementById('endDate').valueAsDate = today;
+        
+        // Reload without parameters
+        const url = '<?= site_url("admin/reports") ?>';
+        if (typeof loadAjaxPage === 'function') {
+            loadAjaxPage(url);
+        } else {
+            window.location.href = url;
+        }
+    }
+    
+    function viewReport(reportType) {
+        // Placeholder for detailed report view
+        alert(`Viewing detailed ${reportType} report...`);
+    }
+    
+    // Initialize when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializeReports);
+    } else {
+        initializeReports();
+    }
+    
 })();
 </script>
