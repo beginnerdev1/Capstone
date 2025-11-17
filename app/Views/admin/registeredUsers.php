@@ -532,9 +532,9 @@ function initRegisteredUsersPage() {
     $('#confirmDeactivateBtn').on('click', function(){
         if (!$('#deactivateUserModal').length) return; // handled globally
         if(!currentDeactivateUserId) return;
-            let formData = $('#deactivateUserForm').serialize();
-            // Always append user_id to the form data
-            formData += '&user_id=' + encodeURIComponent(currentDeactivateUserId);
+        let formData = $('#deactivateUserForm').serialize();
+        // Always append user_id to the form data
+        formData += '&user_id=' + encodeURIComponent(currentDeactivateUserId);
         const btn = $(this);
         btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Deactivating...');
         $.ajax({
@@ -569,6 +569,45 @@ function initRegisteredUsersPage() {
             },
             complete: function(){
                 btn.prop('disabled', false).html('<i class="fas fa-user-slash me-1"></i>Deactivate');
+            }
+        });
+    });
+
+    // Activate/reactivate flow: always send user_id
+    $(document).on('click', '.activateUserBtn, .reactivateUserBtn', function(){
+        const userId = $(this).data('id');
+        const name = $(this).data('name') || 'this user';
+        // If you have a modal for activation/reactivation, show it here
+        // Otherwise, send AJAX directly
+        $.ajax({
+            url: baseUrl + '/admin/activateUser/' + userId,
+            type: 'POST',
+            data: { user_id: userId },
+            dataType: 'json',
+            success: function(res){
+                if(res && res.success){
+                    const successAlert = $('<div class="alert alert-success alert-dismissible fade show" role="alert">' +
+                        '<i class="fas fa-check-circle me-2"></i>' + (res.message || 'User activated successfully.') +
+                        '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                        '</div>');
+                    $('.container-fluid').prepend(successAlert);
+                    loadUsers($('#filterInput').val(), $('#filterPurok').val(), $('#filterStatus').val());
+                } else {
+                    const msg = res && res.message ? res.message : 'Failed to activate user.';
+                    const errorAlert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
+                        '<i class="fas fa-exclamation-triangle me-2"></i>' + msg +
+                        '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                        '</div>');
+                    // If you have a form, prepend to it; else prepend to container
+                    $('.container-fluid').prepend(errorAlert);
+                }
+            },
+            error: function(xhr){
+                const errorAlert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
+                    '<i class="fas fa-exclamation-triangle me-2"></i>Error activating user. Please try again.' +
+                    '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                    '</div>');
+                $('.container-fluid').prepend(errorAlert);
             }
         });
     });

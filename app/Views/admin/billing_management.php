@@ -587,7 +587,9 @@
 <script>
 // Avoid redeclaring globals on AJAX reloads
 window.APP_BASE_URL = window.APP_BASE_URL || "<?= base_url() ?>";
-const billingTableBody = document.getElementById('ubill-billingTable');
+// Avoid redeclaring the billing table body when this script is injected multiple times
+window.ubillBillingTableBody = window.ubillBillingTableBody || document.getElementById('ubill-billingTable');
+var billingTableBody = window.ubillBillingTableBody;
 
 // === Global Variables ===
 let ubillUsers = [];

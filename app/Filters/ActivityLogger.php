@@ -60,30 +60,57 @@ class ActivityLogger implements FilterInterface
                 if (isset($vars['password'])) $vars['password'] = '***';
                 if (isset($vars['confirm_password'])) $vars['confirm_password'] = '***';
 
-                // If user_id or id is present, fetch first_name and last_name for better log context
+                // Always add user/customer name for actions concerning users
                 $targetUserId = $vars['user_id'] ?? $vars['id'] ?? null;
-                // If user object is present, use its name
+                $userName = null;
                 if (isset($vars['user']) && is_array($vars['user'])) {
-                    $vars['first_name'] = $vars['user']['first_name'] ?? null;
-                    $vars['last_name'] = $vars['user']['last_name'] ?? null;
-                } else if ($targetUserId) {
-                    $userInfoModel = new \App\Models\UserInformationModel();
-                    $userInfo = $userInfoModel->getByUserId($targetUserId);
-                    if ($userInfo) {
-                        $vars['first_name'] = $userInfo['first_name'] ?? null;
-                        $vars['last_name'] = $userInfo['last_name'] ?? null;
+                    $userName = trim(($vars['user']['first_name'] ?? '') . ' ' . ($vars['user']['last_name'] ?? '')) ?: null;
+                }
+
+                // Try to resolve name from known sources in order
+                if (!$userName && $targetUserId) {
+                    // 1) user_information table
+                    try {
+                        $userInfoModel = new \App\Models\UserInformationModel();
+                        $userName = $userInfoModel->getFullName($targetUserId);
+                    } catch (\Throwable $e) {
+                        log_message('debug', '[ActivityLogger] userInformation lookup failed: ' . $e->getMessage());
+                        $userName = null;
                     }
-                } else if (
-                    ($action === 'deactivate' || $action === 'activate') && is_numeric($resource)
-                ) {
-                    // Try to fetch user info if route/resource looks like a user id
-                    $userInfoModel = new \App\Models\UserInformationModel();
-                    $userInfo = $userInfoModel->getByUserId($resource);
-                    if ($userInfo) {
-                        $vars['first_name'] = $userInfo['first_name'] ?? null;
-                        $vars['last_name'] = $userInfo['last_name'] ?? null;
-                        $vars['id'] = $resource;
+                    $vars['user_id'] = $targetUserId;
+                }
+
+                if (!$userName) {
+                    // 2) inactive_users table
+                    try {
+                        $inactiveModel = new \App\Models\InactiveUsersModel();
+                        $userName = $inactiveModel->getFullName($targetUserId ?? $resource ?? null);
+                    } catch (\Throwable $e) {
+                        // ignore
                     }
+                }
+
+                if (!$userName) {
+                    // 3) users table (joined info)
+                    try {
+                        $usersModel = new \App\Models\UsersModel();
+                        $u = null;
+                        if ($targetUserId) {
+                            $u = $usersModel->getUserWithInfo($targetUserId);
+                        } elseif (is_numeric($resource)) {
+                            $u = $usersModel->getUserWithInfo($resource);
+                            $vars['user_id'] = $resource;
+                        }
+                        if ($u) {
+                            $userName = trim(($u['first_name'] ?? '') . ' ' . ($u['last_name'] ?? '')) ?: ($u['email'] ?? null);
+                        }
+                    } catch (\Throwable $e) {
+                        // ignore
+                    }
+                }
+
+                if ($userName) {
+                    $vars['user_name'] = $userName;
                 }
 
                 $encoded = json_encode($vars);

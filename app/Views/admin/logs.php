@@ -121,7 +121,10 @@
         const d = typeof a.details === 'string' ? JSON.parse(a.details) : a.details;
         console.log('Log details for action:', a.action, d);
         if (d && typeof d === 'object') {
-          if (d.first_name || d.last_name) {
+          // Prefer combined user_name if present (set by ActivityLogger), fall back to first_name/last_name or id
+          if (d.user_name) {
+            extra += ` (User: <span class="text-primary">${d.user_name}</span>)`;
+          } else if (d.first_name || d.last_name) {
             extra += ` (User: <span class="text-primary">${(d.first_name||'') + (d.last_name ? ' ' + d.last_name : '')}</span>)`;
           } else if (d.id) {
             extra += ` (User ID: <span class="text-muted">${d.id}</span>)`;
