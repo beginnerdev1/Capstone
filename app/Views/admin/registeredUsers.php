@@ -532,7 +532,9 @@ function initRegisteredUsersPage() {
     $('#confirmDeactivateBtn').on('click', function(){
         if (!$('#deactivateUserModal').length) return; // handled globally
         if(!currentDeactivateUserId) return;
-        const formData = $('#deactivateUserForm').serialize();
+            let formData = $('#deactivateUserForm').serialize();
+            // Always append user_id to the form data
+            formData += '&user_id=' + encodeURIComponent(currentDeactivateUserId);
         const btn = $(this);
         btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Deactivating...');
         $.ajax({

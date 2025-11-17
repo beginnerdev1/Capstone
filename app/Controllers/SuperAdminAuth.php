@@ -62,6 +62,7 @@ class SuperAdminAuth extends Controller
             if ($logId) {
                 $logModel = new AdminActivityLogModel();
                 $logModel->update($logId, ['logged_out_at' => date('Y-m-d H:i:s')]);
+                session()->remove('superadmin_activity_log_id');
             }
         } catch (\Throwable $e) { }
         session()->destroy();

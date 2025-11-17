@@ -44,14 +44,12 @@
         <table class="table table-striped table-hover align-middle" id="logsTable">
           <thead class="table-light">
             <tr>
-              <th>Time</th>
-              <th>Actor</th>
-              <th>Action</th>
-              <th>Route</th>
-              <th>Resource</th>
-              <th>IP</th>
-              <th>User Agent</th>
-              <th>Logout</th>
+              <th>Session Start</th>
+              <th>Admin</th>
+              <th>Actions (click for details)</th>
+              <th>Logout Time</th>
+              <th>Location/IP</th>
+              <th>Device</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -78,22 +76,84 @@
     $.getJSON('<?= site_url('admin/getLogs') ?>', buildParams()).done(function(rows){
       const $tb = $('#logsTable tbody');
       $tb.empty();
-      if(!rows || !rows.length){ $tb.append('<tr><td colspan="8" class="text-center text-muted">No logs</td></tr>'); return; }
-      rows.forEach(r=>{
+      if(!rows || !rows.length){ $tb.append('<tr><td colspan="6" class="text-center text-muted">No logs found</td></tr>'); return; }
+      rows.forEach(function(r, idx){
+        // Parse actions timeline
+        let actions = [];
+        try { actions = r.details ? JSON.parse(r.details) : []; } catch(e) { actions = []; }
+        let actionSummary = actions.length ? actions.map(a => a.action).join(', ') : (r.action||'login');
+        let readable = '';
+        if(actions.length) {
+          readable = '<ul class="list-unstyled mb-0">';
+          actions.forEach(function(a, i){
+            readable += `<li><span class="fw-semibold">${fmt(a.time)}</span>: <span>${friendlyAction(a)}</span></li>`;
+          });
+          readable += '</ul>';
+        } else {
+          readable = '<em>No actions recorded</em>';
+        }
         $tb.append(`
           <tr>
             <td>${fmt(r.created_at)}</td>
-            <td>${r.actor_type}#${r.actor_id}</td>
-            <td>${r.action}</td>
-            <td><code>${r.route||''}</code></td>
-            <td>${r.resource||''}</td>
-            <td>${r.ip_address||''}</td>
-            <td title="${r.user_agent||''}">${(r.user_agent||'').slice(0,40)}${(r.user_agent||'').length>40?'…':''}</td>
+            <td>${r.actor_type === 'admin' ? 'Admin #' + r.actor_id : r.actor_type}</td>
+            <td><button class="btn btn-sm btn-outline-primary view-details" data-idx="${idx}">View Details (${actions.length})</button></td>
             <td>${fmt(r.logged_out_at)}</td>
+            <td title="IP address">${r.ip_address||''}</td>
+            <td title="Device info">${(r.user_agent||'').slice(0,40)}${(r.user_agent||'').length>40?'…':''}</td>
           </tr>`);
+        r._readable = readable;
       });
+      // Store for modal
+      window._adminLogsRows = rows;
     }).fail(()=>$('#logsAlerts').html('<div class="alert alert-danger">Failed to load logs</div>'));
   }
+
+  // Friendly action text
+  function friendlyAction(a){
+    if(!a || !a.action) return '';
+    let what = '';
+    if (a.resource) {
+      what = ` <span class="text-info">${a.resource}</span>`;
+    }
+    let extra = '';
+    if (a.details) {
+      try {
+        const d = typeof a.details === 'string' ? JSON.parse(a.details) : a.details;
+        console.log('Log details for action:', a.action, d);
+        if (d && typeof d === 'object') {
+          if (d.first_name || d.last_name) {
+            extra += ` (User: <span class="text-primary">${(d.first_name||'') + (d.last_name ? ' ' + d.last_name : '')}</span>)`;
+          } else if (d.id) {
+            extra += ` (User ID: <span class="text-muted">${d.id}</span>)`;
+          }
+          if (d.bill_id) extra += ` (Bill: <span class="text-primary">${d.bill_id}</span>)`;
+          if (d.receipt_id) extra += ` (Receipt: <span class="text-primary">${d.receipt_id}</span>)`;
+        }
+      } catch(e) {}
+    }
+    switch(a.action){
+      case 'login': return 'Logged in';
+      case 'logout': return 'Logged out';
+      case 'create': return `Created${what}${extra}`;
+      case 'edit': return `Edited${what}${extra}`;
+      case 'delete': return `Deleted${what}${extra}`;
+      case 'activate': return `Activated${what}${extra}`;
+      case 'deactivate': return `Deactivated${what}${extra}`;
+      default: return a.action.charAt(0).toUpperCase() + a.action.slice(1) + what + extra;
+    }
+  }
+
+  // Details modal
+  $(document).on('click', '.view-details', function(){
+    const idx = $(this).data('idx');
+    const row = window._adminLogsRows && window._adminLogsRows[idx];
+    if(!row) return;
+    $('#detailsModalBody').html(row._readable || '<em>No details</em>');
+    $('#detailsModalTime').text(fmt(row.created_at));
+    $('#detailsModalAdmin').text(row.actor_type === 'admin' ? 'Admin #' + row.actor_id : row.actor_type);
+    $('#detailsModalLogout').text(fmt(row.logged_out_at));
+    new bootstrap.Modal(document.getElementById('detailsModal')).show();
+  });
   $('#refreshLogs, #limit, #applyFilters').on('click change', loadLogs);
   $('#q').on('keypress', function(e){ if(e.which===13){ loadLogs(); }});
 
@@ -124,6 +184,28 @@
 </script>
 <div class="position-sticky bottom-0 p-2">
   <button class="btn btn-outline-secondary btn-sm" id="exportCsv"><i class="fas fa-file-csv me-1"></i>Export CSV</button>
+</div>
+
+<!-- Details Modal -->
+<div class="modal fade" id="detailsModal" tabindex="-1" aria-labelledby="detailsModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="detailsModalLabel">Session Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2"><strong>Session Start:</strong> <span id="detailsModalTime"></span></div>
+        <div class="mb-2"><strong>Admin:</strong> <span id="detailsModalAdmin"></span></div>
+        <div class="mb-2"><strong>Logout Time:</strong> <span id="detailsModalLogout"></span></div>
+        <hr>
+        <div id="detailsModalBody"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- Export Confirmation Modal -->

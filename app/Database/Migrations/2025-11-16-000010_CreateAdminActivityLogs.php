@@ -42,8 +42,8 @@ class CreateAdminActivityLogs extends Migration
                 'constraint' => 255,
                 'null' => true,
             ],
-            'details' => [ // JSON/text
-                'type' => 'TEXT',
+            'details' => [ // JSON array of actions for session logs
+                'type' => 'LONGTEXT', // allow large JSON arrays
                 'null' => true,
             ],
             'ip_address' => [
