@@ -733,6 +733,13 @@
       </a>
     </li>
 
+        <li class="nav-item">
+            <a href="<?= base_url('admin/logs') ?>" class="nav-link ajax-link">
+                <i class="fas fa-file-lines"></i>
+                <span>Activity Logs</span>
+            </a>
+        </li>
+
   </ul>
 </div>
     <!-- Sidebar Overlay (Mobile) -->

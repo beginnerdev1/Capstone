@@ -8,6 +8,7 @@ use Brevo\Client\Configuration;
 use Brevo\Client\Api\TransactionalEmailsApi;
 use Brevo\Client\Model\SendSmtpEmail;
 use GuzzleHttp\Client as GuzzleClient;
+use App\Models\AdminActivityLogModel;
 
 class AdminAuth extends BaseController
 {
@@ -99,6 +100,21 @@ class AdminAuth extends BaseController
             return redirect()->to('admin/')->with('warning', 'Please change your default password.');
         }
 
+        // Log login
+        try {
+            $logModel = new AdminActivityLogModel();
+            $logId = $logModel->insert([
+                'actor_type' => 'admin',
+                'actor_id'   => $admin['id'],
+                'action'     => 'login',
+                'route'      => '/admin/login',
+                'method'     => 'POST',
+                'ip_address' => $this->request->getIPAddress(),
+                'user_agent' => substr((string)($this->request->getUserAgent() ?? ''), 0, 255),
+            ], true);
+            session()->set('admin_activity_log_id', $logId);
+        } catch (\Throwable $e) { }
+
         return redirect()->to('admin/')->with('success', 'Login successful.');
     }
 
@@ -144,6 +160,21 @@ class AdminAuth extends BaseController
             if (empty($updatedAdmin['password'])) {
                 session()->setFlashdata('force_password_change', true);
             }
+
+            // Log login after OTP verification
+            try {
+                $logModel = new AdminActivityLogModel();
+                $logId = $logModel->insert([
+                    'actor_type' => 'admin',
+                    'actor_id'   => $adminId,
+                    'action'     => 'login',
+                    'route'      => '/admin/verify-otp',
+                    'method'     => 'POST',
+                    'ip_address' => $this->request->getIPAddress(),
+                    'user_agent' => substr((string)($this->request->getUserAgent() ?? ''), 0, 255),
+                ], true);
+                session()->set('admin_activity_log_id', $logId);
+            } catch (\Throwable $e) { }
 
             return redirect()->to('admin/')
                 ->with('success', 'Email verified! Welcome to the dashboard.');
@@ -240,6 +271,14 @@ class AdminAuth extends BaseController
 
     public function logout()
     {
+        try {
+            $logId = session()->get('admin_activity_log_id');
+            if ($logId) {
+                $logModel = new AdminActivityLogModel();
+                $logModel->update($logId, ['logged_out_at' => date('Y-m-d H:i:s')]);
+                session()->remove('admin_activity_log_id');
+            }
+        } catch (\Throwable $e) { }
         session()->destroy();
         return redirect()->to('/admin/login');
     }

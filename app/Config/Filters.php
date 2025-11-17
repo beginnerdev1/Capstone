@@ -41,6 +41,7 @@ class Filters extends BaseFilters
         'superadminguest' => \App\Filters\SuperadminGuest::class,
         'forcepasswordchange' => \App\Filters\ForcePasswordChange::class,
         'profilecomplete' => \App\Filters\ProfileCompleteFilter::class,
+        'activity' => \App\Filters\ActivityLogger::class,
 
 
     ];
@@ -83,7 +84,7 @@ class Filters extends BaseFilters
     'before' => [
     
     ],
-    'after' => [],
+        'after' => [],
 ];
 
 
@@ -125,6 +126,12 @@ class Filters extends BaseFilters
         'userauth' => [
             'before' => [
                 'users/*',
+            ],
+        ],
+        'activity' => [
+            'after' => [
+                'admin/*',
+                'superadmin/*',
             ],
         ],
     ];

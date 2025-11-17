@@ -148,6 +148,9 @@ $routes->post('createManualBilling', 'Admin::createManualBilling'); // Create Ma
         $routes->get('401', 'Admin::page401');
         $routes->get('500', 'Admin::page500');
         $routes->get('profile', 'Admin::profile');
+        $routes->get('logs', 'Admin::logs');
+        $routes->get('getLogs', 'Admin::getLogs');
+        $routes->get('exportLogs', 'Admin::exportLogs');
         $routes->post('updateProfile', 'Admin::updateProfile');
         // Secure password change with OTP
         $routes->post('requestPasswordOtp', 'Admin::requestPasswordOtp');
@@ -174,7 +177,7 @@ $routes->post('createManualBilling', 'Admin::createManualBilling'); // Create Ma
 // ======================================================
 // 👑 SUPER ADMIN ROUTES
 // ======================================================
-$routes->group('superadmin', ['namespace' => 'App\Controllers\SuperAdmin'], function ($routes) {
+$routes->group('superadmin', ['namespace' => 'App\Controllers'], function ($routes) {
     $routes->get('login', 'SuperAdminAuth::loginForm', ['filter' => 'superadminguest']);
     $routes->post('login', 'SuperAdminAuth::login', ['filter' => 'superadminguest']);
     $routes->get('check-code', 'SuperAdminAuth::checkCodeForm', ['filter' => 'superadminguest']);
@@ -182,10 +185,17 @@ $routes->group('superadmin', ['namespace' => 'App\Controllers\SuperAdmin'], func
     
     $routes->group('', ['filter' => 'superadminauth'], function ($routes) {
         $routes->get('/', 'SuperAdmin::index');
-        $routes->get('dashboard', 'SuperAdmin::dashboard');
+        $routes->get('dashboard', 'SuperAdmin::index');
+        $routes->get('dashboard-content', 'SuperAdmin::content');
+        $routes->get('content', 'SuperAdmin::content');
         $routes->get('users', 'SuperAdmin::users');
+        $routes->get('settings', 'SuperAdmin::settings');
+        $routes->get('logs', 'SuperAdmin::logs');
+        $routes->get('getLogs', 'SuperAdmin::getLogs');
+        $routes->get('exportLogs', 'SuperAdmin::exportLogs');
         $routes->get('getUsers', 'SuperAdmin::getUsers');
         $routes->post('createUser', 'SuperAdmin::createUser');
+        $routes->post('retireUser', 'SuperAdmin::retireUser');
         $routes->get('logout', 'SuperAdminAuth::logout');
     });
 });
