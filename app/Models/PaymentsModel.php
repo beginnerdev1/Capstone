@@ -21,6 +21,8 @@ class PaymentsModel extends Model
         'amount',
         'currency',
         'status',
+        'expires_at',        // NEW
+        'attempt_number',    // NEW
         'paid_at',
         'created_at',
         'updated_at',
@@ -94,11 +96,11 @@ class PaymentsModel extends Model
         $builder = $this->db->table('payments p');
         $builder->select('
             COUNT(DISTINCT p.user_id) as total_users,
-            SUM(CASE WHEN p.status = "Paid" THEN p.amount ELSE 0 END) as total_amount,
+            SUM(CASE WHEN p.status = "paid" THEN p.amount ELSE 0 END) as total_amount,
             SUM(CASE WHEN p.method = "gateway" THEN 1 ELSE 0 END) as gateway,
             SUM(CASE WHEN p.method = "manual" THEN 1 ELSE 0 END) as gcash,
             SUM(CASE WHEN p.method = "offline" THEN 1 ELSE 0 END) as counter,
-            SUM(CASE WHEN p.status = "Paid" THEN 1 ELSE 0 END) as paid_count
+            SUM(CASE WHEN p.status = "paid" THEN 1 ELSE 0 END) as paid_count
         ');
 
         // Exclude soft-deleted records
@@ -148,7 +150,7 @@ class PaymentsModel extends Model
     public function confirmGCashPayment($paymentId, $adminReference = null)
     {
         $data = [
-            'status' => 'Paid',
+            'status' => 'paid',
             'paid_at' => date('Y-m-d H:i:s')
         ];
 
@@ -157,5 +159,35 @@ class PaymentsModel extends Model
         }
 
         return $this->update($paymentId, $data);
+    }
+
+    // NEW: Helper methods for payment tracking (added without altering existing functionality)
+    
+    /**
+     * Get payment status counts for dashboard/reports
+     */
+    public function getPaymentStatusCounts($userId = null)
+    {
+        $builder = $this->db->table('payments');
+        $builder->select('status, COUNT(*) as count');
+        
+        if ($userId) {
+            $builder->where('user_id', $userId);
+        }
+        
+        $builder->where('deleted_at', null);
+        $builder->groupBy('status');
+        
+        return $builder->get()->getResultArray();
+    }
+
+    /**
+     * Get expired payments that need cleanup
+     */
+    public function getExpiredPayments($minutesOld = 30)
+    {
+        return $this->where('status', 'awaiting_payment')
+                    ->where('created_at <', date('Y-m-d H:i:s', strtotime("-{$minutesOld} minutes")))
+                    ->findAll();
     }
 }

@@ -382,9 +382,9 @@ public function changePassword()
    public function getBillingsAjax()
     {
         $limit = (int) ($this->request->getGet('limit') ?? 10);
-        $userId = session()->get('id'); // get the logged-in user's ID
+        $userId = session()->get('user_id'); // Fixed: was 'id', now 'user_id'
 
-        $billingModel = new \App\Models\BillingModel();
+        $billingModel = new BillingModel();
 
         // Fetch bills belonging to the logged-in user
         $billings = $billingModel
@@ -408,8 +408,24 @@ public function changePassword()
     }
 
 
+// Return specific bill details via AJAX for the manual transaction
+public function getBillDetails()
+{
+    $billId = $this->request->getGet('bill_id');
+    $billingModel = new \App\Models\BillingModel();
+    $bill = $billingModel->find($billId);
 
-
+    if ($bill) {
+        return $this->response->setJSON([
+            'bill_no' => $bill['bill_no'],
+            'billing_month' => $bill['billing_month'],
+            'due_date' => $bill['due_date'],
+            'amount_due' => $bill['amount_due']
+        ]);
+    } else {
+        return $this->response->setJSON([]);
+    }
+}
 
 
 
@@ -423,87 +439,273 @@ public function changePassword()
     // Show payments page Null pa
     public function payments()
     {
-        return view('users/payments'); 
-    }
+        $userId = session()->get('user_id');
+        
+        if (!$userId) {
+            return redirect()->to('/login');
+        }
 
+        $billingModel = new BillingModel();
+        
+        // Get pending bills for the current user
+        $pendingBills = $billingModel->getPendingBillingsByUserAndMonth($userId);
+        
+        // Calculate totals
+        $totalAmount = 0;
+        $serviceFee = 1.99; // Fixed service fee
+        
+        foreach ($pendingBills as $bill) {
+            $totalAmount += $bill['amount_due'];
+        }
+        
+        $finalTotal = $totalAmount + $serviceFee;
+        
+        // Get the latest bill for invoice details
+        $latestBill = !empty($pendingBills) ? $pendingBills[0] : null;
+        
+        $data = [
+            'bills' => $pendingBills,
+            'totalAmount' => $totalAmount,
+            'serviceFee' => $serviceFee,
+            'finalTotal' => $finalTotal,
+            'latestBill' => $latestBill,
+            'invoiceId' => $latestBill ? $latestBill['bill_no'] : 'N/A',
+            'dueDate' => $latestBill ? date('F j, Y', strtotime($latestBill['due_date'])) : 'N/A'
+        ];
+        
+        return view('users/payments', $data);
+    }
     
 // Create PayMongo checkout session
 public function createCheckout()
 {
-    $secretKey = env('STRIPE_SECRET_KEY'); // Set this in .env
-    $userId    = session()->get('user_id');
-    $amount    = 5900; // ₱59.00 in centavos
-
-    $payload = [
-        "data" => [
-            "attributes" => [
-                "line_items" => [[
-                    "amount"   => $amount,
-                    "currency" => "PHP",
-                    "name"     => "Water Bill Payment",
-                    "quantity" => 1
-                ]],
-                "payment_method_types" => ["gcash", "card"],
-                "success_url" => base_url('users?payment=success'),
-                "cancel_url"  => base_url('users?payment=cancel')
-            ]
-        ]
-    ];
-
-    $ch = curl_init('https://api.paymongo.com/v1/checkout_sessions');
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => json_encode($payload),
-        CURLOPT_HTTPHEADER     => [
-            'Content-Type: application/json',
-            'Authorization: Basic ' . base64_encode($secretKey . ':')
-        ]
-    ]);
-
-    $response  = curl_exec($ch);
-    $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    $result = json_decode($response, true);
-
-    log_message('debug', 'Checkout response: ' . json_encode($result));
-
-    if ($httpCode === 200 && isset($result['data']['id'])) {
-        $checkoutUrl = $result['data']['attributes']['checkout_url'];
-
-        // ✅ Get the Payment Intent ID (important!)
-        $paymentIntentId = $result['data']['attributes']['payment_intent']['id'] ?? null;
-
-        if ($paymentIntentId) {
-            $paymentsModel = new \App\Models\PaymentsModel();
-            $paymentsModel->insert([
-                'billing_id'        => $this->request->getPost('billing_id') ?? null,
-                'payment_intent_id' => $paymentIntentId,
-                'amount'            => $amount,
-                'currency'          => 'PHP',
-                'status'            => 'awaiting_payment',
-                'user_id'           => $userId,
-                'created_at'        => date('Y-m-d H:i:s'),
+    try {
+        $secretKey = env('PAYMONGO_SECRET_KEY'); // Fixed environment variable name
+        $userId = session()->get('user_id');
+        
+        // Validate user session
+        if (!$userId) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'Authentication required'
             ]);
-        } else {
-            log_message('error', '⚠️ Missing payment_intent_id in PayMongo response.');
         }
 
-        return redirect()->to($checkoutUrl);
-    }
+        // Get and validate input
+        $totalAmount = filter_var($this->request->getPost('total_amount'), FILTER_VALIDATE_FLOAT);
+        $billIds = trim($this->request->getPost('bill_ids') ?? '');
+        
+        if ($totalAmount === false || $totalAmount <= 0) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'Invalid payment amount'
+            ]);
+        }
 
-    return $this->response->setJSON([
-        'error'   => 'Unable to create checkout session',
-        'details' => $result
-    ]);
+        if (empty($billIds)) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'No bills selected for payment'
+            ]);
+        }
+
+        $paymentsModel = new PaymentsModel();
+        
+        // CHECK FOR EXISTING PENDING PAYMENTS - Prevent duplicates
+        $existingPendingPayment = $paymentsModel
+            ->where('user_id', $userId)
+            ->where('billing_id', $billIds)
+            ->whereIn('status', ['awaiting_payment', 'pending'])
+            ->where('created_at >', date('Y-m-d H:i:s', strtotime('-30 minutes'))) // Only check recent payments
+            ->first();
+
+        if ($existingPendingPayment) {
+            log_message('info', 'Duplicate payment attempt blocked for user: ' . $userId);
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'A payment for these bills is already in progress. Please wait a few minutes before trying again.'
+            ]);
+        }
+
+        // CHECK DAILY PAYMENT ATTEMPTS LIMIT
+        $todayAttempts = $paymentsModel
+            ->where('user_id', $userId)
+            ->where('method', 'gateway')
+            ->where('DATE(created_at)', date('Y-m-d'))
+            ->countAllResults();
+
+        if ($todayAttempts >= 5) { // Maximum 5 attempts per day
+            log_message('warning', 'Payment attempt limit exceeded for user: ' . $userId);
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'You have exceeded the daily payment attempt limit. Please try again tomorrow or contact support.'
+            ]);
+        }
+
+        // EXPIRE OLD PENDING PAYMENTS before creating new one
+        $this->expireOldPayments($userId);
+
+        // Verify bill ownership and calculate total
+        $billingModel = new BillingModel();
+        $billIdArray = array_filter(explode(',', $billIds));
+        
+        $userBills = $billingModel->whereIn('id', $billIdArray)
+                                 ->where('user_id', $userId)
+                                 ->where('status', 'Pending')
+                                 ->findAll();
+
+        if (count($userBills) !== count($billIdArray)) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'Invalid bill selection'
+            ]);
+        }
+
+        // Calculate and verify amount
+        $calculatedTotal = array_sum(array_column($userBills, 'amount_due'));
+        $serviceFee = 1.99;
+        $expectedTotal = $calculatedTotal + $serviceFee;
+
+        if (abs($totalAmount - $expectedTotal) > 0.01) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'Payment amount verification failed'
+            ]);
+        }
+
+        // Convert to centavos for PayMongo
+        $amount = (int)($totalAmount * 100);
+
+        // Create PayMongo checkout session
+        $payload = [
+            "data" => [
+                "attributes" => [
+                    "line_items" => [[
+                        "amount" => $amount,
+                        "currency" => "PHP",
+                        "name" => "Water Bill Payment - " . count($userBills) . " bill(s)",
+                        "quantity" => 1
+                    ]],
+                    "payment_method_types" => ["gcash"],
+                    "success_url" => base_url('users/payment-success'),
+                    "cancel_url" => base_url('users/payment-cancel'),
+                    "description" => "Water Bill Payment for User ID: " . $userId
+                ]
+            ]
+        ];
+
+        $ch = curl_init('https://api.paymongo.com/v1/checkout_sessions');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => json_encode($payload),
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: application/json',
+                'Authorization: Basic ' . base64_encode($secretKey . ':')
+            ],
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_CONNECTTIMEOUT => 10
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlError) {
+            log_message('error', 'PayMongo API cURL error: ' . $curlError);
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'Payment gateway connection failed'
+            ]);
+        }
+
+        $result = json_decode($response, true);
+        log_message('debug', 'PayMongo checkout response: ' . $response);
+
+        if ($httpCode === 200 && isset($result['data']['id'])) {
+            $checkoutUrl = $result['data']['attributes']['checkout_url'];
+            $paymentIntentId = $result['data']['attributes']['payment_intent']['id'] ?? null;
+
+            if ($paymentIntentId) {
+                // Create payment record with tracking fields
+                $paymentData = [
+                    'user_id' => $userId,
+                    'billing_id' => $billIds,
+                    'payment_intent_id' => $paymentIntentId,
+                    'method' => 'gateway',
+                    'amount' => $totalAmount,
+                    'currency' => 'PHP',
+                    'status' => 'awaiting_payment',
+                    'expires_at' => date('Y-m-d H:i:s', strtotime('+30 minutes')),
+                    'attempt_number' => $todayAttempts + 1,
+                    'created_at' => date('Y-m-d H:i:s')
+                ];
+
+                $paymentId = $paymentsModel->insert($paymentData);
+                
+                if (!$paymentId) {
+                    log_message('error', 'Failed to create payment record for user: ' . $userId);
+                    return $this->response->setJSON([
+                        'status' => 'error',
+                        'message' => 'Failed to initialize payment'
+                    ]);
+                }
+
+                log_message('info', 'Payment session created for user: ' . $userId . ', Payment ID: ' . $paymentId);
+
+                return redirect()->to($checkoutUrl);
+            }
+        }
+
+        // Handle API errors
+        $errorMessage = 'Payment gateway error';
+        if (isset($result['errors']) && is_array($result['errors'])) {
+            $errorDetails = array_map(function($error) {
+                return $error['detail'] ?? 'Unknown error';
+            }, $result['errors']);
+            $errorMessage = implode('; ', $errorDetails);
+        }
+
+        log_message('error', 'PayMongo API error (HTTP ' . $httpCode . '): ' . $response);
+        
+        return $this->response->setJSON([
+            'status' => 'error',
+            'message' => $errorMessage
+        ]);
+
+    } catch (\Exception $e) {
+        log_message('error', 'Exception in createCheckout: ' . $e->getMessage());
+        return $this->response->setJSON([
+            'status' => 'error',
+            'message' => 'An unexpected error occurred while processing payment'
+        ]);
+    }
 }
 
+// Helper method to expire old pending payments
+    private function expireOldPayments($userId)
+        {
+            $paymentsModel = new PaymentsModel();
+            
+            // Mark payments as expired if they're older than 30 minutes and still awaiting_payment
+            $expiredCount = $paymentsModel
+                ->where('user_id', $userId)
+                ->where('status', 'awaiting_payment')
+                ->where('created_at <', date('Y-m-d H:i:s', strtotime('-30 minutes')))
+                ->set(['status' => 'expired', 'updated_at' => date('Y-m-d H:i:s')])
+                ->update();
+            
+            if ($expiredCount > 0) {
+                log_message('info', 'Expired ' . $expiredCount . ' old pending payments for user: ' . $userId);
+            }
+            
+            return $expiredCount;
+        }
 
-
-
-// Handle payment success and failure redirects
-   public function paySuccess()
+        
+    // Handle payment success and failure redirects
+public function paySuccess()
     {
         $session = session();
         $userId = $session->get('user_id');
@@ -542,16 +744,16 @@ public function createCheckout()
     }
 
 
-    public function paymentFailed()
+public function paymentFailed()
     {
-        session()->setFlashdata('payment_status', 'failed');
-        return redirect()->to(base_url('users/index'));
+        // Redirect to the new cancel handler for consistency
+        return $this->paymentCancel();
     }
 
     //payment proof   
-    public function paymentProof()
+    public function manualTransaction()
     {
-        return view('users/payment_proof'); // your file: app/Views/payment_proof.php
+        return view('users/manual_transaction'); // your file: app/Views/payment_proof.php
     }
 
 
@@ -564,6 +766,7 @@ public function uploadProof()
     $validation->setRules([
         'referenceNumber' => 'required|min_length[5]',
         'screenshot'      => 'uploaded[screenshot]|is_image[screenshot]|max_size[screenshot,2048]',
+        'amount'          => 'required|decimal|greater_than[0]',
     ]);
 
     if (!$validation->withRequest($this->request)->run()) {
@@ -578,6 +781,8 @@ public function uploadProof()
     }
 
     $file = $this->request->getFile('screenshot');
+    $amountPaid = floatval($this->request->getPost('amount')); // Get actual amount paid
+
     if ($file && $file->isValid() && !$file->hasMoved()) {
         $safeReference = preg_replace('/[^A-Za-z0-9_\-]/', '_', $reference);
         $timestamp     = date('Ymd_His');
@@ -586,14 +791,14 @@ public function uploadProof()
         $file->move(FCPATH . 'uploads/receipts', $newName);
 
         $paymentModel->insert([
-            'billing_id'       => $this->request->getPost('billing_id') ?? null,
+            'billing_id'        => $this->request->getPost('billing_id') ?? null,
             'payment_intent_id' => uniqid('manual_'),
             'payment_method_id' => null,
             'method'            => 'manual',
             'reference_number'  => $reference,
             'admin_reference'   => null,
             'receipt_image'     => 'uploads/receipts/' . $newName,
-            'amount'            => 0,
+            'amount'            => $amountPaid, // Use actual amount paid, no service fee
             'currency'          => 'PHP',
             'status'            => 'pending',
             'user_id'           => session()->get('user_id'),
@@ -610,7 +815,6 @@ public function uploadProof()
 
         // Redirect to Users::index (homepage)
         return redirect()->to('users')->with('success', 'Payment proof submitted successfully!');
-        // Or: return redirect()->route('home')->with('success', 'Payment proof submitted successfully!');
     }
 
     return redirect()->back()->with('error', 'File upload failed.');
@@ -627,8 +831,154 @@ public function uploadProof()
             return $this->response->setJSON(['exists' => $exists ? true : false]);
         }
 
+    // Handle payment success
+public function paymentSuccess()
+{
+    $userId = session()->get('user_id');
+    
+    if (!$userId) {
+        return redirect()->to('/login');
+    }
 
+    // Find the most recent payment (could be paid by webhook already)
+    $paymentsModel = new PaymentsModel();
+    $payment = $paymentsModel
+        ->where('user_id', $userId)
+        ->whereIn('status', ['awaiting_payment', 'paid']) // Check both statuses
+        ->orderBy('created_at', 'DESC')
+        ->first();
 
+    if ($payment) {
+        if ($payment['status'] === 'awaiting_payment') {
+            // Webhook hasn't processed yet, do fallback update
+            $paymentsModel->update($payment['id'], [
+                'status' => 'paid',
+                'paid_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s')
+            ]);
+
+            // Update billing records
+            if (!empty($payment['billing_id'])) {
+                $billingModel = new BillingModel();
+                $billIds = explode(',', $payment['billing_id']);
+                
+                foreach ($billIds as $billId) {
+                    $billingModel->update(trim($billId), [
+                        'status' => 'Paid',
+                        'paid_date' => date('Y-m-d H:i:s')
+                    ]);
+                }
+            }
+
+            log_message('info', 'Payment updated via redirect (webhook fallback) for user: ' . $userId);
+        } else {
+            log_message('info', 'Payment already processed by webhook for user: ' . $userId);
+        }
+    }
+
+    session()->setFlashdata('payment_status', 'success');
+    session()->setFlashdata('message', 'Payment completed successfully!');
+    
+    return redirect()->to(base_url('users'));
+}
+
+// Handle payment cancellation
+public function paymentCancel()
+    {
+        $userId = session()->get('user_id');
+        
+        if ($userId) {
+            // Mark the most recent payment as cancelled
+            $paymentsModel = new PaymentsModel();
+            $payment = $paymentsModel
+                ->where('user_id', $userId)
+                ->where('status', 'awaiting_payment')
+                ->orderBy('created_at', 'DESC')
+                ->first();
+
+            if ($payment) {
+                $paymentsModel->update($payment['id'], [
+                    'status' => 'cancelled',
+                    'updated_at' => date('Y-m-d H:i:s')
+                ]);
+                
+                log_message('info', 'Payment cancelled for user: ' . $userId . ', Payment ID: ' . $payment['id']);
+            }
+        }
+        
+        session()->setFlashdata('payment_status', 'cancelled');
+        session()->setFlashdata('message', 'Payment was cancelled.');
+        
+        return redirect()->to(base_url('users'));
+    }
+
+// Manual cleanup method (can be called via URL for testing)
+public function cleanupPayments()
+{
+    // Only allow this in development or for testing
+    if (ENVIRONMENT !== 'development') {
+        return $this->response->setJSON(['error' => 'Not allowed in production']);
+    }
+    
+    $paymentsModel = new PaymentsModel();
+    
+    // 1. Expire old awaiting payments (older than 30 minutes)
+    $expiredCount = $paymentsModel
+        ->where('status', 'awaiting_payment')
+        ->where('created_at <', date('Y-m-d H:i:s', strtotime('-30 minutes')))
+        ->set([
+            'status' => 'expired', 
+            'updated_at' => date('Y-m-d H:i:s')
+        ])
+        ->update();
+    
+    // 2. Cancel very old expired payments (older than 24 hours)
+    $cancelledCount = $paymentsModel
+        ->where('status', 'expired')
+        ->where('created_at <', date('Y-m-d H:i:s', strtotime('-24 hours')))
+        ->set([
+            'status' => 'cancelled', 
+            'updated_at' => date('Y-m-d H:i:s')
+        ])
+        ->update();
+    
+    // 3. Get current statistics
+    $totalPending = $paymentsModel
+        ->where('status', 'awaiting_payment')
+        ->countAllResults();
+        
+    $totalExpired = $paymentsModel
+        ->where('status', 'expired')
+        ->countAllResults();
+    
+    // Log the cleanup activity
+    log_message('info', 'Manual payment cleanup completed: ' . $expiredCount . ' expired, ' . $cancelledCount . ' cancelled');
+    
+    return $this->response->setJSON([
+        'success' => true,
+        'message' => 'Payment cleanup completed successfully',
+        'results' => [
+            'expired_payments' => $expiredCount,
+            'cancelled_payments' => $cancelledCount,
+            'still_pending' => $totalPending,
+            'total_expired' => $totalExpired
+        ],
+        'timestamp' => date('Y-m-d H:i:s')
+    ]);
 }
 
 
+//Fetch GCash settings
+public function getGcashSettings()
+{
+    $model = new \App\Models\GcashSettingsModel();
+    $settings = $model->find(1) ?: $model->orderBy('id', 'DESC')->first();
+    $qrUrl = $settings['qr_code_path'] ? base_url($settings['qr_code_path']) : null;
+    return $this->response->setJSON([
+        'success' => true,
+        'gcash_number' => $settings['gcash_number'] ?? null,
+        'qr_code_url' => $qrUrl
+    ]);
+}
+
+}

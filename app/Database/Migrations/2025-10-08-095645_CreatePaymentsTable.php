@@ -63,8 +63,21 @@ class CreatePaymentsTable extends Migration
             ],
             'status' => [
                 'type'       => 'ENUM',
-                'constraint' => ['pending','paid','rejected'],
+                'constraint' => ['pending','paid','rejected','awaiting_payment','expired','cancelled'],
                 'default'    => 'pending',
+            ],
+            'expires_at' => [
+                'type' => 'DATETIME',
+                'null' => true,
+                'comment' => 'When the payment session expires',
+            ],
+            'attempt_number' => [
+                'type' => 'TINYINT',
+                'constraint' => 3,
+                'unsigned' => true,
+                'default' => 1,
+                'null' => false,
+                'comment' => 'Payment attempt number for the day',
             ],
             'paid_at' => [
                 'type' => 'DATETIME',
@@ -85,6 +98,8 @@ class CreatePaymentsTable extends Migration
         ]);
 
         $this->forge->addKey('id', true);
+        $this->forge->addKey(['user_id', 'status', 'created_at'], false, 'idx_user_status_created');
+        $this->forge->addKey(['status', 'expires_at'], false, 'idx_status_expires');
         $this->forge->addForeignKey('user_id', 'users', 'id', 'CASCADE', 'CASCADE');
         $this->forge->addForeignKey('billing_id', 'billings', 'id', 'SET NULL', 'CASCADE');
         $this->forge->createTable('payments');

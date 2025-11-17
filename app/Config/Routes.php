@@ -50,11 +50,15 @@ $routes->group('users', ['filter' => 'userauth'], function ($routes) {
     $routes->group('', ['filter' => 'profilecomplete'], function ($routes) {
         $routes->get('history', 'Users::history');
         $routes->get('payments', 'Users::payments');
-        $routes->get('paymentProof', 'Users::paymentProof');
+        $routes->get('manualTransaction', 'Users::ManualTransaction');
         $routes->get('getBillingsAjax', 'Users::getBillingsAjax');
         $routes->post('createCheckout', 'Users::createCheckout');
         $routes->get('payment-success', 'Users::paymentSuccess');
         $routes->get('payment-failed', 'Users::paymentFailed');
+          $routes->get('payment-cancel', 'Users::paymentCancel');          // Handle payment cancellation
+    $routes->get('cleanupPayments', 'Users::cleanupPayments');       // Manual cleanup of expired payments
+$routes->get('getGcashSettings', 'Users::getGcashSettings'); // Fetch GCash settings for payment page
+$routes->get('getBillDetails', 'Users::getBillDetails'); // Fetch bill details for payment confirmation
     });
 
 });
