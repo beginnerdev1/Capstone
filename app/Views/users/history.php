@@ -1,4 +1,3 @@
-  
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -347,9 +346,18 @@
     }
 
     .amount-value {
-      font-weight: 800;
-      font-size: 1.4rem;
+      display: inline-block;
+      background: linear-gradient(90deg, #f59e0b 60%, #fbbf24 100%);
+      color: #fff !important;
+      font-weight: 900;
+      font-size: 1.3rem;
       font-family: 'Poppins', sans-serif;
+      border-radius: 8px;
+      padding: 6px 18px;
+      box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15);
+      letter-spacing: 1px;
+      margin-bottom: 2px;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.08);
     }
 
     .amount-label {
@@ -568,14 +576,18 @@
       }
 
       .modal-dialog {
-        max-width: 100%;
-        margin: 0;
-        height: 100vh;
+        max-width: 500px;
+        margin: 1.75rem auto;
       }
       
       .modal-content {
-        height: 100%;
-        border-radius: 0;
+        border-radius: 20px;
+        /* Remove any height: 100vh or overflow: hidden here */
+      }
+      
+      .modal-dialog {
+        max-width: 95vw;
+        margin: 1rem auto;
       }
     }
 
@@ -682,11 +694,8 @@
           <?php
           $currentDate = '';
           foreach ($payments as $index => $payment):
-              // Use paid_at if available, else created_at
               $paymentDate = date('F d, Y', strtotime($payment['paid_at'] ?? $payment['created_at']));
               $time = date('h:i A', strtotime($payment['paid_at'] ?? $payment['created_at']));
-              
-              // Show date subheader if date changes
               if ($paymentDate !== $currentDate):
                   $currentDate = $paymentDate;
           ?>
@@ -696,7 +705,6 @@
             </div>
           <?php endif;
 
-              // Determine amount prefix, class, and icon
               if ($payment['status'] === 'paid') {
                   $amount_class = 'amount-credit';
                   $status_class = 'status-paid';
@@ -748,97 +756,113 @@
                 <div class="amount-label">Bill Payment</div>
               </div>
             </div>
-
-            <!-- Enhanced Modal -->
-            <div class="modal fade" id="<?= $modalId ?>" tabindex="-1" aria-labelledby="<?= $modalId ?>Label" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
-              <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                  <div class="modal-header">
-                    <h5 class="modal-title" id="<?= $modalId ?>Label">
-                      <i class="bi bi-receipt-cutoff"></i>
-                      Payment Receipt
-                    </h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                  </div>
-                  <div class="modal-body" id="receiptContent<?= $payment['id'] ?>">
-                    <div class="receipt-item">
-                      <span class="receipt-label">
-                        <i class="bi bi-clock text-primary"></i>
-                        Transaction Time
-                      </span>
-                      <span class="receipt-value"><?= esc($time . ', ' . $paymentDate) ?></span>
-                    </div>
-                    
-                    <div class="receipt-item">
-                      <span class="receipt-label">
-                        <i class="bi bi-credit-card text-primary"></i>
-                        Payment Method
-                      </span>
-                      <span class="receipt-value"><?= esc($payment['method'] === 'manual' ? 'Manual Payment' : 'Online Payment') ?></span>
-                    </div>
-                    
-                    <div class="receipt-item">
-                      <span class="receipt-label">
-                        <i class="bi bi-file-earmark-text text-primary"></i>
-                        Bill Number
-                      </span>
-                      <span class="receipt-value"><?= esc($payment['bill_no'] ?? 'N/A') ?></span>
-                    </div>
-                    
-                    <div class="receipt-item">
-                      <span class="receipt-label">
-                        <i class="bi bi-calendar-check text-primary"></i>
-                        Due Date
-                      </span>
-                      <span class="receipt-value"><?= esc($payment['due_date'] ? date('M d, Y', strtotime($payment['due_date'])) : 'N/A') ?></span>
-                    </div>
-                    
-                    <div class="receipt-item">
-                      <span class="receipt-label">
-                        <i class="bi bi-currency-dollar text-primary"></i>
-                        Amount Paid
-                      </span>
-                      <span class="receipt-value">₱<?= number_format($payment['amount'], 2) ?></span>
-                    </div>
-                    
-                    <div class="receipt-item">
-                      <span class="receipt-label">
-                        <i class="bi <?= $icon ?> text-primary"></i>
-                        Payment Status
-                      </span>
-                      <span class="receipt-value">
-                        <span class="transaction-status <?= $status_class ?>">
-                          <i class="bi <?= $icon ?>"></i>
-                          <?= $label ?>
-                        </span>
-                      </span>
-                    </div>
-                    
-                    <div class="receipt-item">
-                      <span class="receipt-label">
-                        <i class="bi bi-hash text-primary"></i>
-                        Reference ID
-                      </span>
-                      <span class="receipt-value"><?= esc($payment['reference_number']) ?></span>
-                    </div>
-                  </div>
-                  <div class="modal-footer">
-                    <button type="button" class="btn btn-modal btn-close-modal" data-bs-dismiss="modal">
-                      <i class="bi bi-x me-2"></i>Close
-                    </button>
-                    <button type="button" class="btn btn-modal btn-download" onclick="downloadReceipt(<?= $payment['id'] ?>)">
-                      <i class="bi bi-download me-2"></i>Download Receipt
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
           <?php endforeach; ?>
         <?php endif; ?>
       </div>
     </div>
   </div>
 </main>
+
+<!-- MODALS: Move all modals here, outside the history-container and main -->
+<?php if (!empty($payments)): ?>
+  <?php
+  foreach ($payments as $index => $payment):
+      if ($payment['status'] === 'paid') {
+          $status_class = 'status-paid';
+          $icon = 'bi-check-circle';
+          $label = 'Paid';
+      } elseif ($payment['status'] === 'pending') {
+          $status_class = 'status-pending';
+          $icon = 'bi-clock';
+          $label = 'Pending';
+      } else {
+          $status_class = 'status-failed';
+          $icon = 'bi-x-circle';
+          $label = 'Failed';
+      }
+      $modalId = 'modalT' . $payment['id'];
+      $paymentDate = date('F d, Y', strtotime($payment['paid_at'] ?? $payment['created_at']));
+      $time = date('h:i A', strtotime($payment['paid_at'] ?? $payment['created_at']));
+  ?>
+  <div class="modal fade" id="<?= $modalId ?>" tabindex="-1" aria-labelledby="<?= $modalId ?>Label" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="<?= $modalId ?>Label">
+            <i class="bi bi-receipt-cutoff"></i>
+            Payment Receipt
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" id="receiptContent<?= $payment['id'] ?>">
+          <div class="receipt-item">
+            <span class="receipt-label">
+              <i class="bi bi-clock text-primary"></i>
+              Transaction Time
+            </span>
+            <span class="receipt-value"><?= esc($time . ', ' . $paymentDate) ?></span>
+          </div>
+          <div class="receipt-item">
+            <span class="receipt-label">
+              <i class="bi bi-credit-card text-primary"></i>
+              Payment Method
+            </span>
+            <span class="receipt-value"><?= esc($payment['method'] === 'manual' ? 'Manual Payment' : 'Online Payment') ?></span>
+          </div>
+          <div class="receipt-item">
+            <span class="receipt-label">
+              <i class="bi bi-file-earmark-text text-primary"></i>
+              Bill Number
+            </span>
+            <span class="receipt-value"><?= esc($payment['bill_no'] ?? 'N/A') ?></span>
+          </div>
+          <div class="receipt-item">
+            <span class="receipt-label">
+              <i class="bi bi-calendar-check text-primary"></i>
+              Due Date
+            </span>
+            <span class="receipt-value"><?= esc($payment['due_date'] ? date('M d, Y', strtotime($payment['due_date'])) : 'N/A') ?></span>
+          </div>
+          <div class="receipt-item">
+            <span class="receipt-label">
+              <i class="bi bi-currency-dollar text-primary"></i>
+              Amount Paid
+            </span>
+            <span class="receipt-value">₱<?= number_format($payment['amount'], 2) ?></span>
+          </div>
+          <div class="receipt-item">
+            <span class="receipt-label">
+              <i class="bi <?= $icon ?> text-primary"></i>
+              Payment Status
+            </span>
+            <span class="receipt-value">
+              <span class="transaction-status <?= $status_class ?>">
+                <i class="bi <?= $icon ?>"></i>
+                <?= $label ?>
+              </span>
+            </span>
+          </div>
+          <div class="receipt-item">
+            <span class="receipt-label">
+              <i class="bi bi-hash text-primary"></i>
+              Reference ID
+            </span>
+            <span class="receipt-value"><?= esc($payment['reference_number']) ?></span>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-modal btn-close-modal" data-bs-dismiss="modal">
+            <i class="bi bi-x me-2"></i>Close
+          </button>
+          <button type="button" class="btn btn-modal btn-download" onclick="downloadReceipt(<?= $payment['id'] ?>)">
+            <i class="bi bi-download me-2"></i>Download Receipt
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <?php endforeach; ?>
+<?php endif; ?>
 
 <?= $this->include('Users/footer') ?>
 <a href="#" id="scrollTop" class="scroll-top">

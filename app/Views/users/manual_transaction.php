@@ -164,7 +164,9 @@
     <div id="alertBox" class="alert alert-warning d-none" role="alert"></div>
 
     <form id="proofForm" method="post" enctype="multipart/form-data" action="<?= site_url('users/uploadProof') ?>">
-      <input type="hidden" name="bill_id" id="billIdField" value="">
+      <!-- CHANGED: name and id -> billing_id so backend receives it -->
+      <input type="hidden" name="billing_id" id="billing_id" value="">
+
       <!-- Reference Number -->
       <div class="mb-3">
         <label for="referenceNumber" class="form-label">GCash Reference Number</label>
@@ -237,7 +239,9 @@
     const billId = getQueryParam('bill_id');
     const amount = getQueryParam('amount');
     if (billId) {
-      $('#billIdField').val(billId);
+      // CHANGED: set billing_id hidden input
+      $('#billing_id').val(billId);
+
       $.getJSON('<?= site_url('users/getBillDetails') ?>', { bill_id: billId }, function(data) {
         // Display bill details
         $('#billDetails').html(

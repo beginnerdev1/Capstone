@@ -407,7 +407,6 @@ public function changePassword()
         return $this->response->setJSON($data);
     }
 
-
 // Return specific bill details via AJAX for the manual transaction
 public function getBillDetails()
 {
@@ -440,42 +439,96 @@ public function getBillDetails()
     public function payments()
     {
         $userId = session()->get('user_id');
-        
+
         if (!$userId) {
             return redirect()->to('/login');
         }
 
-        $billingModel = new BillingModel();
-        
-        // Get pending bills for the current user
+        $billingModel  = new BillingModel();
+        $paymentsModel = new PaymentsModel();
+
+        // 1) Get pending bills for the current user (from BillingModel method)
         $pendingBills = $billingModel->getPendingBillingsByUserAndMonth($userId);
-        
-        // Calculate totals
-        $totalAmount = 0;
-        $serviceFee = 1.99; // Fixed service fee
-        
-        foreach ($pendingBills as $bill) {
-            $totalAmount += $bill['amount_due'];
+
+        // 2) Get user's payments that are NOT 'rejected' (and not soft-deleted)
+        //    We will extract all billing IDs referenced by those payments so we can exclude them.
+        $payments = $paymentsModel
+            ->where('user_id', $userId)
+            ->where('deleted_at', null)
+            ->where('status !=', 'rejected')
+            ->findAll();
+
+        $excludeBillingIds = [];
+        foreach ($payments as $p) {
+            if (empty($p['billing_id'])) {
+                continue;
+            }
+
+            // billing_id may be a single id or comma-separated list (gateway payments)
+            $parts = array_filter(array_map('trim', explode(',', $p['billing_id'])));
+            foreach ($parts as $part) {
+                if (is_numeric($part)) {
+                    $excludeBillingIds[] = (int) $part;
+                }
+            }
         }
-        
+        $excludeBillingIds = array_unique($excludeBillingIds);
+
+        // 3) Filter out pending bills that are in the exclude list
+        $availableBills = array_filter($pendingBills, function ($bill) use ($excludeBillingIds) {
+            if (!isset($bill['id'])) {
+                return true;
+            }
+            return !in_array((int) $bill['id'], $excludeBillingIds, true);
+        });
+
+        // Re-index array (optional, keeps indices clean)
+        $availableBills = array_values($availableBills);
+
+        // 4) Calculate totals (service fee remains applied if any bill selected)
+        $totalAmount = 0;
+        $serviceFee = 1.99;
+
+        foreach ($availableBills as $bill) {
+            $totalAmount += (float) $bill['amount_due'];
+        }
+
         $finalTotal = $totalAmount + $serviceFee;
-        
-        // Get the latest bill for invoice details
-        $latestBill = !empty($pendingBills) ? $pendingBills[0] : null;
-        
+
+        // Keep latestBill derived from the filtered set
+        $latestBill = !empty($availableBills) ? $availableBills[0] : null;
+
         $data = [
-            'bills' => $pendingBills,
+            'bills'       => $availableBills,
             'totalAmount' => $totalAmount,
-            'serviceFee' => $serviceFee,
-            'finalTotal' => $finalTotal,
-            'latestBill' => $latestBill,
-            'invoiceId' => $latestBill ? $latestBill['bill_no'] : 'N/A',
-            'dueDate' => $latestBill ? date('F j, Y', strtotime($latestBill['due_date'])) : 'N/A'
+            'serviceFee'  => $serviceFee,
+            'finalTotal'  => $finalTotal,
+            'latestBill'  => $latestBill,
+            'invoiceId'   => $latestBill ? $latestBill['bill_no'] : 'N/A',
+            'dueDate'     => $latestBill ? date('F j, Y', strtotime($latestBill['due_date'])) : 'N/A'
         ];
-        
+
         return view('users/payments', $data);
     }
+  
     
+public function hasPendingTransaction($billId)
+    {
+        $userId = session()->get('user_id');
+        $paymentsModel = new \App\Models\PaymentsModel();
+
+        // Check for pending or awaiting_payment status for this bill and user
+        $pending = $paymentsModel
+            ->where('user_id', $userId)
+            ->where('billing_id', $billId)
+            ->whereIn('status', ['pending', 'awaiting_payment'])
+            ->where('deleted_at', null)
+            ->first();
+
+        return $pending ? true : false;
+    }
+
+
 // Create PayMongo checkout session
 public function createCheckout()
 {
@@ -761,67 +814,116 @@ public function paymentFailed()
 public function uploadProof()
 {
     $paymentModel = new PaymentsModel();
+    $billingModel = new BillingModel();
 
     $validation = \Config\Services::validation();
     $validation->setRules([
         'referenceNumber' => 'required|min_length[5]',
         'screenshot'      => 'uploaded[screenshot]|is_image[screenshot]|max_size[screenshot,2048]',
         'amount'          => 'required|decimal|greater_than[0]',
+        'billing_id'      => 'permit_empty|integer'
     ]);
 
     if (!$validation->withRequest($this->request)->run()) {
+        log_message('error', 'uploadProof validation failed: ' . $validation->listErrors());
         return redirect()->back()->with('error', $validation->listErrors());
     }
 
     $reference = trim($this->request->getPost('referenceNumber'));
+    $billingId  = $this->request->getPost('billing_id') ? (int) $this->request->getPost('billing_id') : null;
+    $userId     = session()->get('user_id');
 
     // Duplicate guard
     if ($paymentModel->where('reference_number', $reference)->first()) {
+        log_message('warning', "uploadProof duplicate reference: {$reference} (user {$userId})");
         return redirect()->back()->with('error', 'This reference number is already in use.');
     }
 
-    $file = $this->request->getFile('screenshot');
-    $amountPaid = floatval($this->request->getPost('amount')); // Get actual amount paid
+    // If billing_id provided, validate ownership/status
+    if ($billingId) {
+        $bill = $billingModel->where('id', $billingId)
+                             ->where('user_id', $userId)
+                             ->first();
 
-    if ($file && $file->isValid() && !$file->hasMoved()) {
-        $safeReference = preg_replace('/[^A-Za-z0-9_\-]/', '_', $reference);
-        $timestamp     = date('Ymd_His');
-        $newName       = $safeReference . '_' . $timestamp . '.' . $file->getExtension();
-
-        $file->move(FCPATH . 'uploads/receipts', $newName);
-
-        $paymentModel->insert([
-            'billing_id'        => $this->request->getPost('billing_id') ?? null,
-            'payment_intent_id' => uniqid('manual_'),
-            'payment_method_id' => null,
-            'method'            => 'manual',
-            'reference_number'  => $reference,
-            'admin_reference'   => null,
-            'receipt_image'     => 'uploads/receipts/' . $newName,
-            'amount'            => $amountPaid, // Use actual amount paid, no service fee
-            'currency'          => 'PHP',
-            'status'            => 'pending',
-            'user_id'           => session()->get('user_id'),
-            'paid_at'           => null,
-        ]);
-        
-        $billingModel = new BillingModel();
-
-        // Update all user's billings to 'Pending' upon new proof submission
-        $billingModel->where('user_id', session()->get('user_id'))
-             ->orderBy('id', 'DESC')
-             ->set(['status' => 'Pending'])
-             ->update();
-
-        // Redirect to Users::index (homepage)
-        return redirect()->to('users')->with('success', 'Payment proof submitted successfully!');
+        if (!$bill) {
+            log_message('error', "uploadProof invalid billing_id: {$billingId} for user {$userId}");
+            return redirect()->back()->with('error', 'Invalid bill selected.');
+        }
     }
 
-    return redirect()->back()->with('error', 'File upload failed.');
+    $file = $this->request->getFile('screenshot');
+    $amountPaid = floatval($this->request->getPost('amount'));
+
+    if (!$file || !$file->isValid() || $file->hasMoved()) {
+        log_message('error', 'uploadProof file invalid or missing for user: ' . $userId);
+        return redirect()->back()->with('error', 'File upload failed or file is invalid.');
+    }
+
+    // Safe filename and move
+    $safeReference = preg_replace('/[^A-Za-z0-9_\-]/', '_', $reference);
+    $timestamp     = date('Ymd_His');
+    $extension     = $file->getClientExtension() ?: $file->getExtension();
+    $newName       = $safeReference . '_' . $timestamp . '.' . $extension;
+    $targetPath    = FCPATH . 'uploads/receipts';
+
+    if (!is_dir($targetPath)) {
+        if (!mkdir($targetPath, 0755, true) && !is_dir($targetPath)) {
+            log_message('error', "uploadProof failed to create directory: {$targetPath}");
+            return redirect()->back()->with('error', 'Server error: upload directory not writable.');
+        }
+    }
+
+    try {
+        $file->move($targetPath, $newName);
+    } catch (\Exception $e) {
+        log_message('error', 'uploadProof file move exception: ' . $e->getMessage());
+        return redirect()->back()->with('error', 'File upload failed.');
+    }
+
+    $receiptPath = 'uploads/receipts/' . $newName;
+
+    // Prepare payment record
+    $paymentData = [
+        'billing_id'        => $billingId,
+        'payment_intent_id' => uniqid('manual_'),
+        'payment_method_id' => null,
+        'method'            => 'manual',
+        'reference_number'  => $reference,
+        'admin_reference'   => null,
+        'receipt_image'     => $receiptPath,
+        'amount'            => $amountPaid,
+        'currency'          => 'PHP',
+        'status'            => 'pending',
+        'user_id'           => $userId,
+        'paid_at'           => null,
+        'created_at'        => date('Y-m-d H:i:s'),
+    ];
+
+    $insertedId = $paymentModel->insert($paymentData);
+    if (!$insertedId) {
+        log_message('error', 'uploadProof payment insert failed: ' . json_encode($paymentData));
+        return redirect()->back()->with('error', 'Failed to save payment record.');
+    }
+
+    // If a billing_id was provided, update only that bill status to 'Pending'
+    if ($billingId) {
+        try {
+            $billingModel->update($billingId, ['status' => 'Pending']);
+        } catch (\Exception $e) {
+            log_message('error', "uploadProof failed to update billing {$billingId}: " . $e->getMessage());
+            // Not fatal for the payment upload — continue and inform user
+            return redirect()->to(base_url('users'))->with('success', 'Payment proof uploaded, but failed to update bill status. Contact admin.');
+        }
+    }
+
+    log_message('info', "uploadProof success for user {$userId}, payment_id: {$insertedId}, billing_id: " . ($billingId ?? 'NULL'));
+
+    // Redirect explicitly to the users page
+    return redirect()->to(base_url('users'))->with('success', 'Payment proof submitted successfully!');
 }
 
     //check reference
-    public function checkReference()
+public function checkReference()
         {
             $reference = $this->request->getPost('referenceNumber');
             $paymentModel = new PaymentsModel();
@@ -883,6 +985,7 @@ public function paymentSuccess()
 }
 
 // Handle payment cancellation
+
 public function paymentCancel()
     {
         $userId = session()->get('user_id');
@@ -914,58 +1017,58 @@ public function paymentCancel()
 
 // Manual cleanup method (can be called via URL for testing)
 public function cleanupPayments()
-{
-    // Only allow this in development or for testing
-    if (ENVIRONMENT !== 'development') {
-        return $this->response->setJSON(['error' => 'Not allowed in production']);
-    }
-    
-    $paymentsModel = new PaymentsModel();
-    
-    // 1. Expire old awaiting payments (older than 30 minutes)
-    $expiredCount = $paymentsModel
-        ->where('status', 'awaiting_payment')
-        ->where('created_at <', date('Y-m-d H:i:s', strtotime('-30 minutes')))
-        ->set([
-            'status' => 'expired', 
-            'updated_at' => date('Y-m-d H:i:s')
-        ])
-        ->update();
-    
-    // 2. Cancel very old expired payments (older than 24 hours)
-    $cancelledCount = $paymentsModel
-        ->where('status', 'expired')
-        ->where('created_at <', date('Y-m-d H:i:s', strtotime('-24 hours')))
-        ->set([
-            'status' => 'cancelled', 
-            'updated_at' => date('Y-m-d H:i:s')
-        ])
-        ->update();
-    
-    // 3. Get current statistics
-    $totalPending = $paymentsModel
-        ->where('status', 'awaiting_payment')
-        ->countAllResults();
+    {
+        // Only allow this in development or for testing
+        if (ENVIRONMENT !== 'development') {
+            return $this->response->setJSON(['error' => 'Not allowed in production']);
+        }
         
-    $totalExpired = $paymentsModel
-        ->where('status', 'expired')
-        ->countAllResults();
-    
-    // Log the cleanup activity
-    log_message('info', 'Manual payment cleanup completed: ' . $expiredCount . ' expired, ' . $cancelledCount . ' cancelled');
-    
-    return $this->response->setJSON([
-        'success' => true,
-        'message' => 'Payment cleanup completed successfully',
-        'results' => [
-            'expired_payments' => $expiredCount,
-            'cancelled_payments' => $cancelledCount,
-            'still_pending' => $totalPending,
-            'total_expired' => $totalExpired
-        ],
-        'timestamp' => date('Y-m-d H:i:s')
-    ]);
-}
+        $paymentsModel = new PaymentsModel();
+        
+        // 1. Expire old awaiting payments (older than 30 minutes)
+        $expiredCount = $paymentsModel
+            ->where('status', 'awaiting_payment')
+            ->where('created_at <', date('Y-m-d H:i:s', strtotime('-30 minutes')))
+            ->set([
+                'status' => 'expired', 
+                'updated_at' => date('Y-m-d H:i:s')
+            ])
+            ->update();
+        
+        // 2. Cancel very old expired payments (older than 24 hours)
+        $cancelledCount = $paymentsModel
+            ->where('status', 'expired')
+            ->where('created_at <', date('Y-m-d H:i:s', strtotime('-24 hours')))
+            ->set([
+                'status' => 'cancelled', 
+                'updated_at' => date('Y-m-d H:i:s')
+            ])
+            ->update();
+        
+        // 3. Get current statistics
+        $totalPending = $paymentsModel
+            ->where('status', 'awaiting_payment')
+            ->countAllResults();
+            
+        $totalExpired = $paymentsModel
+            ->where('status', 'expired')
+            ->countAllResults();
+        
+        // Log the cleanup activity
+        log_message('info', 'Manual payment cleanup completed: ' . $expiredCount . ' expired, ' . $cancelledCount . ' cancelled');
+        
+        return $this->response->setJSON([
+            'success' => true,
+            'message' => 'Payment cleanup completed successfully',
+            'results' => [
+                'expired_payments' => $expiredCount,
+                'cancelled_payments' => $cancelledCount,
+                'still_pending' => $totalPending,
+                'total_expired' => $totalExpired
+            ],
+            'timestamp' => date('Y-m-d H:i:s')
+        ]);
+    }
 
 
 //Fetch GCash settings

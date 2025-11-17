@@ -1255,6 +1255,7 @@
         <form id="payForm" action="<?= site_url('users/createCheckout') ?>" method="post">
           <input type="hidden" name="total_amount" id="hiddenTotalAmount" value="0">
           <input type="hidden" name="bill_ids" id="hiddenBillIds" value="">
+          <input type="hidden" name="billing_id" id="billing_id" value="">
           
           <!-- Minimal GCash Gateway -->
           <div class="gcash-gateway">
@@ -1380,14 +1381,14 @@
     if (hiddenTotalAmount) hiddenTotalAmount.value = total.toFixed(2);
     if (hiddenBillIds) hiddenBillIds.value = selectedBillId;
 
+    // FIX: Set billing_id hidden field for backend
+    const hiddenBillingId = root.querySelector('#billing_id');
+    if (hiddenBillingId) hiddenBillingId.value = selectedBillId;
+
     // Enable/disable payment buttons and tabs
     const hasSelection = !!selectedRadio;
-    
     if (gatewayPayBtn) gatewayPayBtn.disabled = !hasSelection;
-    
-    // CRITICAL FIX: Don't set onclick here, let click handler check disabled state
     updateManualPaymentActions();
-
     if (creditTab) creditTab.disabled = !hasSelection;
     if (mobileTab) mobileTab.disabled = !hasSelection;
 
