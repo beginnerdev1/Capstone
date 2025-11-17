@@ -319,7 +319,7 @@ function initRegisteredUsersPage() {
                         ? (pendingBills > 0 ? 'Cannot deactivate: pending bill(s) exist' : 'Only approved users can be deactivated')
                         : 'Deactivate user';
                     const deactivateBtn = `
-                        <button class="btn btn-sm btn-outline-danger deactivateUserBtn" data-id="${user.id}" data-name="${fullName}" ${canDeactivate ? '' : 'disabled'} title="${deactivateTitle}">
+                        <button class="btn btn-sm btn-outline-danger deactivateUserBtn ${canDeactivate ? '' : 'opacity-50'}" data-id="${user.id}" data-name="${fullName}" ${canDeactivate ? '' : 'data-disabled="1"'} title="${deactivateTitle}">
                             <i class="fas fa-user-slash"></i> Deactivate
                         </button>`;
                     tbody.append(`
@@ -521,6 +521,17 @@ function initRegisteredUsersPage() {
     // Deactivate flow (legacy per-view handler). Guard so global modal handles by default.
     let currentDeactivateUserId = null;
     $(document).on('click', '.deactivateUserBtn', function(){
+        // If button was rendered as disabled (has data-disabled), show a warning instead of doing nothing
+        if ($(this).data('disabled')) {
+            const msg = $(this).attr('title') || 'This user cannot be deactivated.';
+            const warn = $(`<div class="alert alert-warning alert-dismissible fade show" role="alert">
+                <i class="fas fa-exclamation-triangle me-2"></i>${msg}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>`);
+            $('.container-fluid').prepend(warn);
+            setTimeout(()=>{ warn.fadeOut(400,function(){ $(this).remove(); }); }, 4000);
+            return;
+        }
         if (!$('#deactivateUserModal').length) return; // global handler will take over
         currentDeactivateUserId = $(this).data('id');
         const name = $(this).data('name') || 'this user';
@@ -630,6 +641,7 @@ $(document).ready(function(){ initRegisteredUsersPage(); });
                     </div>
                     <div class="modal-body">
                         <form id="deactivateUserForm">
+                            <?= csrf_field() ?>
                             <div class="mb-3">
                                 <label for="deactivateReason" class="form-label">Reason (optional)</label>
                                 <textarea class="form-control" id="deactivateReason" name="reason" rows="3" placeholder="Provide a reason (optional)"></textarea>

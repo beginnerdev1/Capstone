@@ -608,6 +608,14 @@ class Admin extends BaseController
             'active' => 2,
         ]);
 
+        // Clean up any archived inactive snapshot for this user
+        try {
+            $db = \Config\Database::connect();
+            $db->table('inactive_users')->where('user_id', $id)->delete();
+        } catch (\Throwable $_) {
+            // ignore cleanup errors
+        }
+
         $db->transComplete();
         if (!$db->transStatus()) {
             return $this->response->setJSON(['success' => false, 'message' => 'Failed to reactivate user']);
@@ -2332,6 +2340,13 @@ class Admin extends BaseController
     public function activateUser($id)
     {
         $this->usersModel->update($id, ['active' => 2, 'status' => 'approved']);
+        // Remove any stale inactive_users snapshots for this user
+        try {
+            $db = \Config\Database::connect();
+            $db->table('inactive_users')->where('user_id', $id)->delete();
+        } catch (\Throwable $_) {
+            // ignore cleanup errors
+        }
         // Persist friendly display name into the activity log to guarantee history
         try {
             $logId = session()->get('admin_activity_log_id') ?? session()->get('superadmin_activity_log_id');
@@ -2378,6 +2393,16 @@ class Admin extends BaseController
                 ->where('user_id', $id)
                 ->where('status', 'Pending')
                 ->countAllResults();
+            log_message('debug', '[Admin::deactivateUser] outstanding count for user ' . $id . ' => ' . $outstanding);
+            if ($outstanding > 0) {
+                try {
+                    $samples = $this->billingModel->select('id, bill_no, status')->where('user_id', $id)->where('status', 'Pending')->findAll(5);
+                    $ids = array_map(fn($b)=> $b['id'], $samples);
+                    log_message('debug', '[Admin::deactivateUser] sample pending bill ids for user ' . $id . ': ' . json_encode($ids));
+                } catch (\Throwable $_) {
+                    // ignore
+                }
+            }
         } catch (\Throwable $e) {
             $outstanding = 0; // Fail open on count error to avoid false positives
         }
@@ -2397,7 +2422,7 @@ class Admin extends BaseController
         // 1) Update user status/active
         $this->usersModel->update($id, ['active' => 1, 'status' => 'inactive']);
 
-        // 2) Insert snapshot into inactive_users
+        // 2) Insert snapshot into inactive_users and capture the insert id
         $inactiveData = [
             'user_id'        => $id,
             'email'          => $user['email'] ?? '',
@@ -2415,31 +2440,40 @@ class Admin extends BaseController
             'created_at'     => $now,
             'updated_at'     => $now,
         ];
-            // Append action with display name into activity log
-            try {
-                $logId = session()->get('admin_activity_log_id') ?? session()->get('superadmin_activity_log_id');
-                if ($logId) {
-                    $display = trim(($info['first_name'] ?? '') . ' ' . ($info['last_name'] ?? '')) ?: ($user['email'] ?? null);
-                    $details = [
-                        'id' => $id,
-                        'user_name' => $display,
-                        'first_name' => $info['first_name'] ?? null,
-                        'last_name' => $info['last_name'] ?? null,
-                        'email' => $user['email'] ?? null,
-                        'reason' => $this->request->getPost('reason') ?? null,
-                    ];
-                    session()->set('skip_activity_logger', true);
-                    $logModel = new \App\Models\AdminActivityLogModel();
-                    $logModel->appendAction($logId, 'deactivate', '/admin/deactivateUser/' . $id, $this->request->getMethod() ?: 'POST', $id, $details);
-                }
-            } catch (\Throwable $_) {
-                // ignore
-            }
 
+        try {
+            $db->table('inactive_users')->insert($inactiveData);
+            $inactiveId = (int)$db->insertID();
+        } catch (\Throwable $e) {
+            // If insertion fails, rollback and return error
+            $db->transRollback();
             if ($this->request->isAJAX() || $this->request->is('post')) {
-                return $this->response->setJSON(['success' => true, 'message' => 'User deactivated and last 2 years of billings archived.']);
+                return $this->response->setJSON(['success' => false, 'message' => 'Failed to persist inactive user snapshot.']);
             }
-            return redirect()->back()->with('success', 'User deactivated and last 2 years of billings archived.');
+            return redirect()->back()->with('error', 'Failed to persist inactive user snapshot.');
+        }
+
+        // Append action with display name into activity log (controller-level)
+        try {
+            $logId = session()->get('admin_activity_log_id') ?? session()->get('superadmin_activity_log_id');
+            if ($logId) {
+                $display = trim(($info['first_name'] ?? '') . ' ' . ($info['last_name'] ?? '')) ?: ($user['email'] ?? null);
+                $details = [
+                    'id' => $id,
+                    'user_name' => $display,
+                    'first_name' => $info['first_name'] ?? null,
+                    'last_name' => $info['last_name'] ?? null,
+                    'email' => $user['email'] ?? null,
+                    'reason' => $this->request->getPost('reason') ?? null,
+                    'inactive_ref_id' => $inactiveId,
+                ];
+                session()->set('skip_activity_logger', true);
+                $logModel = new \App\Models\AdminActivityLogModel();
+                $logModel->appendAction($logId, 'deactivate', '/admin/deactivateUser/' . $id, $this->request->getMethod() ?: 'POST', $id, $details);
+            }
+        } catch (\Throwable $_) {
+            // ignore logging failures
+        }
         // 3) Archive last two years of billings before inactivation
         // Prefer billing_month as reference; fallback to created_at
         $twoYearsAgo = date('Y-m-d', strtotime('-2 years', strtotime($now)));
