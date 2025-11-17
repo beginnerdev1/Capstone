@@ -15,4 +15,31 @@ class AdminActivityLogModel extends Model
     protected $useTimestamps = true;
     protected $createdField  = 'created_at';
     protected $updatedField  = '';
+
+    /**
+     * Append a single action object to an existing admin activity log's details array.
+     * $detailsArray should be an associative array that will be JSON-encoded into the action's details field.
+     */
+    public function appendAction(int $logId, string $action, string $route = '', string $method = 'POST', $resource = null, array $detailsArray = [])
+    {
+        $existing = $this->find($logId);
+        if (!$existing) return false;
+
+        $actions = [];
+        if (!empty($existing['details'])) {
+            $decoded = json_decode($existing['details'], true);
+            if (is_array($decoded)) $actions = $decoded;
+        }
+
+        $actions[] = [
+            'action'   => $action,
+            'route'    => $route ?: '',
+            'method'   => strtoupper($method),
+            'resource' => $resource,
+            'details'  => !empty($detailsArray) ? json_encode($detailsArray) : null,
+            'time'     => date('Y-m-d H:i:s'),
+        ];
+
+        return $this->update($logId, ['details' => json_encode($actions)]);
+    }
 }

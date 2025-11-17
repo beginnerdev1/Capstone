@@ -13,8 +13,14 @@
     </div>
     <div class="card-body">
       <div class="row g-2 mb-3">
-        <div class="col-6 col-md-2"><input type="date" id="start" class="form-control form-control-sm" /></div>
-        <div class="col-6 col-md-2"><input type="date" id="end" class="form-control form-control-sm" /></div>
+        <div class="col-6 col-md-2">
+          <label for="start" class="form-label small mb-1">From: </label>
+          <input type="date" id="start" class="form-control form-control-sm" />
+        </div>
+        <div class="col-6 col-md-2">
+          <label for="end" class="form-label small mb-1">Until: </label>
+          <input type="date" id="end" class="form-control form-control-sm" />
+        </div>
         <div class="col-6 col-md-2">
           <select id="action" class="form-select form-select-sm">
             <option value="">Any Action</option>
@@ -35,7 +41,7 @@
             <option>DELETE</option>
           </select>
         </div>
-        <div class="col-12 col-md-3"><input type="text" id="q" class="form-control form-control-sm" placeholder="Search route/resource/details" /></div>
+        <div class="col-12 col-md-3"><input type="text" id="q" class="form-control form-control-sm" placeholder="Search admin name" /></div>
         <div class="col-12 col-md-1 d-grid d-md-block">
           <button class="btn btn-sm btn-primary w-100" id="applyFilters">Apply</button>
         </div>
@@ -92,11 +98,15 @@
         } else {
           readable = '<em>No actions recorded</em>';
         }
+        const adminName = r.actor_name ? r.actor_name : (r.actor_type === 'admin' ? r.actor_type : r.actor_type);
         $tb.append(`
           <tr>
             <td>${fmt(r.created_at)}</td>
-            <td>${r.actor_type === 'admin' ? 'Admin #' + r.actor_id : r.actor_type}</td>
-            <td><button class="btn btn-sm btn-outline-primary view-details" data-idx="${idx}">View Details (${actions.length})</button></td>
+            <td>${$('<div/>').text(adminName).html()}</td>
+            <td>
+              <button class="btn btn-sm btn-outline-primary view-details" data-idx="${idx}">View Details (${actions.length})</button>
+              <button class="btn btn-sm btn-outline-secondary ms-2 export-log-btn" data-id="${r.id}" data-idx="${idx}"><i class="fas fa-file-csv me-1"></i>Export</button>
+            </td>
             <td>${fmt(r.logged_out_at)}</td>
             <td title="IP address">${r.ip_address||''}</td>
             <td title="Device info">${(r.user_agent||'').slice(0,40)}${(r.user_agent||'').length>40?'…':''}</td>
@@ -153,7 +163,8 @@
     if(!row) return;
     $('#detailsModalBody').html(row._readable || '<em>No details</em>');
     $('#detailsModalTime').text(fmt(row.created_at));
-    $('#detailsModalAdmin').text(row.actor_type === 'admin' ? 'Admin #' + row.actor_id : row.actor_type);
+    const modalAdminName = row.actor_name ? row.actor_name : row.actor_type;
+    $('#detailsModalAdmin').text(modalAdminName);
     $('#detailsModalLogout').text(fmt(row.logged_out_at));
     new bootstrap.Modal(document.getElementById('detailsModal')).show();
   });
@@ -174,19 +185,79 @@
     new bootstrap.Modal(document.getElementById('exportConfirmModal')).show();
   });
 
-  // Confirm export
-  $(document).on('click', '#confirmExportBtn', function(){
+  // Confirm export — fetch CSV with credentials and trigger download to avoid permission issues
+  $(document).on('click', '#confirmExportBtn', async function(){
     const p = buildParams();
     const qs = new URLSearchParams(p).toString();
-    window.open('<?= site_url('admin/exportLogs') ?>' + '?' + qs, '_blank');
-    const m = bootstrap.Modal.getInstance(document.getElementById('exportConfirmModal'));
-    if (m) m.hide();
+    const url = '<?= site_url('admin/exportLogs') ?>' + '?' + qs;
+    try {
+      const res = await fetch(url, { credentials: 'same-origin' });
+      if (!res.ok) {
+        const txt = await res.text();
+        $('#logsAlerts').html('<div class="alert alert-danger">Export failed: ' + (res.statusText || 'Server error') + '</div>');
+        console.error('Export failed', res.status, txt);
+        return;
+      }
+      const blob = await res.blob();
+      const filename = 'admin-activity-logs-' + new Date().toISOString().slice(0,19).replace(/[:T]/g,'-') + '.csv';
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(link.href);
+      // Show success alert
+      $('#logsAlerts').html('<div class="alert alert-success">CSV downloaded</div>');
+      setTimeout(()=>$('#logsAlerts').fadeOut(400,function(){ $(this).html('').show(); }), 3000);
+    } catch (err) {
+      console.error('Export error', err);
+      $('#logsAlerts').html('<div class="alert alert-danger">Failed to download CSV. See console for details.</div>');
+    } finally {
+      const m = bootstrap.Modal.getInstance(document.getElementById('exportConfirmModal'));
+      if (m) m.hide();
+    }
+  });
+
+  // Export single log (per-row)
+  $(document).on('click', '.export-log-btn', async function(){
+    const id = $(this).data('id');
+    const idx = $(this).data('idx');
+    if (!id) return;
+    const url = '<?= site_url('admin/exportLogs') ?>' + '?log_id=' + encodeURIComponent(id);
+    try {
+      const res = await fetch(url, { credentials: 'same-origin' });
+      if (!res.ok) {
+        const txt = await res.text();
+        $('#logsAlerts').html('<div class="alert alert-danger">Export failed: ' + (res.statusText || 'Server error') + '</div>');
+        console.error('Export failed', res.status, txt);
+        return;
+      }
+      const blob = await res.blob();
+      let performer = '';
+      try { if (window._adminLogsRows && typeof idx !== 'undefined') performer = window._adminLogsRows[idx] && (window._adminLogsRows[idx].actor_name || '') } catch(e){}
+      performer = performer ? performer.replace(/[^a-z0-9]+/ig, '_') : 'unknown';
+      const filename = 'performed-by_' + performer + '_log-' + id + '-' + new Date().toISOString().slice(0,19).replace(/[:T]/g,'-') + '.csv';
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(link.href);
+      // Show success alert
+      $('#logsAlerts').html('<div class="alert alert-success">CSV downloaded</div>');
+      setTimeout(()=>$('#logsAlerts').fadeOut(400,function(){ $(this).html('').show(); }), 3000);
+    } catch (err) {
+      console.error('Export error', err);
+      $('#logsAlerts').html('<div class="alert alert-danger">Failed to download CSV. See console for details.</div>');
+    }
   });
   loadLogs();
 })();
 </script>
-<div class="position-sticky bottom-0 p-2">
-  <button class="btn btn-outline-secondary btn-sm" id="exportCsv"><i class="fas fa-file-csv me-1"></i>Export CSV</button>
+  <div class="position-sticky bottom-0 p-2">
+  <button class="btn btn-outline-secondary btn-sm" id="exportCsv"><i class="fas fa-file-csv me-1"></i>Export All</button>
 </div>
 
 <!-- Details Modal -->

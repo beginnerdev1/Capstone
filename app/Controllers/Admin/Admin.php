@@ -181,23 +181,55 @@ class Admin extends BaseController
         $action = trim($this->request->getGet('action') ?? '');
         $method = trim($this->request->getGet('method') ?? '');
         $actorId = (int) ($this->request->getGet('actor_id') ?? 0);
+        $logId = (int) ($this->request->getGet('log_id') ?? 0);
         $q = trim($this->request->getGet('q') ?? '');
         $start = trim($this->request->getGet('start') ?? '');
         $end = trim($this->request->getGet('end') ?? '');
 
         if ($actorId > 0) { $builder->where('actor_id', $actorId); }
+        if ($logId > 0) { $builder->where('id', $logId); }
         if ($action !== '') { $builder->where('action', $action); }
         if ($method !== '') { $builder->where('method', strtoupper($method)); }
         if ($start !== '') { $builder->where('created_at >=', $start . ' 00:00:00'); }
         if ($end !== '') { $builder->where('created_at <=', $end . ' 23:59:59'); }
         if ($q !== '') {
-            $builder->groupStart()
-                ->like('route', $q)
-                ->orLike('resource', $q)
-                ->orLike('details', $q)
-            ->groupEnd();
+            // Search admin first/last name instead of route/resource/details
+            try {
+                $admModel = new \App\Models\AdminModel();
+                $matches = $admModel->groupStart()
+                    ->like('first_name', $q)
+                    ->orLike('last_name', $q)
+                    ->orLike("CONCAT(first_name, ' ', last_name)", $q)
+                ->groupEnd()
+                ->get()
+                ->getResultArray();
+                $ids = array_column($matches, 'id');
+                if (!empty($ids)) {
+                    $builder->whereIn('actor_id', $ids);
+                } else {
+                    // no matching admin names, ensure empty result
+                    $builder->where('actor_id', 0);
+                }
+            } catch (\Throwable $_) {
+                // fallback: return no results on error
+                $builder->where('actor_id', 0);
+            }
         }
         $rows = $builder->orderBy('id','DESC')->findAll($limit);
+        // Enrich rows with actor display name for admins to allow client to show friendly names
+        try {
+            foreach ($rows as &$rr) {
+                if (($rr['actor_type'] ?? '') === 'admin' && !empty($rr['actor_id'])) {
+                    $adm = $this->adminModel->find((int)$rr['actor_id']);
+                    if ($adm) {
+                        $rr['actor_name'] = trim(($adm['first_name'] ?? '') . ' ' . ($adm['last_name'] ?? ''));
+                    }
+                }
+            }
+            unset($rr);
+        } catch (\Throwable $_) {
+            // ignore enrichment errors
+        }
         return $this->response->setJSON($rows);
     }
 
@@ -209,33 +241,169 @@ class Admin extends BaseController
         $action = trim($this->request->getGet('action') ?? '');
         $method = trim($this->request->getGet('method') ?? '');
         $actorId = (int) ($this->request->getGet('actor_id') ?? 0);
+        $logId = (int) ($this->request->getGet('log_id') ?? 0);
         $q = trim($this->request->getGet('q') ?? '');
         $start = trim($this->request->getGet('start') ?? '');
         $end = trim($this->request->getGet('end') ?? '');
         if ($actorId > 0) { $builder->where('actor_id', $actorId); }
+        if ($logId > 0) { $builder->where('id', $logId); }
         if ($action !== '') { $builder->where('action', $action); }
         if ($method !== '') { $builder->where('method', strtoupper($method)); }
         if ($start !== '') { $builder->where('created_at >=', $start . ' 00:00:00'); }
         if ($end !== '') { $builder->where('created_at <=', $end . ' 23:59:59'); }
         if ($q !== '') {
-            $builder->groupStart()->like('route', $q)->orLike('resource', $q)->orLike('details', $q)->groupEnd();
+            // Search admin first/last name instead of route/resource/details for exports
+            try {
+                $admModel = new \App\Models\AdminModel();
+                $matches = $admModel->groupStart()
+                    ->like('first_name', $q)
+                    ->orLike('last_name', $q)
+                    ->orLike("CONCAT(first_name, ' ', last_name)", $q)
+                ->groupEnd()
+                ->get()
+                ->getResultArray();
+                $ids = array_column($matches, 'id');
+                if (!empty($ids)) {
+                    $builder->whereIn('actor_id', $ids);
+                } else {
+                    $builder->where('actor_id', 0);
+                }
+            } catch (\Throwable $_) {
+                $builder->where('actor_id', 0);
+            }
         }
 
         $rows = $builder->orderBy('id','DESC')->findAll(2000);
         $fh = fopen('php://temp', 'w+');
-        fputcsv($fh, ['Time','Actor','Action','Method','Route','Resource','IP','User Agent','Logged Out']);
+        // Determine requester type: only include raw JSON for superadmins
+        $session = session();
+        $isSuper = (bool) $session->get('is_superadmin_logged_in');
+
+        $headers = ['Time','Actor','Action','Method','Route','Resource','Performed By','Details Summary'];
+        if ($isSuper) $headers[] = 'Details (raw JSON)';
+        $headers = array_merge($headers, ['IP','User Agent','Logged Out']);
+        fputcsv($fh, $headers);
+        // For each log row, flatten inner actions into individual CSV rows
+        $superModel = null;
         foreach ($rows as $r) {
-            fputcsv($fh, [
-                $r['created_at'] ?? '',
-                ($r['actor_type'] ?? '') . '#' . ($r['actor_id'] ?? ''),
+            // Determine performer display name from actor tables
+            $actorKey = ($r['actor_type'] ?? '') . '#' . ($r['actor_id'] ?? '');
+            $performedBy = $actorKey;
+            try {
+                if (($r['actor_type'] ?? '') === 'admin') {
+                    $adm = $this->adminModel->find((int)($r['actor_id'] ?? 0));
+                    if ($adm) $performedBy = trim(($adm['first_name'] ?? '') . ' ' . ($adm['last_name'] ?? '')) ?: $actorKey;
+                } elseif (($r['actor_type'] ?? '') === 'superadmin') {
+                    if ($superModel === null) $superModel = new \App\Models\SuperAdminModel();
+                    $sa = $superModel->find((int)($r['actor_id'] ?? 0));
+                    if ($sa) $performedBy = $sa['email'] ?? $actorKey;
+                }
+            } catch (\Throwable $_) {
+                // ignore and fallback to actorKey
+            }
+
+            if (!empty($r['details'])) {
+                $d = json_decode($r['details'], true);
+                // Session-merged details array
+                if (is_array($d) && isset($d[0]) && is_array($d[0]) && isset($d[0]['action'])) {
+                    foreach ($d as $act) {
+                        $time = $act['time'] ?? $r['created_at'] ?? '';
+                        // Prefix time with apostrophe to force CSV/Excel to treat as text (prevents #### display)
+                        if ($time !== '') $time = "'" . $time;
+                        $actName = $act['action'] ?? ($r['action'] ?? '');
+                        $method = $act['method'] ?? $r['method'] ?? '';
+                        $route = $act['route'] ?? $r['route'] ?? '';
+                        $resource = $act['resource'] ?? $r['resource'] ?? '';
+
+                        // Build details summary for this inner action
+                        $summaryParts = [];
+                        if (!empty($act['details'])) {
+                            $det = json_decode($act['details'], true);
+                            if (is_array($det)) {
+                                if (!empty($det['user_name'])) $summaryParts[] = 'User: ' . $det['user_name'];
+                                elseif (!empty($det['first_name']) || !empty($det['last_name'])) $summaryParts[] = 'User: ' . trim(($det['first_name'] ?? '') . ' ' . ($det['last_name'] ?? ''));
+                                elseif (!empty($det['id'])) $summaryParts[] = 'User ID: ' . $det['id'];
+                                if (!empty($det['reason'])) $summaryParts[] = 'Reason: ' . $det['reason'];
+                            }
+                        }
+                        if ($resource) $summaryParts[] = 'Resource: ' . $resource;
+                        $detailsSummary = implode('; ', $summaryParts);
+
+                        $row = [
+                            $time,
+                            $actorKey,
+                            $actName,
+                            $method,
+                            $route,
+                            $resource,
+                            $performedBy,
+                            $detailsSummary,
+                        ];
+                        if ($isSuper) $row[] = ($act['details'] ?? $r['details'] ?? '');
+                        $row = array_merge($row, [
+                            $r['ip_address'] ?? '',
+                            $r['user_agent'] ?? '',
+                            $r['logged_out_at'] ?? '',
+                        ]);
+                        fputcsv($fh, $row);
+                    }
+                    continue;
+                }
+                // Single-action details (not an array)
+                $time = $r['created_at'] ?? '';
+                if ($time !== '') $time = "'" . $time;
+                $actName = $r['action'] ?? '';
+                $method = $r['method'] ?? '';
+                $route = $r['route'] ?? '';
+                $resource = $r['resource'] ?? '';
+
+                $summaryParts = [];
+                $det = is_array($d) ? $d : [];
+                if (!empty($det['user_name'])) $summaryParts[] = 'User: ' . $det['user_name'];
+                elseif (!empty($det['first_name']) || !empty($det['last_name'])) $summaryParts[] = 'User: ' . trim(($det['first_name'] ?? '') . ' ' . ($det['last_name'] ?? ''));
+                elseif (!empty($det['id'])) $summaryParts[] = 'User ID: ' . ($det['id'] ?? '');
+                if (!empty($det['reason'])) $summaryParts[] = 'Reason: ' . $det['reason'];
+                if ($resource) $summaryParts[] = 'Resource: ' . $resource;
+                $detailsSummary = implode('; ', $summaryParts);
+
+                $row = [
+                    $time,
+                    $actorKey,
+                    $actName,
+                    $method,
+                    $route,
+                    $resource,
+                    $performedBy,
+                    $detailsSummary,
+                ];
+                if ($isSuper) $row[] = ($r['details'] ?? '');
+                $row = array_merge($row, [
+                    $r['ip_address'] ?? '',
+                    $r['user_agent'] ?? '',
+                    $r['logged_out_at'] ?? '',
+                ]);
+                fputcsv($fh, $row);
+                continue;
+            }
+
+            // If no details present, output a minimal row for the log
+            $row = [
+                ($r['created_at'] ? "'" . $r['created_at'] : ''),
+                $actorKey,
                 $r['action'] ?? '',
                 $r['method'] ?? '',
                 $r['route'] ?? '',
                 $r['resource'] ?? '',
+                $performedBy,
+                '',
+            ];
+            if ($isSuper) $row[] = ($r['details'] ?? '');
+            $row = array_merge($row, [
                 $r['ip_address'] ?? '',
                 $r['user_agent'] ?? '',
                 $r['logged_out_at'] ?? '',
             ]);
+            fputcsv($fh, $row);
         }
         rewind($fh);
         $csv = stream_get_contents($fh);
@@ -440,10 +608,39 @@ class Admin extends BaseController
             'active' => 2,
         ]);
 
+        // Clean up any archived inactive snapshot for this user
+        try {
+            $db = \Config\Database::connect();
+            $db->table('inactive_users')->where('user_id', $id)->delete();
+        } catch (\Throwable $_) {
+            // ignore cleanup errors
+        }
+
         $db->transComplete();
         if (!$db->transStatus()) {
             return $this->response->setJSON(['success' => false, 'message' => 'Failed to reactivate user']);
         }
+        try {
+            $logId = session()->get('admin_activity_log_id') ?? session()->get('superadmin_activity_log_id');
+            if ($logId) {
+                $info = $this->userInfoModel->getByUserId($id) ?? [];
+                $user = $this->usersModel->find($id);
+                $display = trim(($info['first_name'] ?? '') . ' ' . ($info['last_name'] ?? '')) ?: ($user['email'] ?? null);
+                $details = [
+                    'id' => $id,
+                    'user_name' => $display,
+                    'first_name' => $info['first_name'] ?? null,
+                    'last_name' => $info['last_name'] ?? null,
+                    'email' => $user['email'] ?? null,
+                ];
+                session()->set('skip_activity_logger', true);
+                $logModel = new \App\Models\AdminActivityLogModel();
+                $logModel->appendAction($logId, 'activate', '/admin/reactivateUser/' . $id, $this->request->getMethod() ?: 'POST', $id, $details);
+            }
+        } catch (\Throwable $_) {
+            // ignore
+        }
+
         return $this->response->setJSON(['success' => true, 'message' => 'User reactivated successfully']);
     }
 
@@ -2143,6 +2340,37 @@ class Admin extends BaseController
     public function activateUser($id)
     {
         $this->usersModel->update($id, ['active' => 2, 'status' => 'approved']);
+        // Remove any stale inactive_users snapshots for this user
+        try {
+            $db = \Config\Database::connect();
+            $db->table('inactive_users')->where('user_id', $id)->delete();
+        } catch (\Throwable $_) {
+            // ignore cleanup errors
+        }
+        // Persist friendly display name into the activity log to guarantee history
+        try {
+            $logId = session()->get('admin_activity_log_id') ?? session()->get('superadmin_activity_log_id');
+            if ($logId) {
+                $user = $this->usersModel->find($id);
+                $info = $this->userInfoModel->getByUserId($id) ?? [];
+                $display = trim(($info['first_name'] ?? '') . ' ' . ($info['last_name'] ?? '')) ?: ($user['email'] ?? null);
+                $details = [
+                    'id' => $id,
+                    'user_name' => $display,
+                    'first_name' => $info['first_name'] ?? null,
+                    'last_name' => $info['last_name'] ?? null,
+                    'email' => $user['email'] ?? null,
+                ];
+
+                // mark to skip the ActivityLogger to avoid duplicate entry
+                session()->set('skip_activity_logger', true);
+                $logModel = new \App\Models\AdminActivityLogModel();
+                $logModel->appendAction($logId, 'activate', '/admin/activateUser/' . $id, $this->request->getMethod() ?: 'POST', $id, $details);
+            }
+        } catch (\Throwable $_) {
+            // ignore logging failures
+        }
+
         return redirect()->back()->with('success', 'User activated successfully.');
     }
 
@@ -2165,6 +2393,16 @@ class Admin extends BaseController
                 ->where('user_id', $id)
                 ->where('status', 'Pending')
                 ->countAllResults();
+            log_message('debug', '[Admin::deactivateUser] outstanding count for user ' . $id . ' => ' . $outstanding);
+            if ($outstanding > 0) {
+                try {
+                    $samples = $this->billingModel->select('id, bill_no, status')->where('user_id', $id)->where('status', 'Pending')->findAll(5);
+                    $ids = array_map(fn($b)=> $b['id'], $samples);
+                    log_message('debug', '[Admin::deactivateUser] sample pending bill ids for user ' . $id . ': ' . json_encode($ids));
+                } catch (\Throwable $_) {
+                    // ignore
+                }
+            }
         } catch (\Throwable $e) {
             $outstanding = 0; // Fail open on count error to avoid false positives
         }
@@ -2184,7 +2422,7 @@ class Admin extends BaseController
         // 1) Update user status/active
         $this->usersModel->update($id, ['active' => 1, 'status' => 'inactive']);
 
-        // 2) Insert snapshot into inactive_users
+        // 2) Insert snapshot into inactive_users and capture the insert id
         $inactiveData = [
             'user_id'        => $id,
             'email'          => $user['email'] ?? '',
@@ -2203,9 +2441,39 @@ class Admin extends BaseController
             'updated_at'     => $now,
         ];
 
-        $db->table('inactive_users')->insert($inactiveData);
-        $inactiveId = $db->insertID();
+        try {
+            $db->table('inactive_users')->insert($inactiveData);
+            $inactiveId = (int)$db->insertID();
+        } catch (\Throwable $e) {
+            // If insertion fails, rollback and return error
+            $db->transRollback();
+            if ($this->request->isAJAX() || $this->request->is('post')) {
+                return $this->response->setJSON(['success' => false, 'message' => 'Failed to persist inactive user snapshot.']);
+            }
+            return redirect()->back()->with('error', 'Failed to persist inactive user snapshot.');
+        }
 
+        // Append action with display name into activity log (controller-level)
+        try {
+            $logId = session()->get('admin_activity_log_id') ?? session()->get('superadmin_activity_log_id');
+            if ($logId) {
+                $display = trim(($info['first_name'] ?? '') . ' ' . ($info['last_name'] ?? '')) ?: ($user['email'] ?? null);
+                $details = [
+                    'id' => $id,
+                    'user_name' => $display,
+                    'first_name' => $info['first_name'] ?? null,
+                    'last_name' => $info['last_name'] ?? null,
+                    'email' => $user['email'] ?? null,
+                    'reason' => $this->request->getPost('reason') ?? null,
+                    'inactive_ref_id' => $inactiveId,
+                ];
+                session()->set('skip_activity_logger', true);
+                $logModel = new \App\Models\AdminActivityLogModel();
+                $logModel->appendAction($logId, 'deactivate', '/admin/deactivateUser/' . $id, $this->request->getMethod() ?: 'POST', $id, $details);
+            }
+        } catch (\Throwable $_) {
+            // ignore logging failures
+        }
         // 3) Archive last two years of billings before inactivation
         // Prefer billing_month as reference; fallback to created_at
         $twoYearsAgo = date('Y-m-d', strtotime('-2 years', strtotime($now)));
