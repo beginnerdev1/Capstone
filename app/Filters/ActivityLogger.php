@@ -27,9 +27,14 @@ class ActivityLogger implements FilterInterface
             }
 
             $session = session();
+            // If a controller has already appended the action and requested to skip, consume the flag and return.
+            if ($session->get('skip_activity_logger')) {
+                $session->remove('skip_activity_logger');
+                return;
+            }
             $actorType = null; $actorId = null; $logId = null;
             if ($session->get('is_admin_logged_in')) {
-                $actorType = 'admin';
+                $actorType = $session->get('position');
                 $actorId = $session->get('admin_id');
                 $logId = $session->get('admin_activity_log_id');
             } elseif ($session->get('is_superadmin_logged_in')) {
@@ -61,7 +66,8 @@ class ActivityLogger implements FilterInterface
                 if (isset($vars['confirm_password'])) $vars['confirm_password'] = '***';
 
                 // Always add user/customer name for actions concerning users
-                $targetUserId = $vars['user_id'] ?? $vars['id'] ?? null;
+                // If the controller didn't include user_id in POST vars, try to extract a numeric id from the route
+                $targetUserId = $vars['user_id'] ?? $vars['id'] ?? (is_numeric($resource) ? (int)$resource : null);
                 $userName = null;
                 if (isset($vars['user']) && is_array($vars['user'])) {
                     $userName = trim(($vars['user']['first_name'] ?? '') . ' ' . ($vars['user']['last_name'] ?? '')) ?: null;
@@ -69,10 +75,15 @@ class ActivityLogger implements FilterInterface
 
                 // Try to resolve name from known sources in order
                 if (!$userName && $targetUserId) {
-                    // 1) user_information table
+                    // 1) user_information table (prefer exact profile)
                     try {
                         $userInfoModel = new \App\Models\UserInformationModel();
-                        $userName = $userInfoModel->getFullName($targetUserId);
+                        $userInfo = $userInfoModel->getByUserId($targetUserId);
+                        if ($userInfo) {
+                            $userName = trim(($userInfo['first_name'] ?? '') . ' ' . ($userInfo['last_name'] ?? '')) ?: null;
+                            if (!empty($userInfo['first_name'])) $vars['first_name'] = $userInfo['first_name'];
+                            if (!empty($userInfo['last_name'])) $vars['last_name'] = $userInfo['last_name'];
+                        }
                     } catch (\Throwable $e) {
                         log_message('debug', '[ActivityLogger] userInformation lookup failed: ' . $e->getMessage());
                         $userName = null;
@@ -81,10 +92,18 @@ class ActivityLogger implements FilterInterface
                 }
 
                 if (!$userName) {
-                    // 2) inactive_users table
+                    // 2) inactive_users table (archived copy)
                     try {
                         $inactiveModel = new \App\Models\InactiveUsersModel();
-                        $userName = $inactiveModel->getFullName($targetUserId ?? $resource ?? null);
+                        $inactiveRow = $inactiveModel->getByUserId($targetUserId ?? $resource ?? null);
+                        if ($inactiveRow) {
+                            $userName = trim(($inactiveRow['first_name'] ?? '') . ' ' . ($inactiveRow['last_name'] ?? '')) ?: null;
+                            if (!empty($inactiveRow['first_name'])) $vars['first_name'] = $inactiveRow['first_name'];
+                            if (!empty($inactiveRow['last_name'])) $vars['last_name'] = $inactiveRow['last_name'];
+                            if (!empty($inactiveRow['email'])) $vars['email'] = $inactiveRow['email'];
+                            // preserve original referenced user id where possible
+                            if (!isset($vars['user_id']) && !empty($inactiveRow['user_id'])) $vars['user_id'] = $inactiveRow['user_id'];
+                        }
                     } catch (\Throwable $e) {
                         // ignore
                     }
@@ -103,6 +122,9 @@ class ActivityLogger implements FilterInterface
                         }
                         if ($u) {
                             $userName = trim(($u['first_name'] ?? '') . ' ' . ($u['last_name'] ?? '')) ?: ($u['email'] ?? null);
+                            if (!empty($u['first_name'])) $vars['first_name'] = $u['first_name'];
+                            if (!empty($u['last_name'])) $vars['last_name'] = $u['last_name'];
+                            if (!empty($u['email'])) $vars['email'] = $u['email'];
                         }
                     } catch (\Throwable $e) {
                         // ignore
