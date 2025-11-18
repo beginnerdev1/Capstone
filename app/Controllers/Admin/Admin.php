@@ -3010,6 +3010,7 @@ public function approve($id)
             'otp_expire' => $expiry,
         ]);
 
+        
         // Send OTP using Brevo Transactional Email API
         require ROOTPATH . 'vendor/autoload.php';
         $mailerSent = false;
