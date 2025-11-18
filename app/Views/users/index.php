@@ -858,6 +858,8 @@
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
   <script>
+
+    // Initialize Chart.js
 $(function () {
     // Initialize AOS animations
     AOS.init({
@@ -889,24 +891,91 @@ $(function () {
         $(this).addClass('pointer-events-none opacity-75');
         
         $.get("<?= base_url('users/getAccountStatus') ?>", function(data) {
-            if (data.account_status !== 'approved') {
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'Account Pending Approval',
-                    text: 'Your account is still pending approval. Payments will be available once your account is approved.',
-                    confirmButtonText: 'Understood',
-                    customClass: {
-                        popup: 'rounded-4',
-                        confirmButton: 'btn btn-warning rounded-pill px-4'
-                    },
-                    buttonsStyling: false
-                });
-                return;
-            }
+            const status = (data.account_status || '').toLowerCase();
 
-            $("#paymentModalBody").load("<?= base_url('users/payments') ?>", function () {
-                new bootstrap.Modal(document.getElementById("paymentModal")).show();
-            });
+            const swalClasses = {
+                popup: 'rounded-4',
+                confirmButton: 'btn btn-primary rounded-pill px-4',
+                cancelButton: 'btn btn-secondary rounded-pill px-4'
+            };
+
+            switch (status) {
+                case 'approved':
+                    $("#paymentModalBody").load("<?= base_url('users/payments') ?>", function () {
+                        new bootstrap.Modal(document.getElementById("paymentModal")).show();
+                    });
+                    break;
+
+                case 'pending':
+                case 'pending approval':
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Account Pending Approval',
+                        text: 'Your account is still pending approval. Payments will be available once your account is approved.',
+                        confirmButtonText: 'Understood',
+                        customClass: swalClasses,
+                        buttonsStyling: false
+                    });
+                    break;
+
+                case 'rejected':
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Account Rejected',
+                        html: 'Your account application was rejected. Please contact support for more details.',
+                        showCancelButton: true,
+                        confirmButtonText: 'Contact Support',
+                        cancelButtonText: 'Close',
+                        customClass: swalClasses,
+                        buttonsStyling: false
+                    }).then((res) => {
+                        if (res.isConfirmed) {
+                            new bootstrap.Modal(document.getElementById('supportModal')).show();
+                        }
+                    });
+                    break;
+
+                case 'inactive':
+                    Swal.fire({
+                        icon: 'info',
+                        title: 'Account Inactive',
+                        text: 'Your account is currently inactive. Contact support to reactivate your account.',
+                        confirmButtonText: 'Contact Support',
+                        customClass: swalClasses,
+                        buttonsStyling: false
+                    }).then((res) => {
+                        if (res.isConfirmed) {
+                            new bootstrap.Modal(document.getElementById('supportModal')).show();
+                        }
+                    });
+                    break;
+
+                case 'suspended':
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Account Suspended',
+                        text: 'Your account has been suspended. Contact support to resolve this.',
+                        confirmButtonText: 'Contact Support',
+                        customClass: swalClasses,
+                        buttonsStyling: false
+                    }).then((res) => {
+                        if (res.isConfirmed) {
+                            new bootstrap.Modal(document.getElementById('supportModal')).show();
+                        }
+                    });
+                    break;
+
+                default:
+                    Swal.fire({
+                        icon: 'info',
+                        title: 'Account Status',
+                        text: 'Current status: ' + (data.account_status || 'Unknown') + '.',
+                        confirmButtonText: 'OK',
+                        customClass: swalClasses,
+                        buttonsStyling: false
+                    });
+                    break;
+            }
         }).fail(function() {
             Swal.fire({
                 icon: 'error',
@@ -943,6 +1012,7 @@ $(function () {
     });
 });
 
+// Load dashboard data with animations
 function loadDashboardData() {
     $.get("<?= base_url('users/getBillingsAjax') ?>", { limit: 100 }, function(bills) {
         let totalBills = bills.length;
@@ -967,6 +1037,7 @@ function loadDashboardData() {
     });
 }
 
+// Animate numerical counters
 function animateCounter(elementId, target, isCurrency = false) {
     const element = document.getElementById(elementId);
     const start = 0;
@@ -995,6 +1066,7 @@ function animateCounter(elementId, target, isCurrency = false) {
     requestAnimationFrame(animate);
 }
 
+// Update trend indicators based on data
 function updateTrendIndicators(pending, paid) {
     const pendingTrend = document.getElementById('pendingTrend');
     const paidTrend = document.getElementById('paidTrend');
@@ -1008,6 +1080,7 @@ function updateTrendIndicators(pending, paid) {
     }
 }
 
+// Update payment chart with animation
 function updatePaymentChart(paid, pending) {
     const ctx = document.getElementById('paymentChart').getContext('2d');
     
@@ -1059,6 +1132,8 @@ function updatePaymentChart(paid, pending) {
     });
 }
 
+
+// Load recent bills with enhanced design and animations
 function loadRecentBills() {
     $.get("<?= base_url('users/getBillingsAjax') ?>", { limit: 5 }, function(bills) {
         const container = document.getElementById('recentBillsList');
@@ -1127,6 +1202,7 @@ function loadRecentBills() {
     });
 }
 
+// Helper functions for status styling
 function getStatusClass(status) {
     switch(status.toLowerCase()) {
         case 'paid': return 'status-paid';
@@ -1135,6 +1211,7 @@ function getStatusClass(status) {
     }
 }
 
+// Helper function to get status icon HTML
 function getStatusIcon(status, isOverdue = false) {
     if (isOverdue) return '<i class="bi bi-exclamation-triangle me-1"></i>';
     
