@@ -605,4 +605,294 @@ function initRegisteredUsersPage() {
             type:'GET',
             dataType:'json',
             success:function(user){
-                if(!user.id){ $("#userDetailsContent").html(`<p class="text-danger">User not found.
+                if(!user.id){ $("#userDetailsContent").html(`<p class="text-danger">User not found.</p>`); return; }
+                let profileImg = user.profile_picture
+                    ? `<img src="<?= base_url('uploads/profile_pictures') ?>/${user.profile_picture}" class="rounded-circle mb-3" width="100" height="100">`
+                    : `<i class="fas fa-user-circle fa-5x text-muted mb-3"></i>`;
+                $("#userDetailsContent").html(`
+                    <div class="text-center">${profileImg}</div>
+                    <h5 class="text-center mb-3">${user.first_name||''} ${user.last_name||''}</h5>
+                    <div class="row text-start">
+                        <div class="col-md-6">
+                            <p><strong>Email:</strong> ${user.email||'-'}</p>
+                            <p><strong>Contact Number:</strong> ${user.phone||'-'}</p>
+                            <p><strong>Gender:</strong> ${user.gender||'-'}</p>
+                            <p><strong>Age:</strong> ${user.age||'-'}</p>
+                            <p><strong>Family Members:</strong> ${user.family_number||'-'}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Purok:</strong> ${user.purok||'-'}</p>
+                            <p><strong>Barangay:</strong> ${user.barangay||'-'}</p>
+                            <p><strong>Municipality:</strong> ${user.municipality||'-'}</p>
+                            <p><strong>Province:</strong> ${user.province||'-'}</p>
+                            <p><strong>Zip Code:</strong> ${user.zipcode||'-'}</p>
+                            <p><strong>Status:</strong> <span class="badge bg-info">${user.status||'-'}</span></p>
+                        </div>
+                    </div>
+                `);
+                $("#viewUserModal").modal("show");
+            },
+            error:function(){ $("#userDetailsContent").html(`<p class="text-danger">Error fetching user data.</p>`);}
+        });
+    });
+
+    // Print
+    $('#printUsersBtn').on('click',function(){
+        const printWindow = window.open('','', 'width=900,height=700');
+        const tableHTML = document.getElementById('usersTable').outerHTML;
+        printWindow.document.write(`
+            <html>
+                <head>
+                    <title>Registered Users</title>
+                    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+                </head>
+                <body class="p-4">
+                    <h4 class="text-center mb-4">Registered Users</h4>
+                    ${tableHTML}
+                    <script>window.print();<\/script>
+                </body>
+            </html>
+        `);
+        printWindow.document.close();
+    });
+
+    // Show Add User Modal
+    $('#addUserBtn').on('click',function(){ $('#addUserModal').modal('show'); });
+
+    // Toggle password visibility
+    $('#togglePassword').on('click', function(){
+        const passwordField = $('#addUserPassword');
+        const icon = $(this).find('i');
+        if(passwordField.attr('type') === 'password'){
+            passwordField.attr('type', 'text');
+            icon.removeClass('fa-eye').addClass('fa-eye-slash');
+        } else {
+            passwordField.attr('type', 'password');
+            icon.removeClass('fa-eye-slash').addClass('fa-eye');
+        }
+    });
+
+    // Add User / Account Submission with validation
+    $('#addUserForm').on('submit',function(e){
+        e.preventDefault();
+
+        // Client-side validation
+        const form = this;
+        if (!form.checkValidity()) {
+            e.stopPropagation();
+            $(form).addClass('was-validated');
+            return;
+        }
+
+        const formData = $(this).serialize();
+        const submitBtn = $(this).find('button[type="submit"]');
+        submitBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Adding...');
+
+        $.ajax({
+            url: baseUrl+'/admin/addUser',
+            type:'POST',
+            data: formData,
+            dataType:'json',
+            success:function(res){
+                if(res.success){
+                    const successAlert = $('<div class="alert alert-success alert-dismissible fade show" role="alert">' +
+                        '<i class="fas fa-check-circle me-2"></i>' + res.message +
+                        '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                        '</div>');
+                    $('.container-fluid').prepend(successAlert);
+                    setTimeout(function(){ successAlert.fadeOut(); }, 5000);
+                    $('#addUserForm')[0].reset();
+                    $('#addUserForm').removeClass('was-validated');
+                    $('#addUserModal').modal('hide');
+                    loadUsers();
+                } else {
+                    let errorMsg = res.message || 'Failed to add user.';
+                    if(res.errors){
+                        errorMsg += '<ul class="mb-0 mt-2">';
+                        for(let field in res.errors){
+                            errorMsg += '<li>' + res.errors[field] + '</li>';
+                        }
+                        errorMsg += '</ul>';
+                    }
+                    const errorAlert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
+                        '<i class="fas fa-exclamation-triangle me-2"></i>' + errorMsg +
+                        '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                        '</div>');
+                    $('#addUserForm').prepend(errorAlert);
+                }
+            },
+            error:function(xhr, status, err){
+                console.error('AJAX Error:', xhr.responseText);
+                const errorAlert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
+                    '<i class="fas fa-exclamation-triangle me-2"></i>Error adding user. Please try again.' +
+                    '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                    '</div>');
+                $('#addUserForm').prepend(errorAlert);
+            },
+            complete: function(){
+                submitBtn.prop('disabled', false).html('<i class="fas fa-plus me-1"></i>Add User');
+            }
+        });
+    });
+
+    // Deactivate flow
+    let currentDeactivateUserId = null;
+    $(document).on('click', '.deactivateUserBtn', function(){
+        if ($(this).data('disabled')) {
+            const msg = $(this).attr('title') || 'This user cannot be deactivated.';
+            const warn = $(`<div class="alert alert-warning alert-dismissible fade show" role="alert">
+                <i class="fas fa-exclamation-triangle me-2"></i>${msg}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>`);
+            $('.container-fluid').prepend(warn);
+            setTimeout(()=>{ warn.fadeOut(400,function(){ $(this).remove(); }); }, 4000);
+            return;
+        }
+        if (!$('#deactivateUserModal').length) return;
+        currentDeactivateUserId = $(this).data('id');
+        const name = $(this).data('name') || 'this user';
+        $('#deactivateUserName').text(name);
+        $('#deactivateReason').val('');
+        $('#deactivateUserModal').modal('show');
+    });
+
+    $('#confirmDeactivateBtn').on('click', function(){
+        if (!$('#deactivateUserModal').length) return;
+        if(!currentDeactivateUserId) return;
+        let formData = $('#deactivateUserForm').serialize();
+        formData += '&user_id=' + encodeURIComponent(currentDeactivateUserId);
+        const btn = $(this);
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Deactivating...');
+        $.ajax({
+            url: baseUrl + '/admin/deactivateUser/' + currentDeactivateUserId,
+            type: 'POST',
+            data: formData,
+            dataType: 'json',
+            success: function(res){
+                if(res && res.success){
+                    const successAlert = $('<div class="alert alert-success alert-dismissible fade show" role="alert">' +
+                        '<i class="fas fa-check-circle me-2"></i>' + (res.message || 'User deactivated and archived successfully.') +
+                        '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                        '</div>');
+                    $('.container-fluid').prepend(successAlert);
+                    $('#deactivateUserModal').modal('hide');
+                    loadUsers($('#filterInput').val(), $('#filterPurok').val(), $('#filterStatus').val());
+                } else {
+                    const msg = res && res.message ? res.message : 'Failed to deactivate user.';
+                    const errorAlert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
+                        '<i class="fas fa-exclamation-triangle me-2"></i>' + msg +
+                        '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                        '</div>');
+                    $('#deactivateUserForm').prepend(errorAlert);
+                }
+            },
+            error: function(xhr){
+                const errorAlert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
+                    '<i class="fas fa-exclamation-triangle me-2"></i>Error deactivating user. Please try again.' +
+                    '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                    '</div>');
+                $('#deactivateUserForm').prepend(errorAlert);
+            },
+            complete: function(){
+                btn.prop('disabled', false).html('<i class="fas fa-user-slash me-1"></i>Deactivate');
+            }
+        });
+    });
+
+    // Activate/reactivate flow
+    $(document).on('click', '.activateUserBtn, .reactivateUserBtn', function(){
+        const userId = $(this).data('id');
+        $.ajax({
+            url: baseUrl + '/admin/activateUser/' + userId,
+            type: 'POST',
+            data: { user_id: userId },
+            dataType: 'json',
+            success: function(res){
+                if(res && res.success){
+                    const successAlert = $('<div class="alert alert-success alert-dismissible fade show" role="alert">' +
+                        '<i class="fas fa-check-circle me-2"></i>' + (res.message || 'User activated successfully.') +
+                        '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                        '</div>');
+                    $('.container-fluid').prepend(successAlert);
+                    loadUsers($('#filterInput').val(), $('#filterPurok').val(), $('#filterStatus').val());
+                } else {
+                    const msg = res && res.message ? res.message : 'Failed to activate user.';
+                    const errorAlert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
+                        '<i class="fas fa-exclamation-triangle me-2"></i>' + msg +
+                        '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                        '</div>');
+                    $('.container-fluid').prepend(errorAlert);
+                }
+            },
+            error: function(xhr){
+                const errorAlert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
+                    '<i class="fas fa-exclamation-triangle me-2"></i>Error activating user. Please try again.' +
+                    '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                    '</div>');
+                $('.container-fluid').prepend(errorAlert);
+            }
+        });
+    });
+}
+
+$(document).ready(function(){ initRegisteredUsersPage(); });
+</script>
+<script>
+// Fallback: inject per-view deactivate modal if missing
+(function(){
+    if (!document.getElementById('globalDeactivateModal') && !document.getElementById('deactivateUserModal')) {
+        const html = `
+        <div class="modal fade" id="deactivateUserModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Deactivate <span id="deactivateUserName"></span></h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="deactivateUserForm">
+                            <?= csrf_field() ?>
+                            <div class="mb-3">
+                                <label for="deactivateReason" class="form-label">Reason (optional)</label>
+                                <textarea class="form-control" id="deactivateReason" name="reason" rows="3" placeholder="Provide a reason (optional)"></textarea>
+                            </div>
+                        </form>
+                        <div class="alert alert-warning mb-0" role="alert">
+                            <i class="fas fa-exclamation-triangle me-2"></i>This will archive the user's last 2 years of billings.
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-danger" id="confirmDeactivateBtn">
+                            <i class="fas fa-user-slash me-1"></i>Deactivate
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+        document.body.insertAdjacentHTML('beforeend', html);
+    }
+})();
+
+// Responsive class fallback
+(function(){
+    const container = document.querySelector('.container-fluid');
+    if (!container) return;
+    const THRESHOLD = 992;
+
+    function update() {
+        const inner = typeof window.innerWidth === 'number' ? window.innerWidth : 0;
+        const screenW = (window.screen && window.screen.width) ? window.screen.width : 0;
+        if ((inner && inner <= THRESHOLD) || (screenW && screenW <= THRESHOLD)) {
+            container.classList.add('force-responsive');
+        } else {
+            container.classList.remove('force-responsive');
+        }
+    }
+
+    window.addEventListener('resize', update);
+    window.addEventListener('orientationchange', update);
+    document.addEventListener('DOMContentLoaded', update);
+    update();
+})();
+</script>
