@@ -160,22 +160,35 @@ $(function(){
 
             function appendMessagesToList(messages){
               messages.forEach(function(m){
-                var el = document.createElement('div');
-                el.className = 'mb-2';
+                var container = document.createElement('div');
+                container.className = 'd-flex mb-2';
+
+                var isAdmin = (m.sender === 'admin');
                 var authorName = 'System';
-                if (m.sender === 'admin') {
-                  // keep admin anonymous
+                if (isAdmin) {
                   authorName = 'Admin';
                 } else if (m.sender === 'user') {
-                  // show user's provided name if available
-                  authorName = (m.user_name && String(m.user_name).trim()) ? String(m.user_name).trim() : 'User';
+                  authorName = (m.author && String(m.author).trim()) ? String(m.author).trim() : ((m.user_name && String(m.user_name).trim()) ? String(m.user_name).trim() : 'User');
                 }
-                var header = '<div class="small text-muted">'+authorName+' <span class="ms-2">'+(m.created_at||'')+'</span></div>';
+
                 var safe = (window.DOMPurify && typeof DOMPurify.sanitize === 'function') ? DOMPurify.sanitize(m.message||'') : (m.message||'');
-                var wrapper = document.createElement('div');
-                wrapper.innerHTML = '<div class="p-2 bg-light rounded">'+header+'<div>'+safe+'</div></div>';
-                $('#chat-messages').append(wrapper);
-                // update lastTimestamp
+                var bubble = document.createElement('div');
+                bubble.className = 'chat-bubble p-2 text-white';
+                bubble.style.maxWidth = '75%';
+                bubble.style.borderRadius = '12px';
+
+                if (isAdmin) {
+                  container.classList.add('justify-content-start');
+                  bubble.classList.add('bg-secondary');
+                  bubble.innerHTML = '<div class="small text-white-50">' + authorName + ' <span class="ms-2 small">' + (m.created_at||'') + '</span></div><div>' + safe + '</div>';
+                } else {
+                  container.classList.add('justify-content-end');
+                  bubble.classList.add('bg-primary');
+                  bubble.innerHTML = '<div class="small text-white-50 text-end">' + authorName + ' <span class="ms-2 small">' + (m.created_at||'') + '</span></div><div>' + safe + '</div>';
+                }
+
+                container.appendChild(bubble);
+                $('#chat-messages').append(container);
                 if (m.created_at) lastTimestamp = m.created_at;
               });
               var cm = $('#chat-messages')[0]; if (cm) cm.scrollTop = cm.scrollHeight;

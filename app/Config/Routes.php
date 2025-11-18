@@ -32,6 +32,12 @@ $routes->post('/logout', 'Auth::logout', ['filter' => 'userauth']);
 // ======================================================
 $routes->group('users', ['filter' => 'userauth'], function ($routes) {
 
+    // User chat
+    $routes->get('chat', 'Chat::index');
+    $routes->get('chat/getMessages', 'Chat::getMessages');
+    $routes->post('chat/postMessage', 'Chat::postMessage');
+
+
     // Routes accessible even if profile is incomplete
     $routes->get('/', 'Users::index'); // index is now accessible
     $routes->get('profile', 'Users::profile');
@@ -154,6 +160,16 @@ $routes->post('rejectGCashPayment', 'Admin::rejectGCashPayment'); // Reject GCas
         $routes->get('logs', 'Admin::logs');
         $routes->get('getLogs', 'Admin::getLogs');
         $routes->get('exportLogs', 'Admin::exportLogs');
+        // Admin chat
+        $routes->get('chat', 'Chat::index');
+        $routes->get('chat/getAdmins', 'Chat::getAdmins');
+        $routes->get('chat/getMessages', 'Chat::getMessages');
+        $routes->get('chat/getConversations', 'Chat::getConversations');
+        $routes->get('chat/getMessages/(:num)', 'Chat::getMessagesFor/$1');
+        $routes->post('chat/markRead/(:num)', 'Chat::markRead/$1');
+        $routes->post('chat/postMessage', 'Chat::postMessage');
+        $routes->get('chat/unreadCount', 'Chat::unreadCount');
+        $routes->post('chat/importJson', 'Chat::importJson');
         $routes->post('updateProfile', 'Admin::updateProfile');
         // Secure password change with OTP
         $routes->post('requestPasswordOtp', 'Admin::requestPasswordOtp');
