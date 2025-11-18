@@ -800,10 +800,12 @@ html, body {
                         <i class="fas fa-bell"></i>
                         <span class="badge badge-danger badge-counter">3+</span>
                     </div>
-                    <div class="topbar-icon">
-                        <i class="fas fa-envelope"></i>
-                        <span class="badge badge-danger badge-counter">7</span>
-                    </div>
+                    <a href="<?= base_url('admin/chat') ?>" class="ajax-link" title="Open chats">
+                        <div class="topbar-icon" title="Unread user chats" style="display:inline-block;">
+                            <i class="fas fa-envelope"></i>
+                            <span id="unreadChatsCount" class="badge badge-danger badge-counter" style="display:none;">0</span>
+                        </div>
+                    </a>
                     <div style="height: 24px; width: 1px; background-color: #e3e6f0; margin: 0 0.5rem;"></div>
                     <a href="#" class="user-profile">
                         <span class="profile-name"><?= htmlspecialchars($displayName ?? (session()->get('admin_email') ?? 'Admin'), ENT_QUOTES, 'UTF-8') ?></span>
@@ -1567,3 +1569,59 @@ $(document).ready(function() {
 </body>
 
 </html>
+
+    <script>
+    // Poll admin unread user chat count and update topbar badge
+    (function(){
+        const el = document.getElementById('unreadChatsCount');
+        if (!el) return;
+        const url = "<?= site_url('admin/chat/unreadCount') ?>";
+
+        async function fetchCount(){
+            try {
+                const r = await fetch(url, { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const j = await r.json();
+                const c = Number(j && j.count ? j.count : 0) || 0;
+                if (c > 0) {
+                    el.textContent = String(c);
+                    el.style.display = '';
+                } else {
+                    el.style.display = 'none';
+                }
+            } catch (e) {
+                // silent fail
+                //console.warn('Unread count failed', e);
+            }
+        }
+
+        // adaptive poll loop: only poll when page visible; exponential backoff on failures
+        (function(){
+            const base = 8000; // 8s
+            const max = 60000; // 60s
+            let delay = base;
+            let failures = 0;
+
+            async function loop(){
+                if (document.hidden) {
+                    // when tab hidden, poll less frequently
+                    delay = max;
+                    setTimeout(loop, delay);
+                    return;
+                }
+                try {
+                    await fetchCount();
+                    failures = 0;
+                    delay = base;
+                } catch (e) {
+                    failures++;
+                    delay = Math.min(max, base * Math.pow(2, Math.min(failures, 6)));
+                }
+                setTimeout(loop, delay);
+            }
+
+            // start
+            loop();
+        })();
+    })();
+    </script>

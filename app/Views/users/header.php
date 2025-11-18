@@ -13,7 +13,7 @@
             <li class="nav-item"><a class="nav-link mx-lg-2 active" href="<?= base_url('users') ?>">Home</a></li>
             <li class="nav-item"><a class="nav-link mx-lg-2" href="#">About</a></li>
             <li class="nav-item"><a class="nav-link mx-lg-2" href="#">Services</a></li>
-            <li class="nav-item"><a class="nav-link mx-lg-2" href="#">Contact</a></li>
+            <li class="nav-item"><a class="nav-link mx-lg-2" href="<?= base_url('users/chat') ?>">Contact</a></li>
           </ul>
         </div>
       </div>

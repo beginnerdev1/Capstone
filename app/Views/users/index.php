@@ -768,12 +768,14 @@
               </div>
             </div>
             <div class="col-md-4">
-              <div class="p-4 rounded-4 bg-light mb-3">
-                <i class="bi bi-chat-dots display-4 text-primary mb-3"></i>
-                <h6 class="fw-bold">Live Chat</h6>
-                <p class="text-muted mb-0">Chat with us</p>
-                <small class="text-muted">Available now</small>
-              </div>
+              <a href="<?= base_url('users/chat') ?>" class="text-decoration-none text-reset">
+                <div class="p-4 rounded-4 bg-light mb-3">
+                  <i class="bi bi-chat-dots display-4 text-primary mb-3"></i>
+                  <h6 class="fw-bold">Live Chat</h6>
+                  <p class="text-muted mb-0">Chat with us</p>
+                  <small class="text-muted">Available now</small>
+                </div>
+              </a>
             </div>
           </div>
 

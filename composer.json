@@ -66,6 +66,7 @@
         "sort-packages": true
     },
     "scripts": {
-        "test": "phpunit"
+        "test": "phpunit",
+        "check-innerhtml": "php -r \"$found=false;foreach(new RecursiveIteratorIterator(new RecursiveDirectoryIterator('app')) as $f){ if(!$f->isFile()) continue; $c=@file_get_contents($f); if(stripos($c,'innerHTML')!==false){ echo $f.PHP_EOL; $found=true; } } if($found) exit(1); echo 'OK'.PHP_EOL;\""
     }
 }
