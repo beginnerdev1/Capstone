@@ -24,19 +24,36 @@
             .sidebar-backdrop{ display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:900; }
             .sidebar-open .sidebar-backdrop{ display:block; }
             @media (max-width: 992px){ .main-wrapper{ margin-left:0; } .sidebar{ transform:translateX(-100%); transition:transform .3s; width:260px; } .sidebar.show{ transform:translateX(0); } .hamburger-btn{ display:inline-block; } }
-            .hamburger-btn{ display:none; background:none; border:none; font-size:1.25rem; color:#5a5c69; }
+            .hamburger-btn{ display:inline-block; background:none; border:none; font-size:1.25rem; color:#5a5c69; }
+            /* hide hamburger on large screens */
+            @media (min-width: 992px){ .hamburger-btn{ display:none; } }
         </style>
 </head>
 <body>
     <div class="sidebar" id="sidebar" aria-hidden="true">
-        <div class="sidebar-brand">Super Admin</div>
+        <?php
+            // Prefer controller-provided display name, fall back to session fields
+            $sa_display = $sa_display ?? '';
+            if (empty($sa_display)) {
+                $first = session()->get('superadmin_first_name') ?? '';
+                $last  = session()->get('superadmin_last_name') ?? '';
+                $email = session()->get('superadmin_email') ?? '';
+                $sa_display = trim($first . ' ' . $last);
+                if ($sa_display === '') $sa_display = $email;
+            }
+        ?>
+        <div class="sidebar-brand">Super Admin<?php if (!empty($sa_display)): ?>
+            <br><small style="opacity:0.9; font-weight:600;"><?= esc($sa_display) ?></small>
+        <?php endif; ?></div>
         <div class="sidebar-heading">Core</div>
         <a href="<?= base_url('superadmin/dashboard-content') ?>" class="nav-link ajax-link active"><i class="fas fa-gauge"></i><span>Dashboard</span></a>
         <div class="sidebar-heading">Management</div>
         <a href="<?= base_url('superadmin/users') ?>" class="nav-link ajax-link"><i class="fas fa-user-shield"></i><span>Admins</span></a>
+        <a href="<?= base_url('superadmin/create_superadmin') ?>" class="nav-link ajax-link"><i class="fas fa-user-plus"></i><span>Create Super Admin</span></a>
         <a href="<?= base_url('superadmin/settings') ?>" class="nav-link ajax-link"><i class="fas fa-gear"></i><span>Settings</span></a>
         <a href="<?= base_url('superadmin/logs') ?>" class="nav-link ajax-link"><i class="fas fa-file-lines"></i><span>Logs</span></a>
         <div class="sidebar-heading">Account</div>
+        <a href="<?= base_url('superadmin/profile') ?>" class="nav-link ajax-link"><i class="fas fa-user"></i><span>Profile</span></a>
         <a href="<?= base_url('superadmin/logout') ?>" class="nav-link"><i class="fas fa-right-from-bracket"></i><span>Logout</span></a>
     </div>
     <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
@@ -103,6 +120,24 @@
             const last = localStorage.getItem('sa_lastAjax') || "<?= base_url('superadmin/dashboard-content') ?>";
             loadAjaxPage(last);
         });
+        
+        // Extra: if sidebar is hidden and user cannot find hamburger, provide a small floating toggle
+        (function(){
+            const floatId = 'saFloatingToggle';
+            if (!document.getElementById(floatId)){
+                const btn = document.createElement('button');
+                btn.id = floatId;
+                btn.className = 'btn btn-primary d-lg-none';
+                btn.style.position = 'fixed';
+                btn.style.right = '12px';
+                btn.style.bottom = '12px';
+                btn.style.zIndex = 1200;
+                btn.title = 'Toggle menu';
+                btn.innerHTML = '<i class="fas fa-bars"></i>';
+                btn.addEventListener('click', function(){ setSidebarOpen(!sidebar.classList.contains('show')); });
+                document.body.appendChild(btn);
+            }
+        })();
     </script>
 </body>
 </html>

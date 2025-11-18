@@ -197,6 +197,17 @@ $routes->group('superadmin', ['namespace' => 'App\Controllers'], function ($rout
         $routes->get('getLogs', 'SuperAdmin::getLogs');
         $routes->get('exportLogs', 'SuperAdmin::exportLogs');
         $routes->get('getUsers', 'SuperAdmin::getUsers');
+        $routes->get('getSuperAdmins', 'SuperAdmin::getSuperAdmins');
+        $routes->get('create_superadmin', 'SuperAdmin::create_superadmin');
+        $routes->post('createSuperAdmin', 'SuperAdmin::createSuperAdmin');
+        $routes->post('retireSuperAdmin', 'SuperAdmin::retireSuperAdmin');
+        $routes->get('pendingActions', 'SuperAdmin::pendingActions');
+        $routes->post('approveAction', 'SuperAdmin::approveAction');
+        $routes->post('rejectAction', 'SuperAdmin::rejectAction');
+        $routes->get('profile', 'SuperAdmin::profile');
+        $routes->post('updateProfile', 'SuperAdmin::updateProfile');
+        $routes->get('getActorDisplay', 'SuperAdmin::getActorDisplay');
+        $routes->post('getActorDisplays', 'SuperAdmin::getActorDisplays');
         $routes->post('createUser', 'SuperAdmin::createUser');
         $routes->post('retireUser', 'SuperAdmin::retireUser');
         $routes->get('logout', 'SuperAdminAuth::logout');

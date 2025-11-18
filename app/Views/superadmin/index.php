@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!-- <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
     <title>Dashboard - Super Admin</title>
 
-    <!-- Styles -->
+    
     <link href="https://cdn.jsdelivr.net/npm/simple-datatables@7.1.2/dist/style.min.css" rel="stylesheet" />
     <link href="<?= base_url('assets/superadmin/css/style.css?v=' . time()) ?>" rel="stylesheet">
     <script src="https://use.fontawesome.com/releases/v6.3.0/js/all.js" crossorigin="anonymous"></script>
@@ -20,12 +20,12 @@
         </div>
 
         <div id="layoutSidenav_content">
-            <!-- ✅ AJAX Target Area -->
+            ✅ AJAX Target Area 
             <main id="content-area">
 
             </main>
 
-            <!-- Footer -->
+            Footer
             <footer class="py-4 bg-light mt-auto">
                 <div class="container-fluid px-4">
                     <div class="d-flex align-items-center justify-content-between small">
@@ -41,7 +41,7 @@
         </div>
     </div>
 
-    <!-- JS Libraries -->
+     JS Libraries 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="<?= base_url('assets/admin/js/scripts.js') ?>"></script>
@@ -52,7 +52,7 @@
     <script src="https://cdn.jsdelivr.net/npm/simple-datatables@7.1.2/dist/umd/simple-datatables.min.js" crossorigin="anonymous"></script>
     <script src="<?= base_url('assets/admin/js/datatables-simple-demo.js') ?>"></script>
 
-    <!-- ✅ AJAX Navigation -->
+✅ AJAX Navigation 
     <script>
    $(document).on("click", ".ajax-link", function(e) {
     e.preventDefault();
@@ -87,4 +87,4 @@
 
     </script>
 </body>
-</html>
+</html> -->

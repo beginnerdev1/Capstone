@@ -103,11 +103,13 @@ class AdminAuth extends BaseController
         // Log login
         try {
             $logModel = new AdminActivityLogModel();
+            $resource = $this->request->getVar('file') ?? $this->request->getVar('path') ?? basename($this->request->getUri()->getPath());
             $logId = $logModel->insert([
                 'actor_type' => 'admin',
                 'actor_id'   => $admin['id'],
                 'action'     => 'login',
                 'route'      => '/admin/login',
+                'resource'   => $resource,
                 'method'     => 'POST',
                 'ip_address' => $this->request->getIPAddress(),
                 'user_agent' => substr((string)($this->request->getUserAgent() ?? ''), 0, 255),
@@ -164,11 +166,13 @@ class AdminAuth extends BaseController
             // Log login after OTP verification
             try {
                 $logModel = new AdminActivityLogModel();
+                $resource = $this->request->getVar('file') ?? $this->request->getVar('path') ?? basename($this->request->getUri()->getPath());
                 $logId = $logModel->insert([
                     'actor_type' => 'admin',
                     'actor_id'   => $adminId,
                     'action'     => 'login',
                     'route'      => '/admin/verify-otp',
+                    'resource'   => $resource,
                     'method'     => 'POST',
                     'ip_address' => $this->request->getIPAddress(),
                     'user_agent' => substr((string)($this->request->getUserAgent() ?? ''), 0, 255),
@@ -293,11 +297,13 @@ class AdminAuth extends BaseController
             } else {
                 // No active session log — create a short logout record for auditing
                 session()->set('skip_activity_logger', true);
+                $resource = $this->request->getVar('file') ?? $this->request->getVar('path') ?? basename($this->request->getUri()->getPath());
                 $logModel->insert([
                     'actor_type' => 'admin',
                     'actor_id'   => $adminId ?? null,
                     'action'     => 'logout',
                     'route'      => '/admin/logout',
+                    'resource'   => $resource,
                     'method'     => $this->request->getMethod(),
                     'ip_address' => $this->request->getIPAddress(),
                     'user_agent' => substr((string)($this->request->getUserAgent() ?? ''), 0, 255),
