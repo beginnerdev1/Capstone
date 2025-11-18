@@ -95,6 +95,8 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
         $routes->get('content', 'Admin::content'); // Alternative route for AJAX
         $routes->get('api/dashboard-stats', 'Admin::getDashboardStats'); // Optimized JSON API endpoint
         $routes->get('logout', 'AdminAuth::logout');
+        // Allow POST logout (form submission) in addition to GET
+        $routes->post('logout', 'AdminAuth::logout');
         $routes->get('registeredUsers', 'Admin::registeredUsers');
         $routes->get('inactiveUsers', 'Admin::inactiveUsers');
         $routes->get('getInactiveUsers', 'Admin::getInactiveUsers');
