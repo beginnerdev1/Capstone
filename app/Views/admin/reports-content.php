@@ -394,7 +394,7 @@
 }
 </style>
 
-<div class="main-content">
+<div class="main-content reports-wrapper">
   <!-- Page Header -->
   <div class="page-header">
     <h1>
@@ -406,8 +406,8 @@
         <i class="fas fa-sync-alt"></i>
         Refresh
       </a>
-      <a href="<?= site_url('admin/exportReports') ?>?format=csv&filename=reports_<?= date('Y-m-d') ?>" 
-         class="btn btn-success" target="_blank" rel="noopener">
+      <a href="<?= site_url('admin/exportReports') ?>" 
+        class="btn btn-success btn-export" data-export-url="<?= site_url('admin/exportReports') ?>" data-format="csv">
         <i class="fas fa-download"></i>
         Export All
       </a>
@@ -486,10 +486,6 @@
         <button class="btn btn-sm btn-outline-primary btn-view" data-report="summary">
           <i class="fas fa-eye"></i> View
         </button>
-        <a href="<?= site_url('admin/exportReports') ?>?format=csv&type=summary&filename=summary_<?= date('Y-m-d') ?>" 
-           class="btn btn-sm btn-success" target="_blank">
-          <i class="fas fa-download"></i> Export
-        </a>
       </div>
     </div>
 
@@ -524,10 +520,6 @@
         <button class="btn btn-sm btn-outline-primary btn-view" data-report="collection">
           <i class="fas fa-eye"></i> View
         </button>
-        <a href="<?= site_url('admin/exportReports') ?>?format=csv&type=collection&filename=collection_<?= date('Y-m-d') ?>" 
-           class="btn btn-sm btn-success" target="_blank">
-          <i class="fas fa-download"></i> Export
-        </a>
       </div>
     </div>
 
@@ -571,10 +563,6 @@
         <button class="btn btn-sm btn-outline-primary btn-view" data-report="distribution">
           <i class="fas fa-eye"></i> View
         </button>
-        <a href="<?= site_url('admin/exportReports') ?>?format=csv&type=distribution&filename=distribution_<?= date('Y-m-d') ?>" 
-           class="btn btn-sm btn-success" target="_blank">
-          <i class="fas fa-download"></i> Export
-        </a>
       </div>
     </div>
 
@@ -616,10 +604,6 @@
         <button class="btn btn-sm btn-outline-primary btn-view" data-report="community">
           <i class="fas fa-eye"></i> View
         </button>
-        <a href="<?= site_url('admin/exportReports') ?>?format=csv&type=community&filename=community_<?= date('Y-m-d') ?>" 
-           class="btn btn-sm btn-success" target="_blank">
-          <i class="fas fa-download"></i> Export
-        </a>
       </div>
     </div>
   </div>
@@ -677,6 +661,24 @@
   'filterType' => $filterType ?? null,
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>
 </script>
+
+<!-- Report Preview Modal -->
+<div class="modal fade" id="reportPreviewModal" tabindex="-1" aria-labelledby="reportPreviewLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header" style="background: linear-gradient(90deg,var(--primary), var(--primary-dark)); color:white;">
+        <h5 class="modal-title" id="reportPreviewLabel"><i class="fas fa-file-alt me-2"></i>Report Preview</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" style="min-height:60vh;">
+        <div class="text-center text-muted">Loading preview...</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline btn-sm" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script>
 (function() {
@@ -955,8 +957,43 @@
     }
     
     function viewReport(reportType) {
-        // Placeholder for detailed report view
-        alert(`Viewing detailed ${reportType} report...`);
+      const startDate = document.getElementById('startDate').value;
+      const endDate = document.getElementById('endDate').value;
+      const params = new URLSearchParams();
+      if (startDate) params.set('start', startDate);
+      if (endDate) params.set('end', endDate);
+      if (reportType) params.set('type', reportType);
+      // Use print format to get printer-friendly HTML
+      params.set('format', 'print');
+
+      const url = '<?= site_url("admin/exportReports") ?>' + '?' + params.toString();
+      console.log('[Reports] Fetching preview:', url);
+
+      fetch(url, { credentials: 'same-origin' })
+        .then(r => r.text())
+        .then(html => {
+          let modal = document.getElementById('reportPreviewModal');
+          if (!modal) {
+            console.warn('Preview modal not found');
+            // Fallback: open in new tab
+            const win = window.open();
+            win.document.write(html);
+            win.document.close();
+            return;
+          }
+          const body = modal.querySelector('.modal-body');
+          body.innerHTML = html;
+          try {
+            const bsModal = new bootstrap.Modal(modal);
+            bsModal.show();
+          } catch (e) {
+            // fallback if bootstrap not available
+            modal.style.display = 'block';
+          }
+        }).catch(err => {
+          console.error('Preview fetch error', err);
+          alert('Failed to load preview. Check console for details.');
+        });
     }
     
     // Initialize when DOM is ready

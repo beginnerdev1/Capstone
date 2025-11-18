@@ -690,7 +690,7 @@ html, body {
           <div class="collapse-header">Components:</div>
                 <a href="<?= base_url('admin/registeredUsers') ?>" class="collapse-item ajax-link">All Users</a>
                 <a href="<?= base_url('admin/pendingAccounts') ?>" class="collapse-item ajax-link">Verify User</a>
-                                <a href="<?= base_url('admin/inactiveUsers') ?>" class="collapse-item ajax-link">Inactive Users</a>
+                <a href="<?= base_url('admin/inactiveUsers') ?>" class="collapse-item ajax-link">Inactive Users</a>
 
         </div>
       </div>
@@ -756,13 +756,21 @@ html, body {
       </a>
     </li>
 
-        <li class="nav-item">
-            <a href="<?= base_url('admin/logs') ?>" class="nav-link ajax-link">
-                <i class="fas fa-file-lines"></i>
-                <span>Activity Logs</span>
-            </a>
-        </li>
-
+    <li class="nav-item">
+        <a href="<?= base_url('admin/logs') ?>" class="nav-link ajax-link">
+            <i class="fas fa-file-lines"></i>
+            <span>Activity Logs</span>
+        </a>
+    </li>
+    <li class="nav-item">
+        <form action="<?= base_url('admin/logout') ?>" method="post" style="margin:0;">
+            <?= csrf_field() ?>
+            <button type="submit" class="nav-link btn btn-link d-flex align-items-center" style="color: rgba(255,255,255,0.85); text-decoration: none;">
+                <i class="fas fa-right-from-bracket me-2"></i>
+                <span>Logout</span>
+            </button>
+        </form>
+    </li>
   </ul>
 </div>
     <!-- Sidebar Overlay (Mobile) -->
@@ -797,9 +805,9 @@ html, body {
                     </div>
                     <div style="height: 24px; width: 1px; background-color: #e3e6f0; margin: 0 0.5rem;"></div>
                     <a href="#" class="user-profile">
-                        <span class="profile-name">Douglas McGee</span>
-                     
+                        <span class="profile-name"><?= htmlspecialchars($displayName ?? (session()->get('admin_email') ?? 'Admin'), ENT_QUOTES, 'UTF-8') ?></span>
                     </a>
+                    
                 </div>
             </div>
         </div>
@@ -1421,7 +1429,9 @@ $(document).ready(function() {
         if (endEl && endEl.value) params.set('end', endEl.value);
         if (typeEl && typeEl.value) params.set('type', typeEl.value);
 
-        const href = `${pendingUrl}?${params.toString()}`;
+        // Append params correctly whether pendingUrl already has query string
+        const sep = pendingUrl.indexOf('?') === -1 ? '?' : '&';
+        const href = `${pendingUrl}${sep}${params.toString()}`;
         closeModal();
         window.open(href, '_blank');
     });

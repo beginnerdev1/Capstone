@@ -273,10 +273,37 @@ class AdminAuth extends BaseController
     {
         try {
             $logId = session()->get('admin_activity_log_id');
+            $adminId = session()->get('admin_id');
+            $logModel = new AdminActivityLogModel();
+            $now = date('Y-m-d H:i:s');
+
             if ($logId) {
-                $logModel = new AdminActivityLogModel();
-                $logModel->update($logId, ['logged_out_at' => date('Y-m-d H:i:s')]);
+                $row = $logModel->find($logId);
+                $details = [];
+                if (!empty($row['details'])) {
+                    try { $details = json_decode($row['details'], true) ?: []; } catch (\Throwable $_) { $details = []; }
+                }
+                $details[] = [
+                    'action' => 'logout',
+                    'time'   => $now
+                ];
+                session()->set('skip_activity_logger', true);
+                $logModel->update($logId, ['details' => json_encode($details), 'logged_out_at' => $now]);
                 session()->remove('admin_activity_log_id');
+            } else {
+                // No active session log — create a short logout record for auditing
+                session()->set('skip_activity_logger', true);
+                $logModel->insert([
+                    'actor_type' => 'admin',
+                    'actor_id'   => $adminId ?? null,
+                    'action'     => 'logout',
+                    'route'      => '/admin/logout',
+                    'method'     => $this->request->getMethod(),
+                    'ip_address' => $this->request->getIPAddress(),
+                    'user_agent' => substr((string)($this->request->getUserAgent() ?? ''), 0, 255),
+                    'details'    => json_encode([['action' => 'logout', 'time' => $now]]),
+                    'logged_out_at' => $now
+                ], true);
             }
         } catch (\Throwable $e) { }
         session()->destroy();

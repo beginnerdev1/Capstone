@@ -1299,38 +1299,336 @@ public function approve($id)
             $monthlyRates[$m] = $totalHouseholds > 0 ? round(($paidC / $totalHouseholds) * 100, 1) : 0.0;
         }
 
+        // Ensure collection summary values exist for printable/export views
+        $currentMonthCollected = (float)($this->billingModel
+            ->where('status', 'Paid')
+            ->where('DATE(updated_at) >=', $startDate)
+            ->where('DATE(updated_at) <=', $endDate)
+            ->selectSum('amount_due')
+            ->get()
+            ->getRow()
+            ->amount_due ?? 0);
+
+        $pendingAmount = (float)($this->billingModel
+            ->where('status', 'Pending')
+            ->where('DATE(updated_at) >=', $startDate)
+            ->where('DATE(updated_at) <=', $endDate)
+            ->selectSum('amount_due')
+            ->get()
+            ->getRow()
+            ->amount_due ?? 0);
+
+        $collectionRate = $totalHouseholds > 0 ? round(($paidHouseholds / $totalHouseholds) * 100, 1) : 0.0;
+
+        // Prefetch users and paid billings within the selected date window to avoid per-user queries
+        try {
+            $users = $this->userInfoModel
+                ->select('user_information.purok, user_information.user_id, CONCAT(user_information.first_name, " ", user_information.last_name) as name')
+                ->join('users', 'users.id = user_information.user_id', 'left')
+                ->whereIn('users.status', ['approved','Approved'])
+                ->orderBy('user_information.purok', 'ASC')
+                ->orderBy('user_information.first_name', 'ASC')
+                ->findAll();
+
+            $billingsInRange = $this->billingModel
+                ->select('user_id, updated_at, amount_due, status')
+                ->where('DATE(updated_at) >=', $startDate)
+                ->where('DATE(updated_at) <=', $endDate)
+                ->where('status', 'Paid')
+                ->orderBy('user_id','ASC')
+                ->findAll();
+
+            $paidByUser = [];
+            foreach ($billingsInRange as $b) {
+                $paidByUser[(int)$b['user_id']][] = $b;
+            }
+        } catch (\Throwable $_) {
+            $users = [];
+            $paidByUser = [];
+        }
+
         if ($format === 'pdf' || $format === 'print') {
-            // Render a printer-friendly HTML with auto-print. Users can Save as PDF.
-            $title = 'Fixed-Rate Water Bill Reports';
+            // Render only the requested report unless type is empty (Export All -> combined)
             $months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
             $period = ($startDate === ($year.'-01-01') && $endDate === date('Y-m-d')) ? $year : ($startDate . ' to ' . $endDate);
-            $html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' . htmlspecialchars($title) . '</title>' .
-                '<style>body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:24px;}h1{margin:0 0 6px;}h2{margin:18px 0 8px;}table{border-collapse:collapse;width:100%;margin:8px 0;}th,td{border:1px solid #ddd;padding:8px;font-size:12px}th{background:#f3f4f6;text-align:left}.muted{color:#6b7280;font-size:12px;margin-bottom:10px}</style>' .
-                '</head><body>' .
-                '<h1>' . htmlspecialchars($title) . '</h1>' .
-                '<div class="muted">Period: ' . htmlspecialchars($period) . '</div>' .
-                '<h2>Monthly Collection</h2><table><thead><tr><th>Month</th><th>Collection Rate (%)</th><th>Amount (PHP)</th></tr></thead><tbody>';
-            for ($i=1;$i<=12;$i++) { $html .= '<tr><td>'.$months[$i-1].'</td><td>'.number_format($monthlyRates[$i],1).'</td><td>'.number_format($monthlyAmounts[$i],2).'</td></tr>'; }
-            $html .= '</tbody></table>';
-            $html .= '<h2>Payment Status (Selected Range)</h2><table><tbody>';
-            $html .= '<tr><th>Paid Households</th><td>'.$paidHouseholds.'</td></tr>';
-            $html .= '<tr><th>Pending</th><td>'.$pendingCount.'</td></tr>';
-            $html .= '<tr><th>Late</th><td>'.$latePayments.'</td></tr>';
-            $html .= '</tbody></table>';
-            $html .= '<h2>Rate Distribution (Households)</h2><table><thead><tr><th>Normal</th><th>Senior</th><th>Alone</th><th>Total</th></tr></thead><tbody>';
-            $html .= '<tr><td>'.$normalCount.'</td><td>'.$seniorCount.'</td><td>'.$aloneCount.'</td><td>'.$totalHouseholds.'</td></tr>';
-            $html .= '</tbody></table>';
-            $html .= '<h2>Fixed Rates (PHP)</h2><table><thead><tr><th>Normal</th><th>Senior</th><th>Alone</th></tr></thead><tbody>';
-            $html .= '<tr><td>'.number_format($rateNormal,2).'</td><td>'.number_format($rateSenior,2).'</td><td>'.number_format($rateAlone,2).'</td></tr>';
-            $html .= '</tbody></table>';
-            $html .= '<script>window.onload=function(){window.print();}</script>';
-            $html .= '</body></html>';
+
+            // Helper: render summary HTML (compact fixed-bill summary with per-rate calculations)
+            $renderSummary = function() use ($year, $normalCount, $seniorCount, $aloneCount, $rateNormal, $rateSenior, $rateAlone) {
+                $t = 'Fixed Bill Summary';
+                $normalTotal = $normalCount * $rateNormal;
+                $seniorTotal = $seniorCount * $rateSenior;
+                $aloneTotal = $aloneCount * $rateAlone;
+                $expected = $normalTotal + $seniorTotal + $aloneTotal;
+
+                $h = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' . htmlspecialchars($t) . '</title>' .
+                    '<style>body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:24px;}h1{margin:0 0 6px;font-size:20px}h2{margin:12px 0 6px;}table{width:100%;margin:8px 0;border-collapse:collapse}td{padding:6px;font-size:14px} .muted{color:#6b7280}</style>' .
+                    '</head><body>';
+                $h .= '<h1>' . htmlspecialchars($t) . '</h1>';
+                $h .= '<div class="muted">Year ' . intval($year) . ' Overview</div>';
+
+                $h .= '<div style="margin-top:12px;">';
+                $h .= '<div><strong>Normal Rate (' . intval($normalCount) . ' households)</strong></div>';
+                $h .= '<div>₱' . number_format($rateNormal,2) . ' * ' . intval($normalCount) . ' = ₱' . number_format($normalTotal,2) . '</div>';
+
+                $h .= '<div style="margin-top:8px"><strong>Senior Citizen Rate (' . intval($seniorCount) . ' households)</strong></div>';
+                $h .= '<div>₱' . number_format($rateSenior,2) . ' * ' . intval($seniorCount) . ' = ₱' . number_format($seniorTotal,2) . '</div>';
+
+                $h .= '<div style="margin-top:8px"><strong>Living Alone Rate (' . intval($aloneCount) . ' households)</strong></div>';
+                $h .= '<div>₱' . number_format($rateAlone,2) . ' * ' . intval($aloneCount) . ' = ₱' . number_format($aloneTotal,2) . '</div>';
+
+                $h .= '<div style="margin-top:12px; font-weight:700">Expected Monthly Collection</div>';
+                $h .= '<div>₱' . number_format($expected,2) . '</div>';
+                $h .= '</div>';
+                $h .= '</body></html>';
+                return $h;
+            };
+
+            // Helper: render collection detail per purok (with top-level collection stats)
+            $renderCollection = function($users, $paidByUser, $startDate, $endDate) use ($currentMonthCollected, $paidHouseholds, $totalHouseholds, $pendingAmount, $collectionRate) {
+                $title = 'Payment Collection';
+                $html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' . htmlspecialchars($title) . '</title>' .
+                    '<style>body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:24px;}h1{margin:0 0 6px;}table{border-collapse:collapse;width:100%;margin:8px 0;}th,td{border:1px solid #ddd;padding:8px;font-size:12px}th{background:#f3f4f6;text-align:left}.purok{margin-top:18px;margin-bottom:6px;font-weight:700}.stats{display:flex;gap:12px;margin:8px 0}</style>' .
+                    '</head><body>';
+                $html .= '<h1>' . htmlspecialchars($title) . '</h1>';
+                $html .= '<div class="stats">';
+                $html .= '<div><div style="font-weight:700">Collected This Month</div><div>₱' . number_format($currentMonthCollected,2) . '</div></div>';
+                $html .= '<div><div style="font-weight:700">Paid Households</div><div>' . intval($paidHouseholds) . ' of ' . intval($totalHouseholds) . '</div></div>';
+                $html .= '<div><div style="font-weight:700">Pending Collection</div><div>₱' . number_format($pendingAmount,2) . '</div></div>';
+                $html .= '<div><div style="font-weight:700">Collection Rate</div><div>' . number_format($collectionRate,1) . '%</div></div>';
+                $html .= '</div>';
+                $html .= '<div class="muted">Period: ' . htmlspecialchars($startDate . ' to ' . $endDate) . '</div>';
+
+                $byPurok = [];
+                foreach ($users as $u) {
+                    $p = $u['purok'] ?? 'Unspecified';
+                    if ($p === '' || $p === null) $p = 'Unspecified';
+                    $byPurok[$p][] = $u;
+                }
+
+                foreach ($byPurok as $purok => $plist) {
+                    $html .= '<div class="purok">Purok: ' . htmlspecialchars($purok) . '</div>';
+                    $html .= '<table><thead><tr><th>User ID</th><th>Name</th><th>Paid?</th><th>Paid Dates</th><th>Amounts</th></tr></thead><tbody>';
+                    foreach ($plist as $u) {
+                        $uid = (int)$u['user_id'];
+                        $paidRows = $paidByUser[$uid] ?? [];
+                        if (!empty($paidRows)) {
+                            $paid = 'Yes';
+                            $dates = array_map(function($r){ return $r['updated_at']; }, $paidRows);
+                            $amounts = array_map(function($r){ return number_format($r['amount_due'],2); }, $paidRows);
+                            $dateStr = implode('; ', $dates);
+                            $amtStr = implode('; ', $amounts);
+                        } else {
+                            $paid = 'No';
+                            $dateStr = '';
+                            $amtStr = '';
+                        }
+                        $html .= '<tr><td>' . $uid . '</td><td>' . htmlspecialchars($u['name']) . '</td><td>' . $paid . '</td><td>' . htmlspecialchars($dateStr) . '</td><td>' . htmlspecialchars($amtStr) . '</td></tr>';
+                    }
+                    $html .= '</tbody></table>';
+                }
+
+                $html .= '</body></html>';
+                return $html;
+            };
+
+            // Route rendering based on requested type
+            if ($type === '') {
+                // Export All: combined summary + per-purok
+                $html = $renderSummary();
+                // Append per-purok details using prefetched data
+                $html .= substr($renderCollection($users, $paidByUser, $startDate, $endDate), 14); // strip DOCTYPE to concatenate simple
+                return $this->response->setHeader('Content-Type', 'text/html')->setBody($html);
+            }
+
+            if ($type === 'summary') {
+                $html = $renderSummary();
+                return $this->response->setHeader('Content-Type', 'text/html')->setBody($html);
+            }
+
+            if ($type === 'collection') {
+                $html = $renderCollection($users, $paidByUser, $startDate, $endDate);
+                return $this->response->setHeader('Content-Type', 'text/html')->setBody($html);
+            }
+
+            if ($type === 'distribution') {
+                // Distribution: render rate distribution chart/table + counts
+                $title = 'Rate Distribution (Households)';
+                $html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' . htmlspecialchars($title) . '</title>' .
+                    '<style>body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:24px;}table{border-collapse:collapse;width:100%;margin:8px 0;}th,td{border:1px solid #ddd;padding:8px;font-size:12px}th{background:#f3f4f6;text-align:left}</style></head><body>';
+                $html .= '<h1>' . htmlspecialchars($title) . '</h1>';
+                $html .= '<table><thead><tr><th>Category</th><th>Households</th></tr></thead><tbody>';
+                $html .= '<tr><td>Normal</td><td>' . (int)$normalCount . '</td></tr>';
+                $html .= '<tr><td>Senior</td><td>' . (int)$seniorCount . '</td></tr>';
+                $html .= '<tr><td>Alone</td><td>' . (int)$aloneCount . '</td></tr>';
+                $html .= '<tr><td>Total</td><td>' . (int)$totalHouseholds . '</td></tr>';
+                $html .= '</tbody></table>';
+                $html .= '</body></html>';
+                return $this->response->setHeader('Content-Type', 'text/html')->setBody($html);
+            }
+
+            if ($type === 'community') {
+                $title = 'Community Statistics';
+                $html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' . htmlspecialchars($title) . '</title>' .
+                    '<style>body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:24px;}table{border-collapse:collapse;width:100%;margin:8px 0;}th,td{border:1px solid #ddd;padding:8px;font-size:12px}th{background:#f3f4f6;text-align:left}</style></head><body>';
+                $html .= '<h1>' . htmlspecialchars($title) . '</h1>';
+                $html .= '<table><tbody>';
+                $html .= '<tr><th>Active Households</th><td>' . (int)$totalHouseholds . '</td></tr>';
+                $html .= '<tr><th>Pending Payments</th><td>' . (int)$pendingCount . '</td></tr>';
+                $html .= '<tr><th>Payment Compliance (%)</th><td>' . (float)$collectionRate . '</td></tr>';
+                $html .= '<tr><th>Late Payments</th><td>' . (int)$latePayments . '</td></tr>';
+                $html .= '</tbody></table>';
+                $html .= '</body></html>';
+                return $this->response->setHeader('Content-Type', 'text/html')->setBody($html);
+            }
+
+            // Default fallback: render summary
+            $html = $renderSummary();
             return $this->response->setHeader('Content-Type', 'text/html')->setBody($html);
         }
 
         // If Excel requested and PhpSpreadsheet is available, generate native .xlsx with a chart
         if (($format === 'excel' || $format === 'xlsx') && class_exists(\PhpOffice\PhpSpreadsheet\Spreadsheet::class)) {
+            // Use PhpSpreadsheet to build a workbook. If exporting collection detail, produce one sheet per purok.
             $spreadsheet = new Spreadsheet();
+
+            if ($type === 'collection' || $type === '') {
+                // If type is blank (Export All) or specifically collection, create per-purok sheets plus a summary sheet.
+                // Summary sheet first
+                $sum = $spreadsheet->getActiveSheet();
+                $sum->setTitle('Summary');
+                $sum->fromArray([
+                    ['Metric', 'Value'],
+                    ['Paid Households', $paidHouseholds],
+                    ['Pending', $pendingCount],
+                    ['Late', $latePayments],
+                    ['Normal Households', $normalCount],
+                    ['Senior Households', $seniorCount],
+                    ['Alone Households', $aloneCount],
+                    ['Total Households', $totalHouseholds],
+                    ['Rate Normal (PHP)', $rateNormal],
+                    ['Rate Senior (PHP)', $rateSenior],
+                    ['Rate Alone (PHP)', $rateAlone],
+                ], null, 'A1');
+
+                // Build per-purok sheets using prefetched $users and $paidByUser
+                $byPurok = [];
+                foreach ($users as $u) {
+                    $p = $u['purok'] ?? 'Unspecified';
+                    if ($p === '' || $p === null) $p = 'Unspecified';
+                    $byPurok[$p][] = $u;
+                }
+
+                // Summary sheet is the first (index 0)
+                $sum->setTitle('Summary');
+
+                // Create one sheet per purok and populate rows
+                foreach ($byPurok as $purok => $plist) {
+                    // Create a new sheet for each purok
+                    $sheet = $spreadsheet->createSheet();
+                    // Excel sheet titles are limited to 31 chars
+                    $title = 'Purok ' . $purok;
+                    $sheet->setTitle(substr($title, 0, 31));
+
+                    // Header row
+                    $sheet->fromArray(['User ID','Name','Paid?','Paid Dates','Amounts (PHP)'], null, 'A1');
+                    $r = 2;
+                    foreach ($plist as $u) {
+                        $uid = (int)$u['user_id'];
+                        $paidRows = $paidByUser[$uid] ?? [];
+                        if (!empty($paidRows)) {
+                            $paid = 'Yes';
+                            $dates = array_map(function($b){ return $b['updated_at']; }, $paidRows);
+                            $amounts = array_map(function($b){ return number_format($b['amount_due'],2,'.',''); }, $paidRows);
+                            $dateStr = implode('; ', $dates);
+                            $amtStr = implode('; ', $amounts);
+                        } else {
+                            $paid = 'No';
+                            $dateStr = '';
+                            $amtStr = '';
+                        }
+                        $sheet->setCellValue('A'.$r, $uid);
+                        $sheet->setCellValue('B'.$r, $u['name'] ?? 'Unknown');
+                        $sheet->setCellValue('C'.$r, $paid);
+                        $sheet->setCellValue('D'.$r, $dateStr);
+                        $sheet->setCellValue('E'.$r, $amtStr);
+                        $r++;
+                    }
+                }
+                // Build a small per-purok summary table on the Summary sheet and add a chart
+                $spreadsheet->setActiveSheetIndex(0);
+                $sum = $spreadsheet->getActiveSheet();
+
+                // Determine starting row for the Purok table (place after existing metrics)
+                $metricsRows = 11; // number of metric rows written earlier
+                $tableHeaderRow = $metricsRows + 3; // leave a blank row
+                $r = $tableHeaderRow;
+                $sum->setCellValue('A' . $r, 'Purok');
+                $sum->setCellValue('B' . $r, 'Total Households');
+                $sum->setCellValue('C' . $r, 'Paid Households');
+                $sum->setCellValue('D' . $r, 'Collection Rate (%)');
+
+                $r++;
+                $purokCount = 0;
+                foreach ($byPurok as $purok => $plist) {
+                    $total = count($plist);
+                    $paid = 0;
+                    foreach ($plist as $u) {
+                        $uid = (int)$u['user_id'];
+                        if (!empty($paidByUser[$uid])) $paid++;
+                    }
+                    $rate = $total > 0 ? round(($paid / $total) * 100, 1) : 0;
+                    $sum->setCellValue('A' . $r, (string)$purok);
+                    $sum->setCellValue('B' . $r, $total);
+                    $sum->setCellValue('C' . $r, $paid);
+                    $sum->setCellValue('D' . $r, $rate);
+                    $r++;
+                    $purokCount++;
+                }
+
+                // If there is at least one purok, build a bar chart of Collection Rate (%) per purok
+                if ($purokCount > 0) {
+                    $firstDataRow = $tableHeaderRow + 1;
+                    $lastDataRow = $tableHeaderRow + $purokCount;
+
+                    // Build DataSeriesValues using A (categories) and D (values) columns on the Summary sheet
+                    $catRef = "'" . $sum->getTitle() . "'!\$A\$" . $firstDataRow . ":\$A\$" . $lastDataRow;
+                    $valRef = "'" . $sum->getTitle() . "'!\$D\$" . $firstDataRow . ":\$D\$" . $lastDataRow;
+
+                    $categories = new DataSeriesValues('String', $catRef, null, $purokCount);
+                    $values = new DataSeriesValues('Number', $valRef, null, $purokCount);
+
+                    $series = new DataSeries(
+                        DataSeries::TYPE_BARCHART,
+                        null,
+                        [0],
+                        [],
+                        [$categories],
+                        [$values]
+                    );
+
+                    $plotArea = new PlotArea(null, [$series]);
+                    $title = new Title('Collection Rate by Purok (%)');
+                    $legend = new Legend(Legend::POSITION_BOTTOM, null, false);
+
+                    $chart = new XlsChart('purok_chart', $title, $legend, $plotArea, true, 0, null, null);
+                    // Position the chart to the right of the table
+                    $chart->setTopLeftPosition('F2');
+                    $chart->setBottomRightPosition('N20');
+                    $sum->addChart($chart);
+                }
+
+                $filename = $fileBase . '.xlsx';
+                header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+                header('Content-Disposition: attachment; filename="' . $filename . '"');
+                header('Cache-Control: max-age=0');
+
+                $writer = new Xlsx($spreadsheet);
+                $writer->setIncludeCharts(true);
+                $writer->save('php://output');
+                exit;
+            }
+
+            // Fallback: existing monthly sheet behavior for other types
             $sheet = $spreadsheet->getActiveSheet();
             $sheet->setTitle('Monthly');
 
@@ -1364,30 +1662,6 @@ public function approve($id)
                 ['Rate Alone (PHP)', $rateAlone],
             ], null, 'A1');
 
-            // Build a line chart for Amounts (Monthly sheet)
-            $dataSeriesLabels = [new DataSeriesValues('String', 'Monthly!$C$1', null, 1)];
-            $xAxisTickValues = [new DataSeriesValues('String', 'Monthly!$A$2:$A$13', null, 12)];
-            $dataSeriesValues = [new DataSeriesValues('Number', 'Monthly!$C$2:$C$13', null, 12)];
-
-            $series = new DataSeries(
-                DataSeries::TYPE_LINECHART,
-                DataSeries::GROUPING_STANDARD,
-                range(0, count($dataSeriesValues) - 1),
-                $dataSeriesLabels,
-                $xAxisTickValues,
-                $dataSeriesValues
-            );
-
-            $plotArea = new PlotArea(null, [$series]);
-            $legend = new Legend(Legend::POSITION_RIGHT, null, false);
-            $title = new Title('Monthly Amount Collected');
-
-            $chart = new XlsChart('chart1', $title, $legend, $plotArea);
-            // Position chart on the sheet
-            $chart->setTopLeftPosition('E2');
-            $chart->setBottomRightPosition('O20');
-            $sheet->addChart($chart);
-
             // Output to browser
             $filename = $fileBase . '.xlsx';
             header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -1397,6 +1671,58 @@ public function approve($id)
             $writer = new Xlsx($spreadsheet);
             $writer->setIncludeCharts(true);
             $writer->save('php://output');
+            exit;
+        }
+
+        // Special CSV/Excel export for collection detail (per-purok)
+        if ($type === 'collection') {
+            $filename = $fileBase . ($format === 'excel' ? '.xls' : '.csv');
+            if ($format === 'excel') {
+                header('Content-Type: application/vnd.ms-excel');
+            } else {
+                header('Content-Type: text/csv');
+            }
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+
+            $out = fopen('php://output', 'w');
+            // Header for collection detail
+            fputcsv($out, ['Purok', 'User ID', 'Name', 'Paid?', 'Paid Dates', 'Amounts (PHP)']);
+
+            // Fetch users grouped by purok
+            $users = $this->userInfoModel
+                ->select('user_information.purok, user_information.user_id, CONCAT(user_information.first_name, " ", user_information.last_name) as name')
+                ->join('users', 'users.id = user_information.user_id', 'left')
+                ->whereIn('users.status', ['approved','Approved'])
+                ->orderBy('user_information.purok', 'ASC')
+                ->orderBy('user_information.first_name', 'ASC')
+                ->findAll();
+
+            foreach ($users as $u) {
+                $purok = $u['purok'] ?? 'Unspecified';
+                if ($purok === '' || $purok === null) $purok = 'Unspecified';
+                $uid = (int)$u['user_id'];
+                $paidRows = $this->billingModel
+                    ->where('user_id', $uid)
+                    ->where('status', 'Paid')
+                    ->where('DATE(updated_at) >=', $startDate)
+                    ->where('DATE(updated_at) <=', $endDate)
+                    ->orderBy('updated_at','ASC')
+                    ->findAll();
+                if (!empty($paidRows)) {
+                    $paid = 'Yes';
+                    $dates = array_map(function($r){ return $r['updated_at']; }, $paidRows);
+                    $amounts = array_map(function($r){ return number_format($r['amount_due'],2,'.',''); }, $paidRows);
+                    $dateStr = implode('; ', $dates);
+                    $amtStr = implode('; ', $amounts);
+                } else {
+                    $paid = 'No';
+                    $dateStr = '';
+                    $amtStr = '';
+                }
+                fputcsv($out, [$purok, $uid, ($u['name'] ?? 'Unknown'), $paid, $dateStr, $amtStr]);
+            }
+
+            fclose($out);
             exit;
         }
 
@@ -1435,6 +1761,47 @@ public function approve($id)
         fputcsv($out, ['Section', 'Fixed Rates (PHP)']);
         fputcsv($out, ['Normal', 'Senior', 'Alone']);
         fputcsv($out, [number_format($rateNormal,2,'.',''), number_format($rateSenior,2,'.',''), number_format($rateAlone,2,'.','')]);
+
+        // If exporting collection details or exporting All, append per-purok detail rows (tables)
+        if ($type === '' || $type === 'collection') {
+            fputcsv($out, []);
+            fputcsv($out, ['Section', 'Collection Details (Per Purok)']);
+            fputcsv($out, ['Purok', 'User ID', 'Name', 'Paid?', 'Paid Dates', 'Amounts (PHP)']);
+
+            // Fetch users grouped by purok
+            $users = $this->userInfoModel
+                ->select('user_information.purok, user_information.user_id, CONCAT(user_information.first_name, " ", user_information.last_name) as name')
+                ->join('users', 'users.id = user_information.user_id', 'left')
+                ->whereIn('users.status', ['approved','Approved'])
+                ->orderBy('user_information.purok', 'ASC')
+                ->orderBy('user_information.first_name', 'ASC')
+                ->findAll();
+
+            foreach ($users as $u) {
+                $purok = $u['purok'] ?? 'Unspecified';
+                if ($purok === '' || $purok === null) $purok = 'Unspecified';
+                $uid = (int)$u['user_id'];
+                $paidRows = $this->billingModel
+                    ->where('user_id', $uid)
+                    ->where('status', 'Paid')
+                    ->where('DATE(updated_at) >=', $startDate)
+                    ->where('DATE(updated_at) <=', $endDate)
+                    ->orderBy('updated_at','ASC')
+                    ->findAll();
+                if (!empty($paidRows)) {
+                    $paid = 'Yes';
+                    $dates = array_map(function($r){ return $r['updated_at']; }, $paidRows);
+                    $amounts = array_map(function($r){ return number_format($r['amount_due'],2,'.',''); }, $paidRows);
+                    $dateStr = implode('; ', $dates);
+                    $amtStr = implode('; ', $amounts);
+                } else {
+                    $paid = 'No';
+                    $dateStr = '';
+                    $amtStr = '';
+                }
+                fputcsv($out, [$purok, $uid, ($u['name'] ?? 'Unknown'), $paid, $dateStr, $amtStr]);
+            }
+        }
 
         fclose($out);
         exit;
@@ -2844,6 +3211,9 @@ public function approve($id)
     // CSV export for admin logs (read-only)
     public function exportLogs()
     {
+        $format = strtolower($this->request->getGet('format') ?? 'csv');
+        $fileBase = 'admin-activity-logs-' . date('Y-m-d');
+
         $model = new \App\Models\AdminActivityLogModel();
         $builder = $model->where('actor_type', 'admin');
         $action = trim($this->request->getGet('action') ?? '');
@@ -3016,9 +3386,186 @@ public function approve($id)
         rewind($fh);
         $csv = stream_get_contents($fh);
         fclose($fh);
-        return $this->response
-            ->setHeader('Content-Type', 'text/csv')
-            ->setHeader('Content-Disposition', 'attachment; filename="admin-activity-logs.csv"')
-            ->setBody($csv);
+
+        // If XLSX requested and PhpSpreadsheet is available, produce a workbook
+        if (($format === 'excel' || $format === 'xlsx') && class_exists('\\PhpOffice\\PhpSpreadsheet\\Spreadsheet')) {
+            try {
+                $lines = array_values(array_filter(array_map('trim', explode("\n", trim($csv)))));
+                if (empty($lines)) {
+                    // Nothing to export, return empty CSV as fallback
+                    return $this->response
+                        ->setHeader('Content-Type', 'text/csv')
+                        ->setHeader('Content-Disposition', 'attachment; filename="' . $fileBase . '.csv"')
+                        ->setBody('');
+                }
+
+                $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+                $sheet = $spreadsheet->getActiveSheet();
+                $sheet->setTitle('Logs');
+
+                // Build rows array from CSV lines
+                $rowsArr = [];
+                foreach ($lines as $ln) {
+                    $rowsArr[] = str_getcsv($ln);
+                }
+
+                // Populate sheet with rows
+                $sheet->fromArray($rowsArr, null, 'A1');
+
+                // Compute simple action counts (Action column)
+                $headerRow = $rowsArr[0];
+                $actionIdx = array_search('Action', $headerRow);
+                $actionCounts = [];
+                if ($actionIdx !== false) {
+                    for ($i = 1; $i < count($rowsArr); $i++) {
+                        $val = $rowsArr[$i][$actionIdx] ?? '';
+                        $val = trim($val);
+                        if ($val === '') continue;
+                        if (!isset($actionCounts[$val])) $actionCounts[$val] = 0;
+                        $actionCounts[$val]++;
+                    }
+                }
+
+                // If we have action counts, add a Stats sheet and a simple bar chart
+                if (!empty($actionCounts)) {
+                    $stats = $spreadsheet->createSheet();
+                    $stats->setTitle('Stats');
+                    $stats->setCellValue('A1', 'Action');
+                    $stats->setCellValue('B1', 'Count');
+                    $r = 2;
+                    foreach ($actionCounts as $act => $cnt) {
+                        $stats->setCellValue('A' . $r, $act);
+                        $stats->setCellValue('B' . $r, $cnt);
+                        $r++;
+                    }
+
+                    $lastRow = $r - 1;
+                    // Build chart series references
+                    $catRef = "'" . $stats->getTitle() . "'!\$A\$2:\$A\$" . $lastRow;
+                    $valRef = "'" . $stats->getTitle() . "'!\$B\$2:\$B\$" . $lastRow;
+
+                    $categories = new \PhpOffice\PhpSpreadsheet\Chart\DataSeriesValues('String', $catRef, null, ($lastRow - 1));
+                    $values = new \PhpOffice\PhpSpreadsheet\Chart\DataSeriesValues('Number', $valRef, null, ($lastRow - 1));
+
+                    $series = new \PhpOffice\PhpSpreadsheet\Chart\DataSeries(
+                        \PhpOffice\PhpSpreadsheet\Chart\DataSeries::TYPE_BARCHART,
+                        null,
+                        [0],
+                        [],
+                        [$categories],
+                        [$values]
+                    );
+                    $plotArea = new \PhpOffice\PhpSpreadsheet\Chart\PlotArea(null, [$series]);
+                    $title = new \PhpOffice\PhpSpreadsheet\Chart\Title('Actions Count');
+                    $legend = new \PhpOffice\PhpSpreadsheet\Chart\Legend(\PhpOffice\PhpSpreadsheet\Chart\Legend::POSITION_RIGHT, null, false);
+                    $chart = new \PhpOffice\PhpSpreadsheet\Chart\Chart('action_chart', $title, $legend, $plotArea, true, 0, null, null);
+                    $chart->setTopLeftPosition('D2');
+                    $chart->setBottomRightPosition('L20');
+                    $stats->addChart($chart);
+                }
+
+                // Output XLSX
+                $filename = $fileBase . '.xlsx';
+                header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+                header('Content-Disposition: attachment; filename="' . $filename . '"');
+                header('Cache-Control: max-age=0');
+
+                $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+                $writer->setIncludeCharts(true);
+                $writer->save('php://output');
+                exit;
+            } catch (\Throwable $e) {
+                log_message('error', 'XLSX export failed: ' . $e->getMessage());
+                // fall back to CSV below
+            }
+        }
+
+        // Prefer PDF output, but fall back to CSV if Dompdf isn't available.
+        if (! class_exists('\\Dompdf\\Dompdf')) {
+            log_message('warning', 'Dompdf not installed; falling back to CSV export.');
+            // Return CSV so the frontend download flow continues to work.
+            return $this->response
+                ->setHeader('Content-Type', 'text/csv')
+                ->setHeader('Content-Disposition', 'attachment; filename="' . $fileBase . '.csv"')
+                ->setBody($csv);
+        }
+
+        // Build filter labels for the PDF header
+        $filterParts = [];
+        if ($start || $end) $filterParts[] = 'Date: ' . ($start ?: '...') . ' to ' . ($end ?: '...');
+        if ($action) $filterParts[] = 'Action: ' . htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
+        if ($method) $filterParts[] = 'Method: ' . htmlspecialchars($method, ENT_QUOTES, 'UTF-8');
+        if ($q) $filterParts[] = 'Search: ' . htmlspecialchars($q, ENT_QUOTES, 'UTF-8');
+
+        $metaHtml = '';
+        if (! empty($filterParts)) {
+            $metaHtml .= '<div style="margin-bottom:10px;">';
+            foreach ($filterParts as $p) {
+                $metaHtml .= '<span style="display:inline-block;background:#eef2ff;padding:6px 8px;border-radius:6px;margin-right:8px;font-size:11px;color:#0b2e6f">' . $p . '</span>';
+            }
+            $metaHtml .= '</div>';
+        }
+
+        // Generate HTML table for PDF
+        $html = '<!doctype html><html><head><meta charset="utf-8"><style>'
+            . 'body{font-family: DejaVu Sans, Arial, Helvetica, sans-serif; color:#111; font-size:12px;}'
+            . 'h1{font-size:16px;margin:0 0 6px 0}'
+            . '.meta{font-size:11px;color:#555;margin-bottom:8px}'
+            . 'table{border-collapse:collapse;width:100%;margin-top:6px}'
+            . 'th,td{border:1px solid #ddd;padding:6px;text-align:left;vertical-align:top;font-size:11px}'
+            . 'th{background:#f7f7f7;font-weight:700}'
+            . '</style></head><body>';
+
+        $html .= '<h1>Admin Activity Logs</h1>';
+        $html .= '<div class="meta">Generated: ' . date('Y-m-d H:i:s') . '</div>';
+        $html .= $metaHtml;
+
+        $html .= '<table><thead><tr>';
+        foreach ($headers as $h) {
+            $html .= '<th>' . htmlspecialchars($h, ENT_QUOTES, 'UTF-8') . '</th>';
+        }
+        $html .= '</tr></thead><tbody>';
+
+        // Parse CSV rows into table (skip CSV header)
+        $lines = explode("\n", trim($csv));
+        foreach ($lines as $idx => $line) {
+            if ($line === '') continue;
+            if ($idx === 0) continue; // header
+            $cells = str_getcsv($line);
+            $html .= '<tr>';
+            foreach ($cells as $cell) {
+                $html .= '<td>' . htmlspecialchars(trim($cell), ENT_QUOTES, 'UTF-8') . '</td>';
+            }
+            $html .= '</tr>';
+        }
+
+        $html .= '</tbody></table></body></html>';
+
+        try {
+            $dompdf = new \Dompdf\Dompdf(['isHtml5ParserEnabled' => true]);
+            $dompdf->setPaper('A4', 'landscape');
+            $dompdf->loadHtml($html);
+            $dompdf->render();
+            $pdf = $dompdf->output();
+            return $this->response->setHeader('Content-Type', 'application/pdf')
+                ->setHeader('Content-Disposition', 'attachment; filename="admin-activity-logs.pdf"')
+                ->setBody($pdf);
+        } catch (\Throwable $e) {
+            log_message('error', 'PDF export failed: ' . $e->getMessage());
+            return $this->response->setStatusCode(500)->setBody('Failed to generate PDF export.');
+        }
+    }
+
+    /**
+     * Return available export formats based on installed libraries.
+     * JSON: { pdf: bool, xlsx: bool }
+     */
+    public function exportAvailability()
+    {
+        $available = [
+            'pdf'  => class_exists('\\Dompdf\\Dompdf'),
+            'xlsx' => class_exists('\\PhpOffice\\PhpSpreadsheet\\Spreadsheet'),
+        ];
+        return $this->response->setJSON($available);
     }
 }

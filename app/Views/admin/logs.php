@@ -22,26 +22,31 @@
           <input type="date" id="end" class="form-control form-control-sm" />
         </div>
         <div class="col-6 col-md-2">
+          <label for="action" class="form-label small mb-1">Activity</label>
           <select id="action" class="form-select form-select-sm">
-            <option value="">Any Action</option>
-            <option>login</option>
-            <option>create</option>
-            <option>edit</option>
-            <option>delete</option>
-            <option>activate</option>
-            <option>deactivate</option>
+            <option value="">All activities</option>
+            <option value="login">Signed in</option>
+            <option value="create">Added / Created</option>
+            <option value="edit">Edited / Updated</option>
+            <option value="delete">Removed / Deleted</option>
+            <option value="activate">Activated / Re-enabled</option>
+            <option value="deactivate">Deactivated / Suspended</option>
           </select>
         </div>
         <div class="col-6 col-md-2">
+          <label for="method" class="form-label small mb-1">Request type</label>
           <select id="method" class="form-select form-select-sm">
-            <option value="">Any Method</option>
-            <option>POST</option>
-            <option>PUT</option>
-            <option>PATCH</option>
-            <option>DELETE</option>
+            <option value="">Any request type</option>
+            <option value="POST">Submit (POST)</option>
+            <option value="PUT">Replace (PUT)</option>
+            <option value="PATCH">Modify (PATCH)</option>
+            <option value="DELETE">Remove (DELETE)</option>
           </select>
         </div>
-        <div class="col-12 col-md-3"><input type="text" id="q" class="form-control form-control-sm" placeholder="Search admin name" /></div>
+        <div class="col-12 col-md-3">
+          <label for="q" class="form-label small mb-1">Admin (who performed action)</label>
+          <input type="text" id="q" class="form-control form-control-sm" placeholder="Type admin first or last name" />
+        </div>
         <div class="col-12 col-md-1 d-grid d-md-block">
           <button class="btn btn-sm btn-primary w-100" id="applyFilters">Apply</button>
         </div>
@@ -105,6 +110,12 @@
             <td>${$('<div/>').text(adminName).html()}</td>
             <td>
               <button class="btn btn-sm btn-outline-primary view-details" data-idx="${idx}">View Details (${actions.length})</button>
+              <select class="form-select form-select-sm export-format-row ms-2" data-idx="${idx}" style="width:auto;display:inline-block;vertical-align:middle">
+                <option value="">Use global</option>
+                <option value="csv">CSV</option>
+                <option value="pdf">PDF</option>
+                <option value="xlsx">XLSX</option>
+              </select>
               <button class="btn btn-sm btn-outline-secondary ms-2 export-log-btn" data-id="${r.id}" data-idx="${idx}"><i class="fas fa-file-csv me-1"></i>Export</button>
             </td>
             <td>${fmt(r.logged_out_at)}</td>
@@ -116,6 +127,25 @@
       // Store for modal
       window._adminLogsRows = rows;
     }).fail(()=>$('#logsAlerts').html('<div class="alert alert-danger">Failed to load logs</div>'));
+  }
+
+  // Query server for available export formats and disable unsupported options
+  async function loadExportAvailability(){
+    try {
+      const res = await fetch('<?= site_url('admin/exportAvailability') ?>', { credentials: 'same-origin' });
+      if (!res.ok) return;
+      const avail = await res.json();
+      if (!avail.pdf) {
+        $('#exportFormat option[value="pdf"]').prop('disabled', true).text('PDF (server - unavailable)');
+        $('.export-format-row option[value="pdf"]').prop('disabled', true).text('PDF (unavailable)');
+      }
+      if (!avail.xlsx) {
+        $('#exportFormat option[value="xlsx"]').prop('disabled', true).text('XLSX (server - unavailable)');
+        $('.export-format-row option[value="xlsx"]').prop('disabled', true).text('XLSX (unavailable)');
+      }
+    } catch (e) {
+      // ignore
+    }
   }
 
   // Friendly action text
@@ -181,6 +211,9 @@
     if (p.action) parts.push(`<strong>Action:</strong> ${p.action}`);
     if (p.method) parts.push(`<strong>Method:</strong> ${p.method}`);
     if (p.q) parts.push(`<strong>Search:</strong> ${$('<div/>').text(p.q).html()}`);
+    // include format in summary
+    const fmt = $('#exportFormat').val() || 'csv';
+    parts.push(`<strong>Format:</strong> ${fmt.toUpperCase()}`);
     $('#exportSummary').html(parts.join(' &nbsp;|&nbsp; '));
     new bootstrap.Modal(document.getElementById('exportConfirmModal')).show();
   });
@@ -188,6 +221,8 @@
   // Confirm export — fetch CSV with credentials and trigger download to avoid permission issues
   $(document).on('click', '#confirmExportBtn', async function(){
     const p = buildParams();
+    const fmt = $('#exportFormat').val() || 'csv';
+    p.format = fmt;
     const qs = new URLSearchParams(p).toString();
     const url = '<?= site_url('admin/exportLogs') ?>' + '?' + qs;
     try {
@@ -198,8 +233,23 @@
         console.error('Export failed', res.status, txt);
         return;
       }
+      const ctype = (res.headers.get('content-type') || '').toLowerCase();
+      // Validate server returned the requested format
+      if (fmt === 'pdf' && ctype.indexOf('application/pdf') === -1) {
+        const txt = await res.text();
+        $('#logsAlerts').html('<div class="alert alert-danger">Server did not return a PDF. ' + (txt || 'Missing Dompdf on server?') + '</div>');
+        console.error('Export returned non-PDF:', ctype, txt);
+        return;
+      }
+      if (fmt === 'xlsx' && ctype.indexOf('sheet') === -1 && ctype.indexOf('excel') === -1) {
+        const txt = await res.text();
+        $('#logsAlerts').html('<div class="alert alert-danger">Server did not return an XLSX file. ' + (txt || 'Missing PhpSpreadsheet on server?') + '</div>');
+        console.error('Export returned non-XLSX:', ctype, txt);
+        return;
+      }
       const blob = await res.blob();
-      const filename = 'admin-activity-logs-' + new Date().toISOString().slice(0,19).replace(/[:T]/g,'-') + '.csv';
+      const ext = (fmt === 'xlsx' ? '.xlsx' : (fmt === 'pdf' ? '.pdf' : '.csv'));
+      const filename = 'admin-activity-logs-' + new Date().toISOString().slice(0,19).replace(/[:T]/g,'-') + ext;
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
       link.download = filename;
@@ -208,7 +258,7 @@
       link.remove();
       URL.revokeObjectURL(link.href);
       // Show success alert
-      $('#logsAlerts').html('<div class="alert alert-success">CSV downloaded</div>');
+      $('#logsAlerts').html('<div class="alert alert-success">' + fmt.toUpperCase() + ' downloaded</div>');
       setTimeout(()=>$('#logsAlerts').fadeOut(400,function(){ $(this).html('').show(); }), 3000);
     } catch (err) {
       console.error('Export error', err);
@@ -224,7 +274,10 @@
     const id = $(this).data('id');
     const idx = $(this).data('idx');
     if (!id) return;
-    const url = '<?= site_url('admin/exportLogs') ?>' + '?log_id=' + encodeURIComponent(id);
+    // prefer per-row selection, otherwise use global
+    const rowFmt = $(`.export-format-row[data-idx="${idx}"]`).val();
+    const fmt = rowFmt || $('#exportFormat').val() || 'csv';
+    const url = '<?= site_url('admin/exportLogs') ?>' + '?log_id=' + encodeURIComponent(id) + '&format=' + encodeURIComponent(fmt);
     try {
       const res = await fetch(url, { credentials: 'same-origin' });
       if (!res.ok) {
@@ -233,11 +286,25 @@
         console.error('Export failed', res.status, txt);
         return;
       }
+      const ctype = (res.headers.get('content-type') || '').toLowerCase();
+      if (fmt === 'pdf' && ctype.indexOf('application/pdf') === -1) {
+        const txt = await res.text();
+        $('#logsAlerts').html('<div class="alert alert-danger">Server did not return a PDF. ' + (txt || 'Missing Dompdf on server?') + '</div>');
+        console.error('Export returned non-PDF:', ctype, txt);
+        return;
+      }
+      if (fmt === 'xlsx' && ctype.indexOf('sheet') === -1 && ctype.indexOf('excel') === -1) {
+        const txt = await res.text();
+        $('#logsAlerts').html('<div class="alert alert-danger">Server did not return an XLSX file. ' + (txt || 'Missing PhpSpreadsheet on server?') + '</div>');
+        console.error('Export returned non-XLSX:', ctype, txt);
+        return;
+      }
       const blob = await res.blob();
       let performer = '';
       try { if (window._adminLogsRows && typeof idx !== 'undefined') performer = window._adminLogsRows[idx] && (window._adminLogsRows[idx].actor_name || '') } catch(e){}
       performer = performer ? performer.replace(/[^a-z0-9]+/ig, '_') : 'unknown';
-      const filename = 'performed-by_' + performer + '_log-' + id + '-' + new Date().toISOString().slice(0,19).replace(/[:T]/g,'-') + '.csv';
+      const ext = (fmt === 'xlsx' ? '.xlsx' : (fmt === 'pdf' ? '.pdf' : '.csv'));
+      const filename = 'performed-by_' + performer + '_log-' + id + '-' + new Date().toISOString().slice(0,19).replace(/[:T]/g,'-') + ext;
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
       link.download = filename;
@@ -246,7 +313,7 @@
       link.remove();
       URL.revokeObjectURL(link.href);
       // Show success alert
-      $('#logsAlerts').html('<div class="alert alert-success">CSV downloaded</div>');
+      $('#logsAlerts').html('<div class="alert alert-success">' + (fmt||'CSV').toUpperCase() + ' downloaded</div>');
       setTimeout(()=>$('#logsAlerts').fadeOut(400,function(){ $(this).html('').show(); }), 3000);
     } catch (err) {
       console.error('Export error', err);
@@ -254,11 +321,17 @@
     }
   });
   loadLogs();
+  loadExportAvailability();
 })();
 </script>
-  <div class="position-sticky bottom-0 p-2">
-  <button class="btn btn-outline-secondary btn-sm" id="exportCsv"><i class="fas fa-file-csv me-1"></i>Export All</button>
-</div>
+  <div class="position-sticky bottom-0 p-2 d-flex gap-2 align-items-center">
+    <select id="exportFormat" class="form-select form-select-sm" style="width:auto">
+      <option value="csv">CSV</option>
+      <option value="pdf">PDF (server)</option>
+      <option value="xlsx">XLSX</option>
+    </select>
+    <button class="btn btn-outline-secondary btn-sm" id="exportCsv"><i class="fas fa-file-csv me-1"></i>Export All</button>
+  </div>
 
 <!-- Details Modal -->
 <div class="modal fade" id="detailsModal" tabindex="-1" aria-labelledby="detailsModalLabel" aria-hidden="true">
@@ -291,7 +364,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <p class="mb-2">Export the current logs with applied filters as CSV? This is read-only and does not modify any data.</p>
+        <p class="mb-2">Export the current logs with applied filters in the selected format. This is read-only and does not modify any data.</p>
         <div id="exportSummary" class="small text-muted"></div>
       </div>
       <div class="modal-footer">
