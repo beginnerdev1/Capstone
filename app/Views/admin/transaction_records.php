@@ -339,10 +339,16 @@
                         <input type="hidden" id="modalPaymentId">
                         <small style="color: #6b7280; display: block; margin-top: 0.5rem;">This will be stored for record-keeping purposes</small>
                     </div>
+                    <div class="form-group">
+                        <label class="form-label">❗ Rejection Reason (Optional)</label>
+                        <textarea id="rejectReason" class="form-input" placeholder="Provide a short reason for rejection (optional)" rows="3"></textarea>
+                        <small style="color: #6b7280; display: block; margin-top: 0.5rem;">Optional note saved to admin reference if left blank.</small>
+                    </div>
                 </form>
             </div>
             <div class="modal-actions">
                 <button class="btn-modal btn-cancel" onclick="closeGCashModal()">Cancel</button>
+                <button id="rejectBtn" type="button" class="btn-modal" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; box-shadow: 0 4px 12px rgba(239,68,68,0.3);" onclick="handleReject()">Reject Payment</button>
                 <button id="confirmBtn" class="btn-modal btn-confirm-payment" onclick="document.getElementById('confirmGCashForm').dispatchEvent(new Event('submit'))">Confirm Payment</button>
             </div>
         </div>
@@ -656,6 +662,8 @@ function renderTable(data) {
         document.getElementById('modalReceipt').dataset.fullSrc = currentPayment.receipt_image || '';
         document.getElementById('modalPaymentId').value = currentPayment.id;
         document.getElementById('adminRef').value = currentPayment.admin_reference || '';
+        const rrEl = document.getElementById('rejectReason');
+        if (rrEl) rrEl.value = '';
 
         gcashModal.classList.add('active');
     };
@@ -664,7 +672,10 @@ function renderTable(data) {
     window.closeGCashModal = function() {
         gcashModal.classList.remove('active');
         currentPayment = null;
-        document.getElementById('adminRef').value = '';
+        const adminEl = document.getElementById('adminRef');
+        const rrEl = document.getElementById('rejectReason');
+        if (adminEl) adminEl.value = '';
+        if (rrEl) rrEl.value = '';
     };
 
     // Close modal on outside click
@@ -728,6 +739,59 @@ if (confirmGCashForm) {
             });
         });
     }
+
+    // Handle Reject action from modal
+    window.handleReject = function() {
+        if (!currentPayment) return;
+        const paymentId = document.getElementById('modalPaymentId').value;
+        const adminRef = (document.getElementById('adminRef').value || '').trim();
+        const rejectReason = (document.getElementById('rejectReason') ? document.getElementById('rejectReason').value : '').trim();
+        const rejectBtn = document.getElementById('rejectBtn');
+
+        if (!paymentId) return;
+
+        const payload = {
+            payment_id: paymentId,
+            admin_reference: adminRef || rejectReason
+        };
+
+        if (rejectBtn) {
+            rejectBtn.textContent = 'Rejecting...';
+            rejectBtn.disabled = true;
+        }
+
+        const rejectUrl = `<?= site_url('admin/rejectGCashPayment') ?>`;
+
+        fetch(rejectUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify(payload)
+        })
+        .then(res => res.json())
+        .then(res => {
+            if (res.success) {
+                alert(`✅ Payment ID ${paymentId} rejected.`);
+                closeGCashModal();
+                loadPayments({
+                    month: document.getElementById('monthFilter').value,
+                    method: document.getElementById('methodFilter').value,
+                    search: document.getElementById('searchInput').value
+                });
+            } else {
+                alert('❌ ' + (res.message || 'Failed to reject payment.'));
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert('❌ An error occurred while rejecting the payment.');
+        })
+        .finally(() => {
+            if (rejectBtn) {
+                rejectBtn.textContent = 'Reject Payment';
+                rejectBtn.disabled = false;
+            }
+        });
+    };
 
     // --- ADDITIONAL FEATURES ---
 

@@ -1100,6 +1100,28 @@ class Admin extends BaseController
             'message' => $updated ? 'Payment confirmed successfully' : 'Failed to confirm payment'
         ]);
     }
+    
+    // Reject GCash Payment (AJAX) - Transaction Payments
+    public function rejectGCashPayment()
+    {
+        $data = $this->request->getJSON(true);
+        $paymentId = $data['payment_id'] ?? null;
+        $adminRef = $data['admin_reference'] ?? null;
+
+        if (!$paymentId) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Missing payment_id']);
+        }
+
+        try {
+            $updated = $this->paymentsModel->rejectGCashPayment($paymentId, $adminRef);
+            return $this->response->setJSON([
+                'success' => (bool)$updated,
+                'message' => $updated ? 'Payment rejected successfully' : 'Failed to reject payment'
+            ]);
+        } catch (\Throwable $e) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Exception: ' . $e->getMessage()]);
+        }
+    }
 
     // Get users by Purok (AJAX) - Transaction Payments
     public function getUsersByPurok($purok)

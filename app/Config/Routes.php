@@ -129,6 +129,7 @@ $routes->post('synchronizeBillings', 'Admin::synchronizeBillings'); // Synchroni
 $routes->get('getAllBillings', 'Admin::getAllBillings'); // Get All Billings (AJAX for Billing Management Page)
 $routes->get('getBillingStatistics', 'Admin::getBillingStatistics'); // Get Billing Statistics
 $routes->post('createManualBilling', 'Admin::createManualBilling'); // Create Manual Billing
+$routes->post('rejectGCashPayment', 'Admin::rejectGCashPayment'); // Reject GCash Payment   
 
 
 

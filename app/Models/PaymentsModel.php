@@ -161,6 +161,26 @@ class PaymentsModel extends Model
         return $this->update($paymentId, $data);
     }
 
+    /**
+     * Reject a GCash/manual payment (mark as rejected)
+     * @param int $paymentId
+     * @param string|null $adminReference
+     * @return bool
+     */
+    public function rejectGCashPayment($paymentId, $adminReference = null)
+    {
+        $data = [
+            'status' => 'rejected',
+            'updated_at' => date('Y-m-d H:i:s')
+        ];
+
+        if ($adminReference) {
+            $data['admin_reference'] = $adminReference;
+        }
+
+        return $this->update($paymentId, $data);
+    }
+
     // NEW: Helper methods for payment tracking (added without altering existing functionality)
     
     /**
