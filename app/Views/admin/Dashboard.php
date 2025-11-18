@@ -5,7 +5,7 @@
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <title>SB Admin 2 - Dashboard</title>
+    <title>Admin - Dashboard</title>
     <!-- FontAwesome CDN -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <!-- Google Fonts -->
@@ -709,6 +709,7 @@ html, body {
             <a href="<?= base_url('admin/gcash-settings') ?>" class="collapse-item ajax-link">Gcash Settings</a>
             <a href="<?= base_url('admin/transactionRecords') ?>" class="collapse-item ajax-link">Transactions</a>
             <a href="<?= base_url('admin/billingManagement') ?>" class="collapse-item ajax-link">Billing Management</a>
+            <a href="<?= base_url('admin/failedTransactions') ?>" class="collapse-item ajax-link">Failed Transactions</a>
 
 
            <a href="<?= base_url('admin/edit-profile') ?>" class="collapse-item ajax-link">Edit Profile</a>
@@ -817,7 +818,7 @@ html, body {
 
         <!-- Footer -->
         <div class="footer">
-            <span>Copyright &copy; Your Website 2024</span>
+            <span>Copyright &copy; MyAquaBill 2025</span>
         </div>
     </div>
 
@@ -830,6 +831,7 @@ html, body {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
 
     <script>
         const sidebar = document.getElementById('sidebar');

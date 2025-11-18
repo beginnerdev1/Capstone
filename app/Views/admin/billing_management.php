@@ -18,11 +18,12 @@
             font-family: 'Poppins', sans-serif; 
             background: linear-gradient(135deg, #f0f4f8 0%, #d9e2ec 100%); 
             min-height: 100vh; 
-            padding: 2rem 1rem; 
+        
         }
         .ubill-wrapper {
             max-width: 1200px;
             margin: 0 auto;
+            padding: 2rem 1rem; 
         }
         .ubill-header {
             background: linear-gradient(135deg, var(--ubill-primary) 0%, var(--ubill-primary-dark) 100%);
@@ -593,7 +594,7 @@ var billingTableBody = window.ubillBillingTableBody;
 
 // === Global Variables ===
 let ubillUsers = [];
-let currentMonth = new Date().toISOString().slice(0, 7);
+let currentMonth = null;
 
 // === Utility Functions ===
 function showLoading() {
@@ -803,39 +804,39 @@ function renderBillingTable(data) {
 function populateMonthFilter() {
     const monthSelect = document.getElementById('filter-month');
     if (!monthSelect) return;
-    
+
     monthSelect.innerHTML = '<option value="">All Months</option>';
-    
+
     const today = new Date();
     const months = [];
-    
+
     // Add past 24 months
     for (let i = 24; i >= 0; i--) {
         const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
-        const monthValue = date.toISOString().slice(0, 7);
+        const monthValue = date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0');
         const monthLabel = date.toLocaleString('en-US', { year: 'numeric', month: 'long' });
         months.push({ value: monthValue, label: monthLabel });
     }
-    
+
     // Add future 6 months
     for (let i = 1; i <= 6; i++) {
         const date = new Date(today.getFullYear(), today.getMonth() + i, 1);
-        const monthValue = date.toISOString().slice(0, 7);
+        const monthValue = date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0');
         const monthLabel = date.toLocaleString('en-US', { year: 'numeric', month: 'long' });
         months.push({ value: monthValue, label: monthLabel });
     }
-    
+
     months.forEach(month => {
         const option = document.createElement('option');
         option.value = month.value;
         option.textContent = month.label;
-        
+
         if (month.value === currentMonth) {
             option.textContent += ' (Current Month)';
             option.style.fontWeight = 'bold';
             option.style.backgroundColor = '#e0f2fe';
         }
-        
+
         monthSelect.appendChild(option);
     });
 }

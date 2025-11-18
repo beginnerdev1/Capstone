@@ -132,8 +132,8 @@ $routes->get('getAllBillings', 'Admin::getAllBillings'); // Get All Billings (AJ
 $routes->get('getBillingStatistics', 'Admin::getBillingStatistics'); // Get Billing Statistics
 $routes->post('createManualBilling', 'Admin::createManualBilling'); // Create Manual Billing
 $routes->post('rejectGCashPayment', 'Admin::rejectGCashPayment'); // Reject GCash Payment   
-
-
+$routes->get('failedTransactions', 'Admin::failedTransactions'); // Failed Transactions Page
+$routes->get('getFailedPaymentsData', 'Admin::getFailedPaymentsData');// Get Failed Payments Data for Failed Transactions Page
 
 
 

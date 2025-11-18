@@ -339,16 +339,15 @@
                         <input type="hidden" id="modalPaymentId">
                         <small style="color: #6b7280; display: block; margin-top: 0.5rem;">This will be stored for record-keeping purposes</small>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">❗ Rejection Reason (Optional)</label>
-                        <textarea id="rejectReason" class="form-input" placeholder="Provide a short reason for rejection (optional)" rows="3"></textarea>
-                        <small style="color: #6b7280; display: block; margin-top: 0.5rem;">Optional note saved to admin reference if left blank.</small>
-                    </div>
                 </form>
             </div>
             <div class="modal-actions">
                 <button class="btn-modal btn-cancel" onclick="closeGCashModal()">Cancel</button>
-                <button id="rejectBtn" type="button" class="btn-modal" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; box-shadow: 0 4px 12px rgba(239,68,68,0.3);" onclick="handleReject()">Reject Payment</button>
+               <button id="rejectBtn" type="button" class="btn-modal"
+                    style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; box-shadow: 0 4px 12px rgba(239,68,68,0.3);"
+                    onclick="handleReject()">
+                    Reject Payment
+                </button>
                 <button id="confirmBtn" class="btn-modal btn-confirm-payment" onclick="document.getElementById('confirmGCashForm').dispatchEvent(new Event('submit'))">Confirm Payment</button>
             </div>
         </div>
@@ -513,7 +512,8 @@ function loadPayments(filters = {})
 
 // Create badge HTML
 // REPLACE the createBadge function with this:
-function createBadge(type, value, rawMethod = null) {
+function createBadge(type, value, rawMethod = null) 
+{
     let className = '', icon = '';
     
     if (type === 'method') {
@@ -560,7 +560,8 @@ function createBadge(type, value, rawMethod = null) {
     return badgeHTML;
 }
 // Map method to display label
-function mapMethod(method) {
+function mapMethod(method) 
+{
     if (!method) return 'Unknown';
     const lower = method.toLowerCase().trim(); // Trim spaces and convert to lowercase
     if (lower === 'manual') return 'Manual GCash';
@@ -569,18 +570,29 @@ function mapMethod(method) {
     return method;
 }
 
-// Render payment table
-function renderTable(data) {
+// Render payment table (only show Paid and Pending)
+function renderTable(data) 
+{
     if (!paymentTableBody) return;
     paymentTableBody.innerHTML = '';
 
-    if (!data.length) {
-        paymentTableBody.innerHTML = `<tr><td colspan="7">No payment records found.</td></tr>`;
+    // Ensure we have an array
+    const list = Array.isArray(data) ? data : [];
+
+    // Filter to only 'paid' and 'pending' statuses (case-insensitive)
+    const filtered = list.filter(item => {
+        const s = (item.status || '').toLowerCase().trim();
+        return s === 'paid' || s === 'pending';
+    });
+
+    // If nothing to show after filtering
+    if (!filtered.length) {
+        paymentTableBody.innerHTML = `<tr><td colspan="7" class="no-data"><div class="no-data-icon">📋</div><p>No payment records (paid or pending).</p></td></tr>`;
         return;
     }
 
-    data.forEach(item => {
-        console.log('Method:', item.method); // Log the method value
+    // Render the filtered rows
+    filtered.forEach(item => {
         const methodLabel = mapMethod(item.method);
         const statusLabel = item.status || 'Unknown';
         const isPendingGCash = methodLabel === 'Manual GCash' && statusLabel.toLowerCase() === 'pending';
@@ -602,7 +614,7 @@ function renderTable(data) {
         paymentTableBody.appendChild(row);
     });
 
-    // Add click listeners for modal buttons
+    // Re-attach modal handlers for the rows we've just added
     document.querySelectorAll('.btn-confirm').forEach(btn => {
         btn.addEventListener('click', e => {
             const id = parseInt(e.target.dataset.id);
@@ -651,19 +663,48 @@ function renderTable(data) {
     window.openGCashModal = function(id) {
         const list = window.paymentsData || [];
         currentPayment = list.find(p => p.id == id);
-        if (!currentPayment || currentPayment.status.toLowerCase() !== 'pending' || currentPayment.method.toLowerCase() !== 'manual') return;
+        if (!currentPayment || (currentPayment.status || '').toLowerCase() !== 'pending' || (currentPayment.method || '').toLowerCase() !== 'manual') return;
 
         document.getElementById('modalUserName').textContent = currentPayment.user_name;
         document.getElementById('modalUserEmail').textContent = currentPayment.email;
         document.getElementById('modalAmount').textContent = `₱${parseFloat(currentPayment.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         document.getElementById('modalUserRef').textContent = currentPayment.reference_number;
         document.getElementById('modalDate').textContent = currentPayment.paid_at || currentPayment.created_at;
-        document.getElementById('modalReceipt').src = currentPayment.receipt_image || '';
-        document.getElementById('modalReceipt').dataset.fullSrc = currentPayment.receipt_image || '';
         document.getElementById('modalPaymentId').value = currentPayment.id;
         document.getElementById('adminRef').value = currentPayment.admin_reference || '';
+
+        // Receipt handling: show image if available, hide otherwise
+        const modalReceiptEl = document.getElementById('modalReceipt');
+        if (modalReceiptEl) {
+            if (currentPayment.receipt_image) {
+                modalReceiptEl.src = currentPayment.receipt_image;
+                modalReceiptEl.dataset.fullSrc = currentPayment.receipt_image;
+                modalReceiptEl.style.display = 'block';
+            } else {
+                modalReceiptEl.src = '';
+                modalReceiptEl.dataset.fullSrc = '';
+                modalReceiptEl.style.display = 'none';
+            }
+        }
+
         const rrEl = document.getElementById('rejectReason');
-        if (rrEl) rrEl.value = '';
+        const rejectBtn = document.getElementById('rejectBtn');
+
+        if (rejectBtn) {
+            rejectBtn.disabled = false;
+            if (rrEl) {
+                rrEl.value = '';
+                // Start disabled when textarea empty
+                rejectBtn.disabled = (rrEl.value || '').trim() === '';
+                // Replace any previous handler so we don't accumulate listeners
+                rrEl.oninput = function () {
+                    rejectBtn.disabled = (rrEl.value || '').trim() === '';
+                };
+            } else {
+                // No rejection textarea present — allow clicking the Reject button
+                rejectBtn.disabled = false;
+            }
+        }
 
         gcashModal.classList.add('active');
     };
@@ -672,10 +713,19 @@ function renderTable(data) {
     window.closeGCashModal = function() {
         gcashModal.classList.remove('active');
         currentPayment = null;
+
         const adminEl = document.getElementById('adminRef');
         const rrEl = document.getElementById('rejectReason');
         if (adminEl) adminEl.value = '';
         if (rrEl) rrEl.value = '';
+
+        // Clear and hide receipt preview to avoid showing stale images later
+        const modalReceiptEl = document.getElementById('modalReceipt');
+        if (modalReceiptEl) {
+            modalReceiptEl.src = '';
+            modalReceiptEl.dataset.fullSrc = '';
+            modalReceiptEl.style.display = 'none';
+        }
     };
 
     // Close modal on outside click
@@ -745,16 +795,16 @@ if (confirmGCashForm) {
         if (!currentPayment) return;
         const paymentId = document.getElementById('modalPaymentId').value;
         const adminRef = (document.getElementById('adminRef').value || '').trim();
-        const rejectReason = (document.getElementById('rejectReason') ? document.getElementById('rejectReason').value : '').trim();
-        const rejectBtn = document.getElementById('rejectBtn');
 
         if (!paymentId) return;
 
         const payload = {
             payment_id: paymentId,
-            admin_reference: adminRef || rejectReason
+            admin_reference: adminRef,
+            reject_reason: '' // no reason required in UI
         };
 
+        const rejectBtn = document.getElementById('rejectBtn');
         if (rejectBtn) {
             rejectBtn.textContent = 'Rejecting...';
             rejectBtn.disabled = true;
@@ -1116,7 +1166,6 @@ function printReceipt(transactionId) {
     printWindow.document.close();
     setTimeout(() => { printWindow.focus(); printWindow.print(); printWindow.close(); }, 100);
 }
-
 
 
 

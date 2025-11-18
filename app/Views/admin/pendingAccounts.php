@@ -1,3 +1,4 @@
+
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700;800&display=swap');
 
@@ -28,6 +29,7 @@ html,body { height:100%; margin:0; font-family: var(--font-sans); background: li
     justify-content:space-between;
     gap:1rem;
     margin-bottom: 16px;
+    flex-wrap:wrap;
 }
 .header h1 { margin:0; font-size:1.2rem; font-weight:700; color:#0f172a; }
 .header .sub { color:var(--muted); font-size:0.9rem; }
@@ -44,7 +46,7 @@ html,body { height:100%; margin:0; font-family: var(--font-sans); background: li
     background: linear-gradient(180deg, rgba(255,255,255,0.5), var(--card));
 }
 .card-header .left { display:flex; gap:12px; align-items:center; }
-.controls { display:flex; gap:8px; align-items:center; }
+.controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 
 /* Search and simple count pill */
 .search {
@@ -120,12 +122,39 @@ html,body { height:100%; margin:0; font-family: var(--font-sans); background: li
 .text-muted { color:var(--muted); }
 .center { text-align:center; }
 
-/* Responsive */
-@media (max-width:860px){
-    .modal-body { grid-template-columns: 1fr; }
-    .info-grid { grid-template-columns: 1fr; }
-    .search input { width: 120px; }
-    .table { min-width: 640px; }
+/* Responsive: transform table into stacked cards on narrow viewports */
+@media (max-width: 860px) {
+    .search input { width: 140px; }
+    .table { min-width: 0; border: none; }
+    .table thead { display:none; }
+    .table tbody, .table tr, .table td { display:block; width:100%; }
+    .table tbody tr { margin: 0 0 12px; background: var(--card); border-radius:10px; padding: 12px; box-shadow: var(--shadow); border:1px solid var(--border); }
+    .table tbody td { padding: 8px 10px; border-top: none; display:flex; justify-content:space-between; align-items:center; }
+    .table tbody td[data-label]::before {
+        content: attr(data-label);
+        display:block;
+        font-weight:700;
+        color:var(--muted);
+        margin-right:8px;
+        flex: 0 0 35%;
+        text-align:left;
+        font-size:0.85rem;
+    }
+    .user-cell { gap:10px; align-items:center; }
+    .avatar { width:48px; height:48px; border-radius:8px; flex:0 0 48px; }
+    .meta .name { font-size:0.98rem; }
+    .meta .email { font-size:0.83rem; }
+    .actions { justify-content:flex-end; gap:8px; margin-left:8px; }
+    .view-btn { padding:6px 10px; font-size:0.85rem; }
+    .card-body .table-wrap { padding:12px; }
+}
+
+/* Extra small tweaks */
+@media (max-width: 420px) {
+    .card-header { padding: 12px; }
+    .header { gap:8px; }
+    .search input { width: 110px; }
+    .table tbody td[data-label]::before { flex: 0 0 40%; font-size:0.82rem; }
 }
 </style>
 
@@ -310,6 +339,7 @@ function fetchPendingAccounts() {
                 const tr = document.createElement('tr');
 
                 const tdName = document.createElement('td');
+                tdName.setAttribute('data-label', 'Full Name');
                 const nameBox = document.createElement('div');
                 nameBox.className = 'user-cell';
                 const img = document.createElement('img');
@@ -330,11 +360,20 @@ function fetchPendingAccounts() {
                 nameBox.appendChild(meta);
                 tdName.appendChild(nameBox);
 
-                const tdEmail = document.createElement('td'); tdEmail.textContent = user.email || '';
-                const tdPurok = document.createElement('td'); tdPurok.textContent = user.purok || '';
-                const tdBarangay = document.createElement('td'); tdBarangay.textContent = user.barangay || '';
+                const tdEmail = document.createElement('td');
+                tdEmail.setAttribute('data-label', 'Email');
+                tdEmail.textContent = user.email || '';
+
+                const tdPurok = document.createElement('td');
+                tdPurok.setAttribute('data-label', 'Purok');
+                tdPurok.textContent = user.purok || '';
+
+                const tdBarangay = document.createElement('td');
+                tdBarangay.setAttribute('data-label', 'Barangay');
+                tdBarangay.textContent = user.barangay || '';
 
                 const tdAction = document.createElement('td');
+                tdAction.setAttribute('data-label', 'Actions');
                 tdAction.style.textAlign = 'right';
                 const btn = document.createElement('button');
                 btn.className = 'btn view-btn btn-sm view-user-btn';
@@ -404,6 +443,25 @@ function closeModal() {
     document.getElementById('userModal').classList.remove('active');
 }
 
+function _createSpinnerSvg() {
+    return '<svg width="16" height="16" viewBox="0 0 50 50" style="vertical-align:middle; margin-right:8px;"><path fill="#ffffff" d="M43.935,25.145c0-10.318-8.364-18.682-18.682-18.682c-10.318,0-18.682,8.364-18.682,18.682h4.068 c0-8.066,6.548-14.614,14.614-14.614c8.066,0,14.614,6.548,14.614,14.614H43.935z"><animateTransform attributeType="xml" attributeName="transform" type="rotate" from="0 25 25" to="360 25 25" dur="0.8s" repeatCount="indefinite"/></path></svg>';
+}
+
+function showButtonLoader(btn, text = 'Processing...') {
+    if (!btn) return;
+    btn.dataset.origHtml = btn.dataset.origHtml || btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = _createSpinnerSvg() + `<span style="vertical-align:middle;">${text}</span>`;
+}
+
+function restoreButton(btn) {
+    if (!btn) return;
+    btn.disabled = false;
+    if (btn.dataset.origHtml) {
+        btn.innerHTML = btn.dataset.origHtml;
+    }
+}
+
 async function postAction(url) {
     try {
         const formData = new URLSearchParams();
@@ -414,32 +472,50 @@ async function postAction(url) {
             body: formData
         });
 
-        // Update CSRF hash after every request
         const newCsrfHash = res.headers.get('X-CSRF-Token');
         if (newCsrfHash) csrfHash = newCsrfHash;
 
+        let data = null;
+        try { data = await res.json(); } catch (e) { /* no JSON */ }
+
         fetchPendingAccounts();
         closeModal();
+
+        return { ok: res.ok, status: res.status, data };
     } catch (err) {
         console.error('Action error:', err);
+        return { ok: false, error: err };
     }
 }
 
-document.getElementById('approveBtn').onclick = () => {
+document.getElementById('approveBtn').onclick = async () => {
     if (!currentUserId) return;
-    postAction('<?= base_url("admin/approve/") ?>' + currentUserId);
+    const btn = document.getElementById('approveBtn');
+    showButtonLoader(btn, 'Approving...');
+    updatePendingStatus('Approving...');
+
+    const result = await postAction('<?= base_url("admin/approve/") ?>' + currentUserId);
+
+    restoreButton(btn);
+
+    if (result && result.ok) {
+        updatePendingStatus('Approved');
+    } else {
+        updatePendingStatus('Error');
+        console.error('Approve failed:', result);
+        alert('Failed to approve account. Check console for details.');
+    }
 };
 document.getElementById('rejectBtn').onclick = () => {
     if (!currentUserId) return;
+    showButtonLoader(document.getElementById('rejectBtn'));
     postAction('<?= base_url("admin/reject/") ?>' + currentUserId);
 };
 
-// Close modal if clicked outside
 document.getElementById('userModal').addEventListener('click', e => {
     if (e.target === e.currentTarget) closeModal();
 });
 
-// Refresh controls and safer interval (visibility-aware, de-duplicated)
 function updatePendingStatus(text) {
     const el = document.getElementById('pendingStatusText');
     if (el) el.textContent = text;
@@ -473,7 +549,6 @@ document.getElementById('refreshPendingBtn').addEventListener('click', () => {
     fetchPendingAccounts();
 });
 
-// Optionally tie the search input to client-side filtering (non-destructive)
 document.getElementById('pendingSearch').addEventListener('input', function() {
     const q = this.value.trim().toLowerCase();
     const rows = document.querySelectorAll('#pendingAccountsBody tr');

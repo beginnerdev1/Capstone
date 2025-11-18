@@ -34,7 +34,7 @@ html,body { height:100%; margin:0; font-family: var(--font-sans); background: li
 .header .sub { color:var(--muted); font-size:0.9rem; }
 
 /* Controls */
-.controls { display:flex; gap:12px; align-items:center; }
+.controls { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
 
 /* Search and simple count pill */
 .search {
@@ -55,10 +55,11 @@ html,body { height:100%; margin:0; font-family: var(--font-sans); background: li
     color:var(--primary-600);
     font-size:0.85rem;
     border:1px solid rgba(37,99,235,0.08);
+    white-space: nowrap;
 }
 
 /* Buttons */
-.btn { display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius: 10px; font-weight:600; cursor:pointer; border:none; transition:all .12s ease; font-size:0.9rem; font-family: var(--font-sans); }
+.btn { display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius: 10px; font-weight:600; cursor:pointer; border:none; transition:all .12s ease; font-size:0.9rem; font-family: var(--font-sans); white-space: nowrap; }
 .btn:active { transform:translateY(1px); }
 .btn-primary { background: linear-gradient(90deg,var(--primary) 0%, var(--primary-600) 100%); color:white; box-shadow: 0 6px 18px rgba(37,99,235,0.14); }
 .btn-ghost { background: transparent; color:var(--primary-600); border: 1px solid rgba(37,99,235,0.08); }
@@ -74,6 +75,7 @@ html,body { height:100%; margin:0; font-family: var(--font-sans); background: li
     padding: 14px 18px;
     border-bottom: 1px solid var(--border);
     background: linear-gradient(180deg, rgba(255,255,255,0.5), var(--card));
+    flex-wrap: wrap;
 }
 .card-title { font-weight:700; color:#0f172a; margin:0; }
 .card-body { padding: 14px 18px; }
@@ -97,16 +99,150 @@ html,body { height:100%; margin:0; font-family: var(--font-sans); background: li
 .bg-info { background: #0ea5e9; }
 
 /* Action cell */
-.actions { display:flex; gap:8px; justify-content:flex-end; }
+.actions { display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; }
 
 /* Modals use Bootstrap classes; keep their look consistent with a subtle radius */
 .modal .modal-content { border-radius: 12px; }
 
-/* Responsive */
-@media (max-width:860px){
-    .search input { width: 120px; }
-    .table { min-width: 640px; }
-    .filters { flex-direction:column; align-items:stretch; }
+/* ----------------------------
+   ENHANCED RESPONSIVE RULES
+   ---------------------------- */
+
+/* Large tablets and below */
+@media (max-width: 1024px) {
+    .container-fluid { padding: 16px; margin: 20px auto; }
+    .header { flex-direction: column; align-items: flex-start; gap: 12px; }
+    .controls { width: 100%; justify-content: space-between; }
+    .search input { width: 180px; }
+}
+
+/* Tablet */
+@media (max-width: 768px) {
+    .container-fluid { padding: 12px; margin: 12px auto; }
+    .header h1 { font-size: 1.1rem; }
+    .header .sub { font-size: 0.85rem; }
+    
+    /* Stack controls */
+    .controls { flex-direction: column; align-items: stretch; gap: 8px; }
+    .search { width: 100%; }
+    .search input { width: 100%; flex: 1; }
+    .count-pill { text-align: center; }
+    .btn { width: 100%; justify-content: center; }
+    
+    /* Card header stack */
+    .card-header { flex-direction: column; align-items: flex-start; }
+    .card-header .text-muted { font-size: 0.85rem; }
+    
+    /* Filters stack */
+    .filters > div { width: 100%; }
+    .filters select { width: 100%; }
+    .filters > div[style*="margin-left"] { margin-left: 0 !important; }
+    
+    /* Convert table to cards */
+    .table { min-width: 0; border: none; }
+    .table thead { display:none; }
+    .table tbody, .table tr, .table td { display:block; width:100%; }
+    .table tbody tr { 
+        margin: 0 0 12px; 
+        background: var(--card); 
+        border-radius:10px; 
+        padding: 12px; 
+        box-shadow: var(--shadow); 
+        border:1px solid var(--border); 
+    }
+    .table tbody td { 
+        padding: 10px 12px; 
+        border-top: none; 
+        display:flex; 
+        justify-content:space-between; 
+        align-items:center; 
+        gap:8px; 
+        flex-wrap:wrap; 
+    }
+    .table tbody td[data-label]::before {
+        content: attr(data-label);
+        display:block;
+        font-weight:700;
+        color:var(--muted);
+        margin-right:8px;
+        flex: 0 0 38%;
+        text-align:left;
+        font-size:0.85rem;
+    }
+    .table tbody td .badge { margin-left: 6px; }
+    .actions { justify-content:flex-end; gap:8px; margin-left:8px; width: 100%; }
+    .actions .btn { flex: 1; min-width: 0; }
+    .card-body .table-wrap { padding:8px; }
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+    .container-fluid { padding: 8px; margin: 8px auto; }
+    .header h1 { font-size: 1rem; }
+    .header .sub { font-size: 0.8rem; }
+    
+    .search { padding: 6px 8px; }
+    .search input { font-size: 0.9rem; }
+    .count-pill { font-size: 0.8rem; padding: 5px 8px; }
+    .btn-sm { padding: 5px 8px; font-size: 0.8rem; }
+    
+    .card-header { padding: 12px; }
+    .card-body { padding: 12px; }
+    
+    .table tbody tr { padding: 10px; margin-bottom: 10px; }
+    .table tbody td { padding: 8px 10px; font-size: 0.9rem; }
+    .table tbody td[data-label]::before { 
+        flex: 0 0 40%; 
+        font-size:0.82rem; 
+    }
+    
+    .actions { flex-direction: column; }
+    .actions .btn { width: 100%; }
+    
+    /* Modal adjustments */
+    .modal-dialog { margin: 0.5rem; }
+    .modal-body { padding: 1rem; }
+    .row.mb-3 { margin-bottom: 0.75rem !important; }
+}
+
+/* Extra small devices */
+@media (max-width: 360px) {
+    .header h1 { font-size: 0.95rem; }
+    .btn { font-size: 0.8rem; padding: 5px 8px; }
+    .table tbody td { font-size: 0.85rem; }
+}
+
+/* Force-responsive fallback */
+.container-fluid.force-responsive .table { min-width: 0 !important; border: none !important; }
+.container-fluid.force-responsive .table thead { display: none !important; }
+.container-fluid.force-responsive .table tbody,
+.container-fluid.force-responsive .table tr,
+.container-fluid.force-responsive .table td { display: block !important; width: 100% !important; }
+.container-fluid.force-responsive .table tbody tr {
+  margin: 0 0 12px;
+  background: var(--card);
+  border-radius: 10px;
+  padding: 12px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+}
+.container-fluid.force-responsive .table tbody td {
+  padding: 8px 10px;
+  border-top: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap:8px;
+}
+.container-fluid.force-responsive .table tbody td[data-label]::before {
+  content: attr(data-label);
+  display: block;
+  font-weight: 700;
+  color: var(--muted);
+  margin-right: 8px;
+  flex: 0 0 35%;
+  text-align: left;
+  font-size: 0.85rem;
 }
 </style>
 
@@ -188,7 +324,7 @@ html,body { height:100%; margin:0; font-family: var(--font-sans); background: li
     </div>
 </div>
 
-<!-- View User Modal (keeps original Bootstrap markup, functionality preserved) -->
+<!-- View User Modal -->
 <div class="modal fade" id="viewUserModal" tabindex="-1" aria-labelledby="viewUserLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
@@ -205,7 +341,7 @@ html,body { height:100%; margin:0; font-family: var(--font-sans); background: li
     </div>
 </div>
 
-<!-- Add User Modal (original form preserved) -->
+<!-- Add User Modal -->
 <div class="modal fade" id="addUserModal" tabindex="-1" aria-labelledby="addUserLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
@@ -249,7 +385,6 @@ html,body { height:100%; margin:0; font-family: var(--font-sans); background: li
                         <div class="invalid-feedback">Password must be at least 6 characters</div>
                     </div>
 
-                    <!-- Remainder of the form preserved as in original file -->
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label class="form-label">Contact Number <span class="text-danger">*</span></label>
@@ -333,11 +468,9 @@ html,body { height:100%; margin:0; font-family: var(--font-sans); background: li
             </div>
         </div>
     </div>
-
-            <!-- Deactivate modal now provided globally in layout; removed here to avoid duplicates -->
 </div>
 
-<!-- ✅ JavaScript Logic -->
+<!-- JavaScript Logic -->
 <script>
 function initRegisteredUsersPage() {
     const baseUrl = "<?= base_url() ?>";
@@ -345,24 +478,28 @@ function initRegisteredUsersPage() {
 
     console.log("✅ Registered Users page initialized!");
 
-    // sa pag add naman ito ng user? 
+    // populate add-user purok select
     let addSelect = document.getElementById('addUserPurok');
-    addSelect.innerHTML = '<option value="">Select Purok</option>'; // clear first
-    for(let i=1; i<=maxPurok; i++){
-        let opt = document.createElement('option');
-        opt.value = i;
-        opt.text = 'Purok '+i;
-        addSelect.appendChild(opt);
+    if (addSelect) {
+        addSelect.innerHTML = '<option value="">Select Purok</option>';
+        for(let i=1; i<=maxPurok; i++){
+            let opt = document.createElement('option');
+            opt.value = i;
+            opt.text = 'Purok '+i;
+            addSelect.appendChild(opt);
+        }
     }
 
-    //Para sa pag filter ng puroks
+    // populate filter purok select
     let filterSelect = document.getElementById('filterPurok');
-    filterSelect.innerHTML = '<option value="">All</option>'; // reset
-    for (let i = 1; i <= maxPurok; i++) {
-        let opt = document.createElement('option');
-        opt.value = i;
-        opt.text = 'Purok ' + i;
-        filterSelect.appendChild(opt);
+    if (filterSelect) {
+        filterSelect.innerHTML = '<option value="">All</option>';
+        for (let i = 1; i <= maxPurok; i++) {
+            let opt = document.createElement('option');
+            opt.value = i;
+            opt.text = 'Purok ' + i;
+            filterSelect.appendChild(opt);
+        }
     }
 
     // Update users count pill when table loads
@@ -393,7 +530,7 @@ function initRegisteredUsersPage() {
                     if(statusLower==='approved') badgeClass='success';
                     else if(statusLower==='pending') badgeClass='warning';
                     else if(statusLower==='rejected') badgeClass='danger';
-                    else if(statusLower==='suspended') badgeClass='dark';
+                    else if(statusLower==='suspended') badgeClass='secondary';
                     const fullName = user.name || '-';
                     const pendingBills = parseInt(user.pending_bills || 0, 10);
                     const canDeactivate = pendingBills === 0 && statusLower === 'approved';
@@ -404,21 +541,22 @@ function initRegisteredUsersPage() {
                         <button class="btn btn-sm btn-outline-danger deactivateUserBtn ${canDeactivate ? '' : 'opacity-50'}" data-id="${user.id}" data-name="${fullName}" ${canDeactivate ? '' : 'data-disabled="1"'} title="${deactivateTitle}">
                             <i class="fas fa-user-slash"></i> Deactivate
                         </button>`;
-                    tbody.append(`
+                    const row = `
                         <tr>
-                            <td>${index+1}</td>
-                            <td>${fullName}</td>
-                            <td>${user.email}</td>
-                            <td>${user.purok||'-'}</td>
-                            <td><span class="badge bg-${badgeClass}">${user.status||'-'}</span></td>
-                            <td class="actions">
+                            <td data-label="#">${index+1}</td>
+                            <td data-label="Name">${fullName}</td>
+                            <td data-label="Email">${user.email || '-'}</td>
+                            <td data-label="Purok">${user.purok || '-'}</td>
+                            <td data-label="Status"><span class="badge bg-${badgeClass}">${user.status||'-'}</span></td>
+                            <td data-label="Actions" class="actions">
                                 <button class="btn btn-sm btn-primary viewUserBtn" data-id="${user.id}" title="View user details">
                                     <i class="fas fa-eye"></i> View
                                 </button>
                                 ${deactivateBtn}
                             </td>
                         </tr>
-                    `);
+                    `;
+                    tbody.append(row);
                 });
                 setUsersCount(users.length);
             },
@@ -430,7 +568,7 @@ function initRegisteredUsersPage() {
 
     loadUsers();
 
-    // Debounce for search input (wait 500ms after user stops typing)
+    // Debounce for search input
     let searchTimeout;
     $('#filterInput').on('input', function(){
         clearTimeout(searchTimeout);
@@ -442,15 +580,15 @@ function initRegisteredUsersPage() {
         }, 500);
     });
 
-    // Filters - only run when explicitly changed
+    // Filters
     $('#filterPurok').on('change', function(){
         loadUsers($('#filterInput').val(), $(this).val(), $('#filterStatus').val());
     });
-    
+
     $('#filterStatus').on('change', function(){
         loadUsers($('#filterInput').val(), $('#filterPurok').val(), $(this).val());
     });
-    
+
     // Reset filters
     $('#resetFilters').on('click', function(){
         $('#filterInput').val('');
@@ -467,283 +605,4 @@ function initRegisteredUsersPage() {
             type:'GET',
             dataType:'json',
             success:function(user){
-                if(!user.id){ $("#userDetailsContent").html(`<p class="text-danger">User not found.</p>`); return; }
-                let profileImg = user.profile_picture
-                    ? `<img src="<?= base_url('uploads/profile_pictures') ?>/${user.profile_picture}" class="rounded-circle mb-3" width="100" height="100">`
-                    : `<i class="fas fa-user-circle fa-5x text-muted mb-3"></i>`;
-                $("#userDetailsContent").html(`
-                    <div class="text-center">${profileImg}</div>
-                    <h5 class="text-center mb-3">${user.first_name||''} ${user.last_name||''}</h5>
-                    <div class="row text-start">
-                        <div class="col-md-6">
-                            <p><strong>Email:</strong> ${user.email||'-'}</p>
-                            <p><strong>Contact Number:</strong> ${user.phone||'-'}</p>
-                            <p><strong>Gender:</strong> ${user.gender||'-'}</p>
-                            <p><strong>Age:</strong> ${user.age||'-'}</p>
-                            <p><strong>Family Members:</strong> ${user.family_number||'-'}</p>
-                        </div>
-                        <div class="col-md-6">
-                            <p><strong>Purok:</strong> ${user.purok||'-'}</p>
-                            <p><strong>Barangay:</strong> ${user.barangay||'-'}</p>
-                            <p><strong>Municipality:</strong> ${user.municipality||'-'}</p>
-                            <p><strong>Province:</strong> ${user.province||'-'}</p>
-                            <p><strong>Zip Code:</strong> ${user.zipcode||'-'}</p>
-                            <p><strong>Status:</strong> <span class="badge bg-info">${user.status||'-'}</span></p>
-                        </div>
-                    </div>
-                `);
-                $("#viewUserModal").modal("show");
-            },
-            error:function(){ $("#userDetailsContent").html(`<p class="text-danger">Error fetching user data.</p>`);}
-        });
-    });
-
-    // Print
-    $('#printUsersBtn').on('click',function(){
-        const printWindow = window.open('','', 'width=900,height=700');
-        const tableHTML = document.getElementById('usersTable').outerHTML; 
-        printWindow.document.write(`
-            <html>
-                <head>
-                    <title>Registered Users</title>
-                    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-                </head>
-                <body class="p-4">
-                    <h4 class="text-center mb-4">Registered Users</h4>
-                    ${tableHTML}
-                    <script>window.print();<\/script>
-                </body>
-            </html>
-        `);
-        printWindow.document.close();
-    });
-
-    // Show Add User Modal
-    $('#addUserBtn').on('click',function(){ $('#addUserModal').modal('show'); });
-
-    // Toggle password visibility
-    $('#togglePassword').on('click', function(){
-        const passwordField = $('#addUserPassword');
-        const icon = $(this).find('i');
-        if(passwordField.attr('type') === 'password'){
-            passwordField.attr('type', 'text');
-            icon.removeClass('fa-eye').addClass('fa-eye-slash');
-        } else {
-            passwordField.attr('type', 'password');
-            icon.removeClass('fa-eye-slash').addClass('fa-eye');
-        }
-    });
-
-    // Add User / Account Submission with validation
-    $('#addUserForm').on('submit',function(e){
-        e.preventDefault();
-        
-        // Client-side validation
-        const form = this;
-        if (!form.checkValidity()) {
-            e.stopPropagation();
-            $(form).addClass('was-validated');
-            return;
-        }
-
-        const formData = $(this).serialize();
-        const submitBtn = $(this).find('button[type="submit"]');
-        submitBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Adding...');
-        
-        $.ajax({
-            url: baseUrl+'/admin/addUser',
-            type:'POST',
-            data: formData,
-            dataType:'json',
-            success:function(res){
-                if(res.success){
-                    // Show success message
-                    const successAlert = $('<div class="alert alert-success alert-dismissible fade show" role="alert">' +
-                        '<i class="fas fa-check-circle me-2"></i>' + res.message +
-                        '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
-                        '</div>');
-                    $('.container-fluid').prepend(successAlert);
-                    
-                    // Auto-dismiss after 5 seconds
-                    setTimeout(function(){ successAlert.fadeOut(); }, 5000);
-                    
-                    $('#addUserForm')[0].reset();
-                    $('#addUserForm').removeClass('was-validated');
-                    $('#addUserModal').modal('hide');
-                    loadUsers();
-                } else {
-                    let errorMsg = res.message || 'Failed to add user.';
-                    if(res.errors){
-                        errorMsg += '<ul class="mb-0 mt-2">';
-                        for(let field in res.errors){
-                            errorMsg += '<li>' + res.errors[field] + '</li>';
-                        }
-                        errorMsg += '</ul>';
-                    }
-                    const errorAlert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
-                        '<i class="fas fa-exclamation-triangle me-2"></i>' + errorMsg +
-                        '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
-                        '</div>');
-                    $('#addUserForm').prepend(errorAlert);
-                }
-            },
-            error:function(xhr, status, err){
-                console.error('AJAX Error:', xhr.responseText);
-                const errorAlert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
-                    '<i class="fas fa-exclamation-triangle me-2"></i>Error adding user. Please try again.' +
-                    '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
-                    '</div>');
-                $('#addUserForm').prepend(errorAlert);
-            },
-            complete: function(){
-                submitBtn.prop('disabled', false).html('<i class="fas fa-plus me-1"></i>Add User');
-            }
-        });
-    });
-
-    // Deactivate flow (legacy per-view handler). Guard so global modal handles by default.
-    let currentDeactivateUserId = null;
-    $(document).on('click', '.deactivateUserBtn', function(){
-        // If button was rendered as disabled (has data-disabled), show a warning instead of doing nothing
-        if ($(this).data('disabled')) {
-            const msg = $(this).attr('title') || 'This user cannot be deactivated.';
-            const warn = $(`<div class="alert alert-warning alert-dismissible fade show" role="alert">
-                <i class="fas fa-exclamation-triangle me-2"></i>${msg}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>`);
-            $('.container-fluid').prepend(warn);
-            setTimeout(()=>{ warn.fadeOut(400,function(){ $(this).remove(); }); }, 4000);
-            return;
-        }
-        if (!$('#deactivateUserModal').length) return; // global handler will take over
-        currentDeactivateUserId = $(this).data('id');
-        const name = $(this).data('name') || 'this user';
-        $('#deactivateUserName').text(name);
-        $('#deactivateReason').val('');
-        $('#deactivateUserModal').modal('show');
-    });
-
-    $('#confirmDeactivateBtn').on('click', function(){
-        if (!$('#deactivateUserModal').length) return; // handled globally
-        if(!currentDeactivateUserId) return;
-        let formData = $('#deactivateUserForm').serialize();
-        // Always append user_id to the form data
-        formData += '&user_id=' + encodeURIComponent(currentDeactivateUserId);
-        const btn = $(this);
-        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Deactivating...');
-        $.ajax({
-            url: baseUrl + '/admin/deactivateUser/' + currentDeactivateUserId,
-            type: 'POST',
-            data: formData,
-            dataType: 'json',
-            success: function(res){
-                if(res && res.success){
-                    const successAlert = $('<div class="alert alert-success alert-dismissible fade show" role="alert">' +
-                        '<i class="fas fa-check-circle me-2"></i>' + (res.message || 'User deactivated and archived successfully.') +
-                        '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
-                        '</div>');
-                    $('.container-fluid').prepend(successAlert);
-                    $('#deactivateUserModal').modal('hide');
-                    loadUsers($('#filterInput').val(), $('#filterPurok').val(), $('#filterStatus').val());
-                } else {
-                    const msg = res && res.message ? res.message : 'Failed to deactivate user.';
-                    const errorAlert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
-                        '<i class="fas fa-exclamation-triangle me-2"></i>' + msg +
-                        '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
-                        '</div>');
-                    $('#deactivateUserForm').prepend(errorAlert);
-                }
-            },
-            error: function(xhr){
-                const errorAlert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
-                    '<i class="fas fa-exclamation-triangle me-2"></i>Error deactivating user. Please try again.' +
-                    '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
-                    '</div>');
-                $('#deactivateUserForm').prepend(errorAlert);
-            },
-            complete: function(){
-                btn.prop('disabled', false).html('<i class="fas fa-user-slash me-1"></i>Deactivate');
-            }
-        });
-    });
-
-    // Activate/reactivate flow: always send user_id
-    $(document).on('click', '.activateUserBtn, .reactivateUserBtn', function(){
-        const userId = $(this).data('id');
-        const name = $(this).data('name') || 'this user';
-        // If you have a modal for activation/reactivation, show it here
-        // Otherwise, send AJAX directly
-        $.ajax({
-            url: baseUrl + '/admin/activateUser/' + userId,
-            type: 'POST',
-            data: { user_id: userId },
-            dataType: 'json',
-            success: function(res){
-                if(res && res.success){
-                    const successAlert = $('<div class="alert alert-success alert-dismissible fade show" role="alert">' +
-                        '<i class="fas fa-check-circle me-2"></i>' + (res.message || 'User activated successfully.') +
-                        '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
-                        '</div>');
-                    $('.container-fluid').prepend(successAlert);
-                    loadUsers($('#filterInput').val(), $('#filterPurok').val(), $('#filterStatus').val());
-                } else {
-                    const msg = res && res.message ? res.message : 'Failed to activate user.';
-                    const errorAlert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
-                        '<i class="fas fa-exclamation-triangle me-2"></i>' + msg +
-                        '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
-                        '</div>');
-                    // If you have a form, prepend to it; else prepend to container
-                    $('.container-fluid').prepend(errorAlert);
-                }
-            },
-            error: function(xhr){
-                const errorAlert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
-                    '<i class="fas fa-exclamation-triangle me-2"></i>Error activating user. Please try again.' +
-                    '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
-                    '</div>');
-                $('.container-fluid').prepend(errorAlert);
-            }
-        });
-    });
-}
-
-$(document).ready(function(){ initRegisteredUsersPage(); });
-</script>
-<script>
-// Fallback: if the page is loaded directly (not via Dashboard wrapper),
-// auto-inject a per-view deactivate modal so legacy handlers work.
-(function(){
-    if (!document.getElementById('globalDeactivateModal') && !document.getElementById('deactivateUserModal')) {
-        const html = `
-        <div class="modal fade" id="deactivateUserModal" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Deactivate <span id="deactivateUserName"></span></h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <form id="deactivateUserForm">
-                            <?= csrf_field() ?>
-                            <div class="mb-3">
-                                <label for="deactivateReason" class="form-label">Reason (optional)</label>
-                                <textarea class="form-control" id="deactivateReason" name="reason" rows="3" placeholder="Provide a reason (optional)"></textarea>
-                            </div>
-                        </form>
-                        <div class="alert alert-warning mb-0" role="alert">
-                            <i class="fas fa-exclamation-triangle me-2"></i>This will archive the user's last 2 years of billings.
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="button" class="btn btn-danger" id="confirmDeactivateBtn">
-                            <i class="fas fa-user-slash me-1"></i>Deactivate
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>`;
-        document.body.insertAdjacentHTML('beforeend', html);
-    }
-})();
-</script>
+                if(!user.id){ $("#userDetailsContent").html(`<p class="text-danger">User not found.
