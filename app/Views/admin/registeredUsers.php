@@ -1,129 +1,198 @@
 <!-- registeredUsers.php -->
 <style>
-:root {
-    --primary: #667eea;
-    --secondary: #764ba2;
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700;800&display=swap');
+
+:root{
+    --bg: #f6f8fb;
+    --card: #ffffff;
+    --muted: #6b7280;
+    --primary: #2563eb;
+    --primary-600: #1e40af;
     --success: #10b981;
     --danger: #ef4444;
-    --warning: #f59e0b;
-    --light: #f3f4f6;
-    --border: #e5e7eb;
-    --dark: #1f2937;
-    --muted: #6b7280;
+    --border: #e6eef8;
+    --glass: rgba(255,255,255,0.6);
+    --shadow: 0 10px 30px rgba(23,42,77,0.06);
+    --radius: 12px;
+    --max-width: 1100px;
+    --font-sans: 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial;
 }
-body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    background: linear-gradient(135deg, #f0f4f8 0%, #d9e2ec 100%);
+
+* { box-sizing: border-box; }
+html,body { height:100%; margin:0; font-family: var(--font-sans); background: linear-gradient(180deg,#f7fbff 0%, #f2f6fb 100%); color:#111827; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
+.container-fluid { max-width: var(--max-width); margin: 28px auto; padding: 20px; }
+
+/* Header */
+.header {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:1rem;
+    margin-bottom: 16px;
 }
-.header-wrapper { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 2rem; margin-bottom: 2.5rem; }
-.header-icon-box { width: 56px; height: 56px; background: linear-gradient(135deg, var(--primary), var(--secondary)); border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 16px rgba(102,126,234,0.3); }
-.header-icon-box i { color: white; font-size: 1.75rem; }
-.header-content h1 { font-size: 1.875rem; font-weight: 700; color: var(--dark); margin: 0; }
-.header-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
-.btn { padding: 0.5rem 0.9rem; border-radius: 6px; font-weight: 600; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; transition: all 0.3s ease; text-decoration: none; }
-.btn-primary { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; box-shadow: 0 4px 12px rgba(102,126,234,0.3); }
-.btn-primary:hover { box-shadow: 0 8px 20px rgba(102,126,234,0.4); transform: translateY(-2px); }
-.btn-outline-secondary { background: white; color: var(--muted); border: 1.5px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-.btn-outline-secondary:hover { border-color: var(--primary); color: var(--primary); }
-.btn-sm { padding: 0.375rem 0.75rem; font-size: 0.85rem; }
-.badge { padding: 0.35rem 0.75rem; border-radius: 6px; font-weight: 600; font-size: 0.8rem; }
-.badge-success { background-color: var(--success); color: white; }
-.badge-warning { background-color: var(--warning); color: white; }
-.badge-danger { background-color: var(--danger); color: white; }
-.badge-secondary { background-color: var(--muted); color: white; }
-.table-responsive { overflow-x: auto; }
-.table { margin-bottom: 0; font-size: 0.95rem; width: 100%; }
-.table th, .table td { padding: 1rem; text-align: left; vertical-align: middle; }
-.table th { background: var(--light); font-weight: 600; text-transform: uppercase; font-size: 0.8rem; border-bottom: 2px solid var(--border); color: var(--muted); }
-.table tbody tr { border-bottom: 1px solid var(--border); transition: all 0.2s ease; }
-.table tbody tr:hover { background-color: rgba(102,126,234,0.05); }
-.table td { white-space: nowrap; }
-.card { background: white; border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); border: 1px solid var(--border); overflow: hidden; position: relative; }
-.card-header { background: var(--light); border-bottom: 1px solid var(--border); padding: 1.5rem; }
-.card-header h5 { margin: 0; font-weight: 700; color: var(--dark); }
-.card-body { padding: 1.5rem; }
-.filters-row { display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
-.input-group { display: flex; align-items: stretch; }
-.input-group-text { background: var(--light); border: 1px solid var(--border); border-right: none; padding: 0.5rem 0.75rem; border-radius: 6px 0 0 6px; color: var(--muted); }
-.form-control, .form-select { border: 1px solid var(--border); padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.95rem; transition: all 0.2s ease; }
-.input-group .form-control { border-radius: 0 6px 6px 0; }
-.form-control:focus, .form-select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(102,126,234,0.1); }
-.loading-overlay { position: absolute; top:0; left:0; right:0; bottom:0; background: rgba(255,255,255,0.8); display: none; align-items:center; justify-content:center; z-index:10; }
-.loading-overlay.show { display:flex; }
-.spinner { width:40px; height:40px; border:4px solid var(--border); border-top-color: var(--primary); border-radius:50%; animation: spin 0.8s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-.results-info { padding: 1rem 1.5rem; background: var(--light); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); color: var(--muted); font-size:0.9rem; }
-@media(max-width:768px){
-    .header-wrapper{flex-direction:column;gap:1rem;align-items:flex-start;}
-    .header-content h1{font-size:1.5rem;}
-    .header-actions{width:100%;}
-    .btn{flex:1;justify-content:center;}
-    .filters-row{flex-direction:column;}
+.header h1 { margin:0; font-size:1.2rem; font-weight:700; color:#0f172a; }
+.header .sub { color:var(--muted); font-size:0.9rem; }
+
+/* Controls */
+.controls { display:flex; gap:12px; align-items:center; }
+
+/* Search and simple count pill */
+.search {
+    background: #f3f6fb;
+    padding:8px 10px;
+    border-radius: 10px;
+    display:flex;
+    gap:8px;
+    align-items:center;
+    border: 1px solid transparent;
+}
+.search input { border: none; outline:none; background:transparent; width: 220px; font-size:0.95rem; color:#0f172a; font-family: var(--font-sans); }
+.count-pill {
+    background: linear-gradient(90deg,#eef2ff 0%, #eefcfa 100%);
+    padding:6px 10px;
+    border-radius:999px;
+    font-weight:600;
+    color:var(--primary-600);
+    font-size:0.85rem;
+    border:1px solid rgba(37,99,235,0.08);
+}
+
+/* Buttons */
+.btn { display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius: 10px; font-weight:600; cursor:pointer; border:none; transition:all .12s ease; font-size:0.9rem; font-family: var(--font-sans); }
+.btn:active { transform:translateY(1px); }
+.btn-primary { background: linear-gradient(90deg,var(--primary) 0%, var(--primary-600) 100%); color:white; box-shadow: 0 6px 18px rgba(37,99,235,0.14); }
+.btn-ghost { background: transparent; color:var(--primary-600); border: 1px solid rgba(37,99,235,0.08); }
+.btn-sm { padding:6px 10px; border-radius:8px; font-size:0.85rem; }
+
+/* Card */
+.card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); overflow:hidden; border: 1px solid var(--border); }
+.card-header {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:1rem;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(255,255,255,0.5), var(--card));
+}
+.card-title { font-weight:700; color:#0f172a; margin:0; }
+.card-body { padding: 14px 18px; }
+
+/* Filters row */
+.filters { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+
+/* Table */
+.table-wrap { overflow:auto; }
+.table { width:100%; border-collapse: collapse; font-size:0.95rem; min-width:720px; font-family: var(--font-sans); }
+.table thead th { text-align:left; padding:12px 16px; font-weight:700; font-size:0.8rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.6px; background:transparent; position:sticky; top:0; z-index:1; }
+.table tbody td { padding:14px 16px; border-top:1px solid var(--border); vertical-align:middle; color:#111827; }
+.table tbody tr:hover { background: linear-gradient(90deg, rgba(37,99,235,0.03), rgba(37,99,235,0.02)); }
+
+/* Badges */
+.badge { display:inline-block; padding:6px 10px; border-radius:8px; font-weight:700; font-size:0.8rem; color:#fff; }
+.bg-success { background: var(--success); }
+.bg-warning { background: #f59e0b; }
+.bg-danger { background: var(--danger); }
+.bg-secondary { background: #6b7280; }
+.bg-info { background: #0ea5e9; }
+
+/* Action cell */
+.actions { display:flex; gap:8px; justify-content:flex-end; }
+
+/* Modals use Bootstrap classes; keep their look consistent with a subtle radius */
+.modal .modal-content { border-radius: 12px; }
+
+/* Responsive */
+@media (max-width:860px){
+    .search input { width: 120px; }
+    .table { min-width: 640px; }
+    .filters { flex-direction:column; align-items:stretch; }
 }
 </style>
 
-<div class="container-fluid py-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h4 class="fw-bold text-primary"><i class="fas fa-users me-2"></i>Registered Users</h4>
+<div class="container-fluid">
+    <div class="header">
         <div>
-            <button id="printUsersBtn" class="btn btn-outline-secondary btn-sm">
-                <i class="fas fa-print me-1"></i> Print
+            <h1>Registered Users</h1>
+            <div class="sub">Manage users — view, add, activate, or deactivate accounts</div>
+        </div>
+
+        <div class="controls" role="toolbar" aria-label="Registered users actions">
+            <div class="search" role="search" aria-label="Search registered users">
+                <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M21 21l-4.35-4.35" stroke="#6b7280" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <circle cx="11" cy="11" r="6" stroke="#6b7280" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <input id="filterInput" placeholder="Search name or email" aria-label="Search by name or email" />
+            </div>
+
+            <div class="count-pill" id="usersCount">— Users</div>
+
+            <button id="printUsersBtn" class="btn btn-ghost btn-sm" title="Print users list">
+                <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 9h12v6H6z" stroke="#1e40af" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Print
             </button>
-            <button id="addUserBtn" class="btn btn-primary btn-sm">
-                <i class="fas fa-user-plus me-1"></i> Add User
+
+            <button id="addUserBtn" class="btn btn-primary btn-sm" title="Add new user">
+                <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Add User
             </button>
         </div>
     </div>
 
-    <!-- Filter section -->
-    <div class="row mb-3">
-        <div class="col-md-4">
-            <input type="text" id="filterInput" class="form-control" placeholder="Search by name or email...">
+    <div class="card" role="region" aria-labelledby="usersCardHeader">
+        <div class="card-header" id="usersCardHeader">
+            <div class="card-title">Users Directory</div>
+            <div class="text-muted" style="font-size:0.9rem;">Live list — updates when filters change</div>
         </div>
-        <div class="col-md-3">
-            <select id="filterPurok" class="form-select">
-                <option value="">All Puroks</option>
-            </select>
-        </div>
-        <div class="col-md-3">
-            <select id="filterStatus" class="form-select">
-                <option value="">All Status</option>
-                <option value="approved">Approved</option>
-                <option value="pending">Pending</option>
-                <option value="suspended">Suspended</option>
-                <option value="rejected">Rejected</option>
-            </select>
-        </div>
-        <div class="col-md-2">
-            <button id="resetFilters" class="btn btn-outline-secondary w-100">
-                <i class="fas fa-redo me-1"></i> Reset
-            </button>
-        </div>
-    </div>
 
-    <!-- Table -->
-    <div class="table-responsive">
-        <table class="table table-bordered align-middle" id="usersTable">
-            <thead class="table-light">
-                <tr>
-                    <th>#</th>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Purok</th>
-                    <th>Status</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody><!-- AJAX will load rows here --></tbody>
-        </table>
+        <div class="card-body">
+            <div class="filters" style="margin-bottom:12px;">
+                <div style="min-width:160px;">
+                    <select id="filterPurok" class="form-select" aria-label="Filter by purok" style="border-radius:8px; padding:8px;">
+                        <option value="">All Puroks</option>
+                    </select>
+                </div>
+
+                <div style="min-width:160px;">
+                    <select id="filterStatus" class="form-select" aria-label="Filter by status" style="border-radius:8px; padding:8px;">
+                        <option value="">All Status</option>
+                        <option value="approved">Approved</option>
+                        <option value="pending">Pending</option>
+                        <option value="suspended">Suspended</option>
+                        <option value="rejected">Rejected</option>
+                    </select>
+                </div>
+
+                <div style="margin-left:auto;">
+                    <button id="resetFilters" class="btn btn-ghost btn-sm">Reset</button>
+                </div>
+            </div>
+
+            <div class="table-wrap">
+                <table class="table" id="usersTable" aria-describedby="usersCardHeader">
+                    <thead>
+                        <tr>
+                            <th style="width:6%;">#</th>
+                            <th style="width:28%;">Name</th>
+                            <th style="width:28%;">Email</th>
+                            <th style="width:10%;">Purok</th>
+                            <th style="width:12%;">Status</th>
+                            <th style="width:16%; text-align:right;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody><!-- AJAX will populate rows --></tbody>
+                </table>
+            </div>
+        </div>
     </div>
 </div>
 
-<!-- View User Modal -->
+<!-- View User Modal (keeps original Bootstrap markup, functionality preserved) -->
 <div class="modal fade" id="viewUserModal" tabindex="-1" aria-labelledby="viewUserLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
+            <div class="modal-header" style="background: linear-gradient(90deg,var(--primary), var(--primary-600)); color:white;">
                 <h5 class="modal-title" id="viewUserLabel"><i class="fas fa-user me-2"></i>User Details</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
@@ -136,11 +205,11 @@ body {
     </div>
 </div>
 
-<!-- Add User / Add Account Modal -->
+<!-- Add User Modal (original form preserved) -->
 <div class="modal fade" id="addUserModal" tabindex="-1" aria-labelledby="addUserLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
+            <div class="modal-header" style="background: linear-gradient(90deg,var(--primary), var(--primary-600)); color:white;">
                 <h5 class="modal-title" id="addUserLabel"><i class="fas fa-user-plus me-2"></i>Add User Account</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
@@ -179,6 +248,8 @@ body {
                         <div class="form-text">Minimum 6 characters</div>
                         <div class="invalid-feedback">Password must be at least 6 characters</div>
                     </div>
+
+                    <!-- Remainder of the form preserved as in original file -->
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label class="form-label">Contact Number <span class="text-danger">*</span></label>
@@ -196,6 +267,7 @@ body {
                             <div class="invalid-feedback">Please select a gender</div>
                         </div>
                     </div>
+
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label class="form-label">Age <span class="text-danger">*</span></label>
@@ -208,6 +280,7 @@ body {
                             <div class="invalid-feedback">Please enter a valid number (1-20)</div>
                         </div>
                     </div>
+
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label class="form-label">Purok <span class="text-danger">*</span></label>
@@ -225,7 +298,7 @@ body {
                             </select>
                         </div>
                     </div>
-                    <!-- Fixed Location (read-only for consistency) -->
+
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label class="form-label">Barangay</label>
@@ -236,6 +309,7 @@ body {
                             <input type="text" class="form-control" value="Dipaculao" readonly disabled>
                         </div>
                     </div>
+
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label class="form-label">Province</label>
@@ -246,8 +320,9 @@ body {
                             <input type="text" class="form-control" value="3203" readonly disabled>
                         </div>
                     </div>
+
                     <div class="text-end">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <button type="button" class="btn btn-ghost" data-bs-dismiss="modal">
                             <i class="fas fa-times me-1"></i>Cancel
                         </button>
                         <button type="submit" class="btn btn-primary">
@@ -290,6 +365,12 @@ function initRegisteredUsersPage() {
         filterSelect.appendChild(opt);
     }
 
+    // Update users count pill when table loads
+    function setUsersCount(count){
+        const el = document.getElementById('usersCount');
+        if(el) el.textContent = (count > 0 ? count + ' Users' : 'No Users');
+    }
+
     // Load users
     window.loadUsers = function(search='', purok='', status=''){
         console.log("🔍 Sending AJAX request with:", {search,purok,status});
@@ -303,6 +384,7 @@ function initRegisteredUsersPage() {
                 const tbody = $('#usersTable tbody'); tbody.empty();
                 if(!users || users.length===0){
                     tbody.html(`<tr><td colspan="6" class="text-center">No users found</td></tr>`);
+                    setUsersCount(0);
                     return;
                 }
                 users.forEach((user,index)=>{
@@ -329,7 +411,7 @@ function initRegisteredUsersPage() {
                             <td>${user.email}</td>
                             <td>${user.purok||'-'}</td>
                             <td><span class="badge bg-${badgeClass}">${user.status||'-'}</span></td>
-                            <td>
+                            <td class="actions">
                                 <button class="btn btn-sm btn-primary viewUserBtn" data-id="${user.id}" title="View user details">
                                     <i class="fas fa-eye"></i> View
                                 </button>
@@ -338,6 +420,7 @@ function initRegisteredUsersPage() {
                         </tr>
                     `);
                 });
+                setUsersCount(users.length);
             },
             error:function(xhr,status,error){
                 console.error("❌ AJAX Error:", status,error,xhr.responseText);

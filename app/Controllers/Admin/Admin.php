@@ -13,7 +13,6 @@ use Brevo\Client\Configuration;
 use Brevo\Client\Api\TransactionalEmailsApi;
 use Brevo\Client\Model\SendSmtpEmail;
 use GuzzleHttp\Client as GuzzleClient;
-// Optional Excel generation library
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Chart\Chart as XlsChart;
@@ -164,255 +163,7 @@ class Admin extends BaseController
         return view('admin/dashboard-content', $data);
     }
 
-    // Activity logs view (admin)
-    public function logs()
-    {
-        return view('admin/logs');
-    }
 
-    // JSON: latest admin logs
-    public function getLogs()
-    {
-        $limit = (int) ($this->request->getGet('limit') ?? 200);
-        $limit = max(1, min(500, $limit));
-        $model = new \App\Models\AdminActivityLogModel();
-        $builder = $model->where('actor_type', 'admin');
-
-        $action = trim($this->request->getGet('action') ?? '');
-        $method = trim($this->request->getGet('method') ?? '');
-        $actorId = (int) ($this->request->getGet('actor_id') ?? 0);
-        $logId = (int) ($this->request->getGet('log_id') ?? 0);
-        $q = trim($this->request->getGet('q') ?? '');
-        $start = trim($this->request->getGet('start') ?? '');
-        $end = trim($this->request->getGet('end') ?? '');
-
-        if ($actorId > 0) { $builder->where('actor_id', $actorId); }
-        if ($logId > 0) { $builder->where('id', $logId); }
-        if ($action !== '') { $builder->where('action', $action); }
-        if ($method !== '') { $builder->where('method', strtoupper($method)); }
-        if ($start !== '') { $builder->where('created_at >=', $start . ' 00:00:00'); }
-        if ($end !== '') { $builder->where('created_at <=', $end . ' 23:59:59'); }
-        if ($q !== '') {
-            // Search admin first/last name instead of route/resource/details
-            try {
-                $admModel = new \App\Models\AdminModel();
-                $matches = $admModel->groupStart()
-                    ->like('first_name', $q)
-                    ->orLike('last_name', $q)
-                    ->orLike("CONCAT(first_name, ' ', last_name)", $q)
-                ->groupEnd()
-                ->get()
-                ->getResultArray();
-                $ids = array_column($matches, 'id');
-                if (!empty($ids)) {
-                    $builder->whereIn('actor_id', $ids);
-                } else {
-                    // no matching admin names, ensure empty result
-                    $builder->where('actor_id', 0);
-                }
-            } catch (\Throwable $_) {
-                // fallback: return no results on error
-                $builder->where('actor_id', 0);
-            }
-        }
-        $rows = $builder->orderBy('id','DESC')->findAll($limit);
-        // Enrich rows with actor display name for admins to allow client to show friendly names
-        try {
-            foreach ($rows as &$rr) {
-                if (($rr['actor_type'] ?? '') === 'admin' && !empty($rr['actor_id'])) {
-                    $adm = $this->adminModel->find((int)$rr['actor_id']);
-                    if ($adm) {
-                        $rr['actor_name'] = trim(($adm['first_name'] ?? '') . ' ' . ($adm['last_name'] ?? ''));
-                    }
-                }
-            }
-            unset($rr);
-        } catch (\Throwable $_) {
-            // ignore enrichment errors
-        }
-        return $this->response->setJSON($rows);
-    }
-
-    // CSV export for admin logs (read-only)
-    public function exportLogs()
-    {
-        $model = new \App\Models\AdminActivityLogModel();
-        $builder = $model->where('actor_type', 'admin');
-        $action = trim($this->request->getGet('action') ?? '');
-        $method = trim($this->request->getGet('method') ?? '');
-        $actorId = (int) ($this->request->getGet('actor_id') ?? 0);
-        $logId = (int) ($this->request->getGet('log_id') ?? 0);
-        $q = trim($this->request->getGet('q') ?? '');
-        $start = trim($this->request->getGet('start') ?? '');
-        $end = trim($this->request->getGet('end') ?? '');
-        if ($actorId > 0) { $builder->where('actor_id', $actorId); }
-        if ($logId > 0) { $builder->where('id', $logId); }
-        if ($action !== '') { $builder->where('action', $action); }
-        if ($method !== '') { $builder->where('method', strtoupper($method)); }
-        if ($start !== '') { $builder->where('created_at >=', $start . ' 00:00:00'); }
-        if ($end !== '') { $builder->where('created_at <=', $end . ' 23:59:59'); }
-        if ($q !== '') {
-            // Search admin first/last name instead of route/resource/details for exports
-            try {
-                $admModel = new \App\Models\AdminModel();
-                $matches = $admModel->groupStart()
-                    ->like('first_name', $q)
-                    ->orLike('last_name', $q)
-                    ->orLike("CONCAT(first_name, ' ', last_name)", $q)
-                ->groupEnd()
-                ->get()
-                ->getResultArray();
-                $ids = array_column($matches, 'id');
-                if (!empty($ids)) {
-                    $builder->whereIn('actor_id', $ids);
-                } else {
-                    $builder->where('actor_id', 0);
-                }
-            } catch (\Throwable $_) {
-                $builder->where('actor_id', 0);
-            }
-        }
-
-        $rows = $builder->orderBy('id','DESC')->findAll(2000);
-        $fh = fopen('php://temp', 'w+');
-        // Determine requester type: only include raw JSON for superadmins
-        $session = session();
-        $isSuper = (bool) $session->get('is_superadmin_logged_in');
-
-        $headers = ['Time','Actor','Action','Method','Route','Resource','Performed By','Details Summary'];
-        if ($isSuper) $headers[] = 'Details (raw JSON)';
-        $headers = array_merge($headers, ['IP','User Agent','Logged Out']);
-        fputcsv($fh, $headers);
-        // For each log row, flatten inner actions into individual CSV rows
-        $superModel = null;
-        foreach ($rows as $r) {
-            // Determine performer display name from actor tables
-            $actorKey = ($r['actor_type'] ?? '') . '#' . ($r['actor_id'] ?? '');
-            $performedBy = $actorKey;
-            try {
-                if (($r['actor_type'] ?? '') === 'admin') {
-                    $adm = $this->adminModel->find((int)($r['actor_id'] ?? 0));
-                    if ($adm) $performedBy = trim(($adm['first_name'] ?? '') . ' ' . ($adm['last_name'] ?? '')) ?: $actorKey;
-                } elseif (($r['actor_type'] ?? '') === 'superadmin') {
-                    if ($superModel === null) $superModel = new \App\Models\SuperAdminModel();
-                    $sa = $superModel->find((int)($r['actor_id'] ?? 0));
-                    if ($sa) $performedBy = $sa['email'] ?? $actorKey;
-                }
-            } catch (\Throwable $_) {
-                // ignore and fallback to actorKey
-            }
-
-            if (!empty($r['details'])) {
-                $d = json_decode($r['details'], true);
-                // Session-merged details array
-                if (is_array($d) && isset($d[0]) && is_array($d[0]) && isset($d[0]['action'])) {
-                    foreach ($d as $act) {
-                        $time = $act['time'] ?? $r['created_at'] ?? '';
-                        // Prefix time with apostrophe to force CSV/Excel to treat as text (prevents #### display)
-                        if ($time !== '') $time = "'" . $time;
-                        $actName = $act['action'] ?? ($r['action'] ?? '');
-                        $method = $act['method'] ?? $r['method'] ?? '';
-                        $route = $act['route'] ?? $r['route'] ?? '';
-                        $resource = $act['resource'] ?? $r['resource'] ?? '';
-
-                        // Build details summary for this inner action
-                        $summaryParts = [];
-                        if (!empty($act['details'])) {
-                            $det = json_decode($act['details'], true);
-                            if (is_array($det)) {
-                                if (!empty($det['user_name'])) $summaryParts[] = 'User: ' . $det['user_name'];
-                                elseif (!empty($det['first_name']) || !empty($det['last_name'])) $summaryParts[] = 'User: ' . trim(($det['first_name'] ?? '') . ' ' . ($det['last_name'] ?? ''));
-                                elseif (!empty($det['id'])) $summaryParts[] = 'User ID: ' . $det['id'];
-                                if (!empty($det['reason'])) $summaryParts[] = 'Reason: ' . $det['reason'];
-                            }
-                        }
-                        if ($resource) $summaryParts[] = 'Resource: ' . $resource;
-                        $detailsSummary = implode('; ', $summaryParts);
-
-                        $row = [
-                            $time,
-                            $actorKey,
-                            $actName,
-                            $method,
-                            $route,
-                            $resource,
-                            $performedBy,
-                            $detailsSummary,
-                        ];
-                        if ($isSuper) $row[] = ($act['details'] ?? $r['details'] ?? '');
-                        $row = array_merge($row, [
-                            $r['ip_address'] ?? '',
-                            $r['user_agent'] ?? '',
-                            $r['logged_out_at'] ?? '',
-                        ]);
-                        fputcsv($fh, $row);
-                    }
-                    continue;
-                }
-                // Single-action details (not an array)
-                $time = $r['created_at'] ?? '';
-                if ($time !== '') $time = "'" . $time;
-                $actName = $r['action'] ?? '';
-                $method = $r['method'] ?? '';
-                $route = $r['route'] ?? '';
-                $resource = $r['resource'] ?? '';
-
-                $summaryParts = [];
-                $det = is_array($d) ? $d : [];
-                if (!empty($det['user_name'])) $summaryParts[] = 'User: ' . $det['user_name'];
-                elseif (!empty($det['first_name']) || !empty($det['last_name'])) $summaryParts[] = 'User: ' . trim(($det['first_name'] ?? '') . ' ' . ($det['last_name'] ?? ''));
-                elseif (!empty($det['id'])) $summaryParts[] = 'User ID: ' . ($det['id'] ?? '');
-                if (!empty($det['reason'])) $summaryParts[] = 'Reason: ' . $det['reason'];
-                if ($resource) $summaryParts[] = 'Resource: ' . $resource;
-                $detailsSummary = implode('; ', $summaryParts);
-
-                $row = [
-                    $time,
-                    $actorKey,
-                    $actName,
-                    $method,
-                    $route,
-                    $resource,
-                    $performedBy,
-                    $detailsSummary,
-                ];
-                if ($isSuper) $row[] = ($r['details'] ?? '');
-                $row = array_merge($row, [
-                    $r['ip_address'] ?? '',
-                    $r['user_agent'] ?? '',
-                    $r['logged_out_at'] ?? '',
-                ]);
-                fputcsv($fh, $row);
-                continue;
-            }
-
-            // If no details present, output a minimal row for the log
-            $row = [
-                ($r['created_at'] ? "'" . $r['created_at'] : ''),
-                $actorKey,
-                $r['action'] ?? '',
-                $r['method'] ?? '',
-                $r['route'] ?? '',
-                $r['resource'] ?? '',
-                $performedBy,
-                '',
-            ];
-            if ($isSuper) $row[] = ($r['details'] ?? '');
-            $row = array_merge($row, [
-                $r['ip_address'] ?? '',
-                $r['user_agent'] ?? '',
-                $r['logged_out_at'] ?? '',
-            ]);
-            fputcsv($fh, $row);
-        }
-        rewind($fh);
-        $csv = stream_get_contents($fh);
-        fclose($fh);
-        return $this->response
-            ->setHeader('Content-Type', 'text/csv')
-            ->setHeader('Content-Disposition', 'attachment; filename="admin-activity-logs.csv"')
-            ->setBody($csv);
-    }
 
     /**
      * Get dashboard statistics as JSON (optimized API endpoint)
@@ -511,6 +262,10 @@ class Admin extends BaseController
     // 💳 USER MANAGEMENT
     // ======================================================
 
+
+    //------------------REGISTERED USERS-----------------------------
+    
+    // Registered Users page (view)
     public function registeredUsers()
     {
         $users = $this->usersModel->getAllUsersWithInfo();
@@ -523,6 +278,142 @@ class Admin extends BaseController
         ];
 
         return view('admin/registeredUsers', $data);
+    }
+
+    // Add new user (AJAX)
+    public function addUser()
+    {
+        if (!$this->request->is('post')) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Invalid request method'
+            ]);
+        }
+
+        try {
+            helper(['text']);
+
+            $firstName     = trim((string)$this->request->getPost('first_name'));
+            $lastName      = trim((string)$this->request->getPost('last_name'));
+            $email         = trim((string)$this->request->getPost('email'));
+            $password      = (string)$this->request->getPost('password');
+            $phone         = trim((string)$this->request->getPost('phone'));
+            $gender        = trim((string)$this->request->getPost('gender'));
+            $age           = (int)$this->request->getPost('age');
+            $familyNumber  = (int)$this->request->getPost('family_number');
+            $purok         = trim((string)$this->request->getPost('purok'));
+            $status        = strtolower(trim((string)$this->request->getPost('status') ?? 'approved'));
+
+            $errors = [];
+            if (strlen($firstName) < 2) $errors['first_name'] = 'First name must be at least 2 characters';
+            if (strlen($lastName) < 2)  $errors['last_name']  = 'Last name must be at least 2 characters';
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors['email'] = 'Invalid email address';
+            if (strlen($password) < 6) $errors['password'] = 'Password must be at least 6 characters';
+            if ($purok === '' || !preg_match('/^\d+$/', $purok)) $errors['purok'] = 'Purok is required';
+            if ($phone === '') $errors['phone'] = 'Contact number is required';
+            if (!in_array($gender, ['Male','Female','Other'], true)) $errors['gender'] = 'Invalid gender';
+            if ($age < 1 || $age > 120) $errors['age'] = 'Age must be between 1 and 120';
+            if ($familyNumber < 1 || $familyNumber > 20) $errors['family_number'] = 'Family members must be between 1 and 20';
+
+            if (!empty($errors)) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors'  => $errors
+                ]);
+            }
+
+            // Normalize email to lowercase for consistent storage and comparison
+            $email = strtolower($email);
+
+            // Ensure email is unique (case-insensitive)
+            // Let CI escape the value so SQL is valid: generates LOWER(email) = 'value'
+            $existing = $this->usersModel->where('LOWER(email)', $email)->first();
+            if ($existing) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Email already exists',
+                    'errors'  => ['email' => 'Email is already registered']
+                ]);
+            }
+
+            // Normalize status and active flags
+            $allowedStatuses = ['pending','approved','suspended','rejected','inactive'];
+            if (!in_array($status, $allowedStatuses, true)) {
+                $status = 'approved';
+            }
+            $active = ($status === 'approved') ? 2 : 1; // keep consistent with existing code
+            $isVerified = ($status === 'approved') ? 1 : 0;
+
+            // Start DB transaction
+            $db = \Config\Database::connect();
+            $db->transStart();
+
+            // Create user
+            $userId = $this->usersModel->insert([
+                'email'            => $email,
+                'password'         => password_hash($password, PASSWORD_DEFAULT),
+                'status'           => $status,
+                'active'           => $active,
+                'is_verified'      => $isVerified,
+                'profile_complete' => 1,
+            ], true);
+
+            if (!$userId) {
+                $db->transRollback();
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Failed to create user account'
+                ]);
+            }
+
+            // Create user information using model validation rules
+            $infoResult = $this->userInfoModel->saveUserInfo($userId, [
+                'first_name'    => $firstName,
+                'last_name'     => $lastName,
+                'phone'         => $phone,
+                'gender'        => $gender,
+                'age'           => $age,
+                'family_number' => $familyNumber,
+                'purok'         => (int)$purok,
+                // Enforce fixed location for this deployment
+                'barangay'      => 'Borlongan',
+                'municipality'  => 'Dipaculao',
+                'province'      => 'Aurora',
+                'zipcode'       => '3203',
+            ]);
+
+            if (!$infoResult['success']) {
+                $db->transRollback();
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => $infoResult['message'] ?? 'Failed to save user info',
+                    'errors'  => $infoResult['errors'] ?? []
+                ]);
+            }
+
+            // Commit transaction
+            $db->transComplete();
+            if ($db->transStatus() === false) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Database transaction failed'
+                ]);
+            }
+
+            return $this->response->setJSON([
+                'success' => true,
+                'message' => 'User added successfully.',
+                'id' => (int)$userId
+            ]);
+
+        } catch (\Throwable $e) {
+            log_message('error', 'addUser error: ' . $e->getMessage());
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Server error: ' . $e->getMessage()
+            ]);
+        }
     }
 
     // Inactive Users page (view)
@@ -698,6 +589,10 @@ class Admin extends BaseController
         return $this->response->setJSON($result);
     }
 
+
+    //------------------VERIFY USER-----------------------------
+
+    // Pending Accounts page (view)
     public function pendingAccounts()
     {
         $usersModel = new \App\Models\UsersModel();
@@ -715,6 +610,7 @@ class Admin extends BaseController
         return view('admin/pendingAccounts', ['users' => $users]);
     }
 
+    // Get user details by ID (AJAX)
     public function getUser($id)
     {
         $userModel = new \App\Models\UsersModel();
@@ -744,144 +640,127 @@ class Admin extends BaseController
         ]);
     }
 
-    /**
-     * Add a new user account (AJAX)
-     * Expects: first_name, last_name, email, password, purok, status
-     */
-    public function addUser()
-    {
-        if (!$this->request->is('post')) {
-            return $this->response->setJSON([
-                'success' => false,
-                'message' => 'Invalid request method'
-            ]);
-        }
+    // Approve user account
+public function approve($id)
+{
+    if (!$id) return redirect()->back()->with('error', 'No user ID provided.');
 
-        try {
-            helper(['text']);
-
-            $firstName     = trim((string)$this->request->getPost('first_name'));
-            $lastName      = trim((string)$this->request->getPost('last_name'));
-            $email         = trim((string)$this->request->getPost('email'));
-            $password      = (string)$this->request->getPost('password');
-            $phone         = trim((string)$this->request->getPost('phone'));
-            $gender        = trim((string)$this->request->getPost('gender'));
-            $age           = (int)$this->request->getPost('age');
-            $familyNumber  = (int)$this->request->getPost('family_number');
-            $purok         = trim((string)$this->request->getPost('purok'));
-            $status        = strtolower(trim((string)$this->request->getPost('status') ?? 'approved'));
-
-            $errors = [];
-            if (strlen($firstName) < 2) $errors['first_name'] = 'First name must be at least 2 characters';
-            if (strlen($lastName) < 2)  $errors['last_name']  = 'Last name must be at least 2 characters';
-            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors['email'] = 'Invalid email address';
-            if (strlen($password) < 6) $errors['password'] = 'Password must be at least 6 characters';
-            if ($purok === '' || !preg_match('/^\d+$/', $purok)) $errors['purok'] = 'Purok is required';
-            if ($phone === '') $errors['phone'] = 'Contact number is required';
-            if (!in_array($gender, ['Male','Female','Other'], true)) $errors['gender'] = 'Invalid gender';
-            if ($age < 1 || $age > 120) $errors['age'] = 'Age must be between 1 and 120';
-            if ($familyNumber < 1 || $familyNumber > 20) $errors['family_number'] = 'Family members must be between 1 and 20';
-
-            if (!empty($errors)) {
-                return $this->response->setJSON([
-                    'success' => false,
-                    'message' => 'Validation failed',
-                    'errors'  => $errors
-                ]);
-            }
-
-            // Normalize email to lowercase for consistent storage and comparison
-            $email = strtolower($email);
-
-            // Ensure email is unique (case-insensitive)
-            // Let CI escape the value so SQL is valid: generates LOWER(email) = 'value'
-            $existing = $this->usersModel->where('LOWER(email)', $email)->first();
-            if ($existing) {
-                return $this->response->setJSON([
-                    'success' => false,
-                    'message' => 'Email already exists',
-                    'errors'  => ['email' => 'Email is already registered']
-                ]);
-            }
-
-            // Normalize status and active flags
-            $allowedStatuses = ['pending','approved','suspended','rejected','inactive'];
-            if (!in_array($status, $allowedStatuses, true)) {
-                $status = 'approved';
-            }
-            $active = ($status === 'approved') ? 2 : 1; // keep consistent with existing code
-            $isVerified = ($status === 'approved') ? 1 : 0;
-
-            // Start DB transaction
-            $db = \Config\Database::connect();
-            $db->transStart();
-
-            // Create user
-            $userId = $this->usersModel->insert([
-                'email'            => $email,
-                'password'         => password_hash($password, PASSWORD_DEFAULT),
-                'status'           => $status,
-                'active'           => $active,
-                'is_verified'      => $isVerified,
-                'profile_complete' => 1,
-            ], true);
-
-            if (!$userId) {
-                $db->transRollback();
-                return $this->response->setJSON([
-                    'success' => false,
-                    'message' => 'Failed to create user account'
-                ]);
-            }
-
-            // Create user information using model validation rules
-            $infoResult = $this->userInfoModel->saveUserInfo($userId, [
-                'first_name'    => $firstName,
-                'last_name'     => $lastName,
-                'phone'         => $phone,
-                'gender'        => $gender,
-                'age'           => $age,
-                'family_number' => $familyNumber,
-                'purok'         => (int)$purok,
-                // Enforce fixed location for this deployment
-                'barangay'      => 'Borlongan',
-                'municipality'  => 'Dipaculao',
-                'province'      => 'Aurora',
-                'zipcode'       => '3203',
-            ]);
-
-            if (!$infoResult['success']) {
-                $db->transRollback();
-                return $this->response->setJSON([
-                    'success' => false,
-                    'message' => $infoResult['message'] ?? 'Failed to save user info',
-                    'errors'  => $infoResult['errors'] ?? []
-                ]);
-            }
-
-            // Commit transaction
-            $db->transComplete();
-            if ($db->transStatus() === false) {
-                return $this->response->setJSON([
-                    'success' => false,
-                    'message' => 'Database transaction failed'
-                ]);
-            }
-
-            return $this->response->setJSON([
-                'success' => true,
-                'message' => 'User added successfully.',
-                'id' => (int)$userId
-            ]);
-
-        } catch (\Throwable $e) {
-            log_message('error', 'addUser error: ' . $e->getMessage());
-            return $this->response->setJSON([
-                'success' => false,
-                'message' => 'Server error: ' . $e->getMessage()
-            ]);
-        }
+    $user = $this->usersModel->find($id);
+    if (!$user) {
+        return redirect()->back()->with('error', 'User not found.');
     }
+
+    if ($this->usersModel->update($id, ['status' => 'approved', 'active' => 2])) {
+        // Get display name
+        try {
+            $info = $this->userInfoModel->getByUserId($id) ?? [];
+        } catch (\Throwable $_) {
+            $info = [];
+        }
+        $fullName = trim(($info['first_name'] ?? '') . ' ' . ($info['last_name'] ?? ''));
+        $displayName = $fullName ?: ($user['email'] ?? 'User');
+
+        // Prepare email values (escaped)
+        $siteUrl = rtrim(base_url(), '/');
+        $loginUrl = $siteUrl . '/login';
+        $fromEmail = getenv('SMTP_FROM') ?: getenv('MAIL_FROM') ?: (getenv('SMTP_USER') ?: 'no-reply@localhost');
+        $fromName  = getenv('MAIL_FROM_NAME') ?: getenv('SMTP_FROM_NAME') ?: 'Support';
+        $displayNameEsc = htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8');
+        $loginUrlEsc = htmlspecialchars($loginUrl, ENT_QUOTES, 'UTF-8');
+        $fromNameEsc = htmlspecialchars($fromName, ENT_QUOTES, 'UTF-8');
+
+        // Send approval email (non-blocking)
+        try {
+            $apiKey = getenv('BREVO_API_KEY') ?: null;
+            if ($apiKey) {
+                $config = \Brevo\Client\Configuration::getDefaultConfiguration()
+                    ->setApiKey('api-key', $apiKey);
+                $apiInstance = new \Brevo\Client\Api\TransactionalEmailsApi(new \GuzzleHttp\Client(), $config);
+
+                $subject = 'Your account has been approved';
+
+                $html = <<<HTML
+    <!doctype html>
+    <html>
+    <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    </head>
+    <body style="margin:0;padding:0;background:#f5f7fa;font-family:Poppins,Arial,sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+        <tr>
+        <td align="center" style="padding:24px 12px;">
+            <table width="600" cellpadding="0" cellspacing="0" role="presentation" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 4px 18px rgba(16,24,40,0.08);">
+            <tr>
+                <td style="padding:28px 32px 16px;">
+                <h2 style="margin:0 0 8px;font-weight:600;color:#111827;font-size:20px;">Account Approved</h2>
+                <p style="margin:0;color:#6b7280;">Hello {$displayNameEsc},</p>
+                </td>
+            </tr>
+            <tr>
+                <td style="padding:0 32px 24px;color:#374151;">
+                <p style="margin:0 0 12px;line-height:1.5;">We are pleased to let you know that your account has been approved by our administrator. You can now sign in using your registered email and password.</p>
+                <p style="margin:0 0 20px;">
+                    <a href="{$loginUrlEsc}" style="display:inline-block;padding:10px 18px;background:#2563eb;color:#ffffff;border-radius:6px;text-decoration:none;font-weight:600;">Sign in to your account</a>
+                </p>
+                <p style="margin:0;color:#9ca3af;font-size:12px;">If the button above does not work, copy and paste this link into your browser: {$loginUrlEsc}</p>
+                </td>
+            </tr>
+            <tr>
+                <td style="padding:16px 32px 28px;background:#f9fafb;color:#6b7280;font-size:12px;">
+                <div style="margin-bottom:6px;">Best regards,</div>
+                <div style="font-weight:600;color:#111827;">{$fromNameEsc}</div>
+                <div style="margin-top:8px;font-size:11px;color:#9ca3af;">This is an automated message. Please do not reply directly to this email.</div>
+                </td>
+            </tr>
+            </table>
+
+            <div style="max-width:600px;margin-top:12px;color:#9ca3af;font-size:12px;text-align:center;">
+            &copy; {$siteUrl} ' . date('Y') . '
+            </div>
+        </td>
+        </tr>
+    </table>
+    </body>
+    </html>
+    HTML;
+
+                $plain = "Hello {$displayName},\n\nYour account has been approved. You can sign in at: {$loginUrl}\n\nThis is an automated message.";
+
+                $email = new \Brevo\Client\Model\SendSmtpEmail([
+                    'subject' => $subject,
+                    'sender' => ['name' => $fromName, 'email' => $fromEmail],
+                    'to' => [['email' => $user['email'], 'name' => $displayName]],
+                    'htmlContent' => $html,
+                    'textContent' => $plain
+                ]);
+
+                $apiInstance->sendTransacEmail($email);
+            } else {
+                log_message('warning', 'BREVO_API_KEY not configured — skipping approval email for user ' . ($user['email'] ?? 'unknown'));
+            }
+        } catch (\Throwable $e) {
+            log_message('error', 'Approval email failed for user ' . ($user['email'] ?? 'unknown') . ': ' . $e->getMessage());
+        }
+
+        return redirect()->back()->with('success', 'User approved successfully.');
+    }
+
+    return redirect()->back()->with('error', 'Failed to approve user.');
+}
+    // Reject user account
+    public function reject($id)
+    {
+        if (!$id) return redirect()->back()->with('error', 'No user ID provided.');
+
+        if ($this->usersModel->update($id, ['status' => 'rejected'])) {
+            return redirect()->back()->with('success', 'User rejected successfully.');
+        }
+
+        return redirect()->back()->with('error', 'Failed to reject user.');
+    }
+
 
     // ======================================================
     // 💳 UTILITIES
@@ -2166,12 +2045,6 @@ class Admin extends BaseController
         }
     }
 
-
-
-
-
-
-
     // Billing Reports
     public function reports()
     {
@@ -2339,14 +2212,6 @@ class Admin extends BaseController
         }
         return view('admin/reports', $viewData);
     }
-
-
-
-
-
-
-
-
 
 
 
@@ -2566,27 +2431,6 @@ class Admin extends BaseController
         return redirect()->back()->with('success', 'User suspended successfully.');
     }
 
-    public function approve($id)
-    {
-        if (!$id) return redirect()->back()->with('error', 'No user ID provided.');
-
-        if ($this->usersModel->update($id, ['status' => 'approved', 'active' => 2])) {
-            return redirect()->back()->with('success', 'User approved successfully.');
-        }
-
-        return redirect()->back()->with('error', 'Failed to approve user.');
-    }
-
-    public function reject($id)
-    {
-        if (!$id) return redirect()->back()->with('error', 'No user ID provided.');
-
-        if ($this->usersModel->update($id, ['status' => 'rejected'])) {
-            return redirect()->back()->with('success', 'User rejected successfully.');
-        }
-
-        return redirect()->back()->with('error', 'Failed to reject user.');
-    }
 
     public function viewUser($id)
     {
@@ -2666,16 +2510,6 @@ class Admin extends BaseController
     public function announcements()
     {
         return view('admin/announcements', ['title' => 'Announcements']);
-    }
-
-    public function paymentSettings()
-    {
-        $data = [
-            'title' => 'Payment Settings',
-            'payment' => $this->paymentModel->first(),
-        ];
-
-        return view('admin/paymentSettings', $data);
     }
 
     public function updateQR()
@@ -2934,5 +2768,257 @@ class Admin extends BaseController
         session()->remove('pwd_otp_locked_until');
 
         return $this->response->setJSON(['success' => true, 'message' => 'Password changed successfully']);
+    }
+
+
+    // ---------------- Logs Functions ----------------
+        // Activity logs view (admin)
+    public function logs()
+    {
+        return view('admin/logs');
+    }
+
+    // JSON: latest admin logs
+    public function getLogs()
+    {
+        $limit = (int) ($this->request->getGet('limit') ?? 200);
+        $limit = max(1, min(500, $limit));
+        $model = new \App\Models\AdminActivityLogModel();
+        $builder = $model->where('actor_type', 'admin');
+
+        $action = trim($this->request->getGet('action') ?? '');
+        $method = trim($this->request->getGet('method') ?? '');
+        $actorId = (int) ($this->request->getGet('actor_id') ?? 0);
+        $logId = (int) ($this->request->getGet('log_id') ?? 0);
+        $q = trim($this->request->getGet('q') ?? '');
+        $start = trim($this->request->getGet('start') ?? '');
+        $end = trim($this->request->getGet('end') ?? '');
+
+        if ($actorId > 0) { $builder->where('actor_id', $actorId); }
+        if ($logId > 0) { $builder->where('id', $logId); }
+        if ($action !== '') { $builder->where('action', $action); }
+        if ($method !== '') { $builder->where('method', strtoupper($method)); }
+        if ($start !== '') { $builder->where('created_at >=', $start . ' 00:00:00'); }
+        if ($end !== '') { $builder->where('created_at <=', $end . ' 23:59:59'); }
+        if ($q !== '') {
+            // Search admin first/last name instead of route/resource/details
+            try {
+                $admModel = new \App\Models\AdminModel();
+                $matches = $admModel->groupStart()
+                    ->like('first_name', $q)
+                    ->orLike('last_name', $q)
+                    ->orLike("CONCAT(first_name, ' ', last_name)", $q)
+                ->groupEnd()
+                ->get()
+                ->getResultArray();
+                $ids = array_column($matches, 'id');
+                if (!empty($ids)) {
+                    $builder->whereIn('actor_id', $ids);
+                } else {
+                    // no matching admin names, ensure empty result
+                    $builder->where('actor_id', 0);
+                }
+            } catch (\Throwable $_) {
+                // fallback: return no results on error
+                $builder->where('actor_id', 0);
+            }
+        }
+        $rows = $builder->orderBy('id','DESC')->findAll($limit);
+        // Enrich rows with actor display name for admins to allow client to show friendly names
+        try {
+            foreach ($rows as &$rr) {
+                if (($rr['actor_type'] ?? '') === 'admin' && !empty($rr['actor_id'])) {
+                    $adm = $this->adminModel->find((int)$rr['actor_id']);
+                    if ($adm) {
+                        $rr['actor_name'] = trim(($adm['first_name'] ?? '') . ' ' . ($adm['last_name'] ?? ''));
+                    }
+                }
+            }
+            unset($rr);
+        } catch (\Throwable $_) {
+            // ignore enrichment errors
+        }
+        return $this->response->setJSON($rows);
+    }
+
+    // CSV export for admin logs (read-only)
+    public function exportLogs()
+    {
+        $model = new \App\Models\AdminActivityLogModel();
+        $builder = $model->where('actor_type', 'admin');
+        $action = trim($this->request->getGet('action') ?? '');
+        $method = trim($this->request->getGet('method') ?? '');
+        $actorId = (int) ($this->request->getGet('actor_id') ?? 0);
+        $logId = (int) ($this->request->getGet('log_id') ?? 0);
+        $q = trim($this->request->getGet('q') ?? '');
+        $start = trim($this->request->getGet('start') ?? '');
+        $end = trim($this->request->getGet('end') ?? '');
+        if ($actorId > 0) { $builder->where('actor_id', $actorId); }
+        if ($logId > 0) { $builder->where('id', $logId); }
+        if ($action !== '') { $builder->where('action', $action); }
+        if ($method !== '') { $builder->where('method', strtoupper($method)); }
+        if ($start !== '') { $builder->where('created_at >=', $start . ' 00:00:00'); }
+        if ($end !== '') { $builder->where('created_at <=', $end . ' 23:59:59'); }
+        if ($q !== '') {
+            // Search admin first/last name instead of route/resource/details for exports
+            try {
+                $admModel = new \App\Models\AdminModel();
+                $matches = $admModel->groupStart()
+                    ->like('first_name', $q)
+                    ->orLike('last_name', $q)
+                    ->orLike("CONCAT(first_name, ' ', last_name)", $q)
+                ->groupEnd()
+                ->get()
+                ->getResultArray();
+                $ids = array_column($matches, 'id');
+                if (!empty($ids)) {
+                    $builder->whereIn('actor_id', $ids);
+                } else {
+                    $builder->where('actor_id', 0);
+                }
+            } catch (\Throwable $_) {
+                $builder->where('actor_id', 0);
+            }
+        }
+
+        $rows = $builder->orderBy('id','DESC')->findAll(2000);
+        $fh = fopen('php://temp', 'w+');
+        // Determine requester type: only include raw JSON for superadmins
+        $session = session();
+        $isSuper = (bool) $session->get('is_superadmin_logged_in');
+
+        $headers = ['Time','Actor','Action','Method','Route','Resource','Performed By','Details Summary'];
+        if ($isSuper) $headers[] = 'Details (raw JSON)';
+        $headers = array_merge($headers, ['IP','User Agent','Logged Out']);
+        fputcsv($fh, $headers);
+        // For each log row, flatten inner actions into individual CSV rows
+        $superModel = null;
+        foreach ($rows as $r) {
+            // Determine performer display name from actor tables
+            $actorKey = ($r['actor_type'] ?? '') . '#' . ($r['actor_id'] ?? '');
+            $performedBy = $actorKey;
+            try {
+                if (($r['actor_type'] ?? '') === 'admin') {
+                    $adm = $this->adminModel->find((int)($r['actor_id'] ?? 0));
+                    if ($adm) $performedBy = trim(($adm['first_name'] ?? '') . ' ' . ($adm['last_name'] ?? '')) ?: $actorKey;
+                } elseif (($r['actor_type'] ?? '') === 'superadmin') {
+                    if ($superModel === null) $superModel = new \App\Models\SuperAdminModel();
+                    $sa = $superModel->find((int)($r['actor_id'] ?? 0));
+                    if ($sa) $performedBy = $sa['email'] ?? $actorKey;
+                }
+            } catch (\Throwable $_) {
+                // ignore and fallback to actorKey
+            }
+
+            if (!empty($r['details'])) {
+                $d = json_decode($r['details'], true);
+                // Session-merged details array
+                if (is_array($d) && isset($d[0]) && is_array($d[0]) && isset($d[0]['action'])) {
+                    foreach ($d as $act) {
+                        $time = $act['time'] ?? $r['created_at'] ?? '';
+                        // Prefix time with apostrophe to force CSV/Excel to treat as text (prevents #### display)
+                        if ($time !== '') $time = "'" . $time;
+                        $actName = $act['action'] ?? ($r['action'] ?? '');
+                        $method = $act['method'] ?? $r['method'] ?? '';
+                        $route = $act['route'] ?? $r['route'] ?? '';
+                        $resource = $act['resource'] ?? $r['resource'] ?? '';
+
+                        // Build details summary for this inner action
+                        $summaryParts = [];
+                        if (!empty($act['details'])) {
+                            $det = json_decode($act['details'], true);
+                            if (is_array($det)) {
+                                if (!empty($det['user_name'])) $summaryParts[] = 'User: ' . $det['user_name'];
+                                elseif (!empty($det['first_name']) || !empty($det['last_name'])) $summaryParts[] = 'User: ' . trim(($det['first_name'] ?? '') . ' ' . ($det['last_name'] ?? ''));
+                                elseif (!empty($det['id'])) $summaryParts[] = 'User ID: ' . $det['id'];
+                                if (!empty($det['reason'])) $summaryParts[] = 'Reason: ' . $det['reason'];
+                            }
+                        }
+                        if ($resource) $summaryParts[] = 'Resource: ' . $resource;
+                        $detailsSummary = implode('; ', $summaryParts);
+
+                        $row = [
+                            $time,
+                            $actorKey,
+                            $actName,
+                            $method,
+                            $route,
+                            $resource,
+                            $performedBy,
+                            $detailsSummary,
+                        ];
+                        if ($isSuper) $row[] = ($act['details'] ?? $r['details'] ?? '');
+                        $row = array_merge($row, [
+                            $r['ip_address'] ?? '',
+                            $r['user_agent'] ?? '',
+                            $r['logged_out_at'] ?? '',
+                        ]);
+                        fputcsv($fh, $row);
+                    }
+                    continue;
+                }
+                // Single-action details (not an array)
+                $time = $r['created_at'] ?? '';
+                if ($time !== '') $time = "'" . $time;
+                $actName = $r['action'] ?? '';
+                $method = $r['method'] ?? '';
+                $route = $r['route'] ?? '';
+                $resource = $r['resource'] ?? '';
+
+                $summaryParts = [];
+                $det = is_array($d) ? $d : [];
+                if (!empty($det['user_name'])) $summaryParts[] = 'User: ' . $det['user_name'];
+                elseif (!empty($det['first_name']) || !empty($det['last_name'])) $summaryParts[] = 'User: ' . trim(($det['first_name'] ?? '') . ' ' . ($det['last_name'] ?? ''));
+                elseif (!empty($det['id'])) $summaryParts[] = 'User ID: ' . ($det['id'] ?? '');
+                if (!empty($det['reason'])) $summaryParts[] = 'Reason: ' . $det['reason'];
+                if ($resource) $summaryParts[] = 'Resource: ' . $resource;
+                $detailsSummary = implode('; ', $summaryParts);
+
+                $row = [
+                    $time,
+                    $actorKey,
+                    $actName,
+                    $method,
+                    $route,
+                    $resource,
+                    $performedBy,
+                    $detailsSummary,
+                ];
+                if ($isSuper) $row[] = ($r['details'] ?? '');
+                $row = array_merge($row, [
+                    $r['ip_address'] ?? '',
+                    $r['user_agent'] ?? '',
+                    $r['logged_out_at'] ?? '',
+                ]);
+                fputcsv($fh, $row);
+                continue;
+            }
+
+            // If no details present, output a minimal row for the log
+            $row = [
+                ($r['created_at'] ? "'" . $r['created_at'] : ''),
+                $actorKey,
+                $r['action'] ?? '',
+                $r['method'] ?? '',
+                $r['route'] ?? '',
+                $r['resource'] ?? '',
+                $performedBy,
+                '',
+            ];
+            if ($isSuper) $row[] = ($r['details'] ?? '');
+            $row = array_merge($row, [
+                $r['ip_address'] ?? '',
+                $r['user_agent'] ?? '',
+                $r['logged_out_at'] ?? '',
+            ]);
+            fputcsv($fh, $row);
+        }
+        rewind($fh);
+        $csv = stream_get_contents($fh);
+        fclose($fh);
+        return $this->response
+            ->setHeader('Content-Type', 'text/csv')
+            ->setHeader('Content-Disposition', 'attachment; filename="admin-activity-logs.csv"')
+            ->setBody($csv);
     }
 }

@@ -73,7 +73,30 @@
             background-color: #f8f9fc;
         }
 
-        /* ===================================
+        /* Ensure footer remains at bottom of dashboard layout */
+html, body {
+  height: 100%;
+}
+
+.main-wrapper {
+  display: flex;           /* already present in your file, re-assert */
+  flex-direction: column;
+  min-height: 100vh;       /* already present as well, but keep it */
+}
+
+/* make main content grow and push footer down */
+.main-content {
+  flex: 1 0 auto;
+}
+
+/* ensure footer participates in flow and is pushed down */
+.footer {
+  margin-top: auto !important;
+  position: relative !important;
+  z-index: 2;
+}
+
+/* ===================================
            SIDEBAR TYPOGRAPHY
            =================================== */
 
