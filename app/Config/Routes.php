@@ -185,6 +185,12 @@ $routes->get('getFailedPaymentsData', 'Admin::getFailedPaymentsData');// Get Fai
         $routes->get('view/(:num)', 'Billing::view/$1');
         $routes->post('addBill/(:num)', 'Billing::addBill/$1');
         $routes->get('paidBills', 'Billing::paidBills');
+        // Suspended users & overdue bills (placed before billing catch-all to avoid route collision)
+        $routes->get('suspendedUsers', 'Admin::suspendedUsers');
+        $routes->get('getSuspendedUsers', 'Admin::getSuspendedUsers');
+        $routes->get('overdueBills', 'Admin::overdueBills');
+        $routes->get('getOverdueBills', 'Admin::getOverdueBills');
+        $routes->post('markBillPaid/(:num)', 'Admin::markBillPaid/$1');
         $routes->get('(:segment)', 'Billing::show/$1');
         $routes->post('editBill/(:num)', 'Billing::editBill/$1');
        $routes->post('update-status/(:num)', 'Billing::updateStatus/$1');
