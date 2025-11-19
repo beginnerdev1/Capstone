@@ -443,7 +443,7 @@ function initTransactionPage() {
     const gcashModal = document.getElementById('gcashModal');
     const confirmGCashForm = document.getElementById('confirmGCashForm');
     const exportBtn = document.getElementById('exportBtn');
-
+    
     let paymentsData = [];
     const currentMonth = new Date().toISOString().slice(0, 7);
     let currentPage = 1;
