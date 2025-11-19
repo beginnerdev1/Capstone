@@ -65,6 +65,23 @@ html, body { margin:0; font-family: var(--font-sans); background: linear-gradien
     .table { min-width:640px; }
     .form-row { flex-direction:column; align-items:stretch; }
 }
+
+/* Small screens: make table rows behave like cards for better readability */
+@media (max-width:720px){
+  .container-fluid { padding: 12px; }
+  .controls { flex-direction:column; align-items:stretch; gap:8px; }
+  .search { width:100%; }
+  .search input { width:100%; }
+
+  .table { border:0; min-width:100%; }
+  .table thead { display:none; }
+  .table tbody { display:block; }
+  .table tbody tr { display:block; border:1px solid var(--border); border-radius:10px; margin-bottom:12px; padding:10px; background:var(--card); }
+  .table tbody td { display:flex; justify-content:space-between; padding:8px 6px; border-top:0; }
+  .table tbody td:before { content: attr(data-label); color:var(--muted); font-weight:600; margin-right:8px; display:inline-block; min-width:90px; }
+  .table tbody td:last-child { margin-top:6px; }
+  .table-wrap { overflow:visible; }
+}
 </style>
 
 <div class="container-fluid" aria-live="polite">
@@ -219,13 +236,13 @@ html, body { margin:0; font-family: var(--font-sans); background: linear-gradien
         const name = `${r.first_name || ''} ${r.last_name || ''}`.trim();
         const tr = $(
           `<tr>
-            <td>${idx+1}</td>
-            <td>${name}</td>
-            <td>${r.email || ''}</td>
-            <td>${r.phone || ''}</td>
-            <td>${r.purok || ''}</td>
-            <td>${r.inactivated_at || ''}</td>
-            <td style="text-align:right;">
+            <td data-label="#">${idx+1}</td>
+            <td data-label="Name">${name}</td>
+            <td data-label="Email">${r.email || ''}</td>
+            <td data-label="Phone">${r.phone || ''}</td>
+            <td data-label="Purok">${r.purok || ''}</td>
+            <td data-label="Inactivated">${r.inactivated_at || ''}</td>
+            <td data-label="Actions" style="text-align:right;">
               <button class="btn btn-sm btn-outline btn-sm view-archived me-1" data-id="${r.inactive_id}">Archived Bills</button>
               <button class="btn btn-sm btn-primary reactivate" data-user-id="${r.user_id}">Reactivate</button>
             </td>
