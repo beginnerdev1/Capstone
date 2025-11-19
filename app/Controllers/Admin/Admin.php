@@ -3067,6 +3067,76 @@ public function rejectGCashPayment()
     ]);
 }
 
+     // ---------------- Overdue Functions ----------------
+   
+    // Show overdue payments page
+     public function overduePayments()
+    {
+        return view('admin/overdue_payments');
+    }
+
+    // Get overdue payments data (AJAX)
+    public function getOverduePaymentsData()
+    {
+        $month = $this->request->getGet('month') ?? date('Y-m');
+        $search = $this->request->getGet('search') ?? '';
+        $page = max(1, (int) $this->request->getGet('page'));
+        $perPage = 20;
+        $offset = ($page - 1) * $perPage;
+
+        $billingModel = new \App\Models\BillingModel();
+
+        // Build query for overdue bills
+        $builder = $billingModel->db->table('billings b')
+            ->select('b.*, u.email, ui.first_name, ui.last_name')
+            ->join('users u', 'u.id = b.user_id', 'left')
+            ->join('user_information ui', 'ui.user_id = u.id', 'left')
+            ->where('b.status', 'Pending')
+            ->where('b.paid_date IS NULL')
+            ->where('DATE_FORMAT(b.billing_month, "%Y-%m") <=', $month);
+
+        if ($search !== '') {
+            $builder->groupStart()
+                ->like('ui.first_name', $search)
+                ->orLike('ui.last_name', $search)
+                ->orLike('u.email', $search)
+                ->orLike('b.bill_no', $search)
+                ->groupEnd();
+        }
+
+        $total = $builder->countAllResults(false);
+        $rows = $builder->orderBy('b.billing_month', 'ASC')->limit($perPage, $offset)->get()->getResultArray();
+
+        $payments = array_map(function($b) {
+            return [
+                'user_name' => trim(($b['first_name'] ?? '') . ' ' . ($b['last_name'] ?? '')),
+                'email' => $b['email'] ?? '',
+                'amount_due' => $b['amount_due'],
+                'billing_month' => $b['billing_month'],
+                'due_date' => $b['due_date'],
+                'status' => 'Overdue',
+                'bill_no' => $b['bill_no'],
+            ];
+        }, $rows);
+
+        $stats = [
+            'total_users' => count(array_unique(array_column($rows, 'user_id'))),
+            'total_amount' => array_sum(array_column($rows, 'amount_due')),
+        ];
+
+        return $this->response->setJSON([
+            'payments' => $payments,
+            'stats' => $stats,
+            'pagination' => [
+                'total' => $total,
+                'page' => $page,
+                'perPage' => $perPage,
+            ],
+            'success' => true,
+        ]);
+    }
+
+
     // ---------------- Account Functions ----------------
 
     // Edit user/admin profile

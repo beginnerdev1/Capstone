@@ -710,6 +710,7 @@ html, body {
             <a href="<?= base_url('admin/transactionRecords') ?>" class="collapse-item ajax-link">Transactions</a>
             <a href="<?= base_url('admin/billingManagement') ?>" class="collapse-item ajax-link">Billing Management</a>
             <a href="<?= base_url('admin/failedTransactions') ?>" class="collapse-item ajax-link">Failed Transactions</a>
+            <a href="<?= base_url('admin/overduePayments') ?>" class="collapse-item ajax-link">Overdue Payments</a>
 
 
            <a href="<?= base_url('admin/edit-profile') ?>" class="collapse-item ajax-link">Edit Profile</a>

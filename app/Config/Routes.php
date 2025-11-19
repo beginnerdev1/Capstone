@@ -140,7 +140,8 @@ $routes->post('createManualBilling', 'Admin::createManualBilling'); // Create Ma
 $routes->post('rejectGCashPayment', 'Admin::rejectGCashPayment'); // Reject GCash Payment   
 $routes->get('failedTransactions', 'Admin::failedTransactions'); // Failed Transactions Page
 $routes->get('getFailedPaymentsData', 'Admin::getFailedPaymentsData');// Get Failed Payments Data for Failed Transactions Page
-
+$routes->get('overduePayments', 'Admin::overduePayments'); // Overdue Payments Page
+$routes->get('getOverduePaymentsData', 'Admin::getOverduePaymentsData');// Get Overdue Payments Data for Overdue Payments Page
 
 
         $routes->post('approve/(:num)', 'Admin::approve/$1');

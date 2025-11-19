@@ -90,48 +90,33 @@ class BillingModel extends Model
     /**
      * Get pending billings for a specific user and month
      */
-    public function getPendingBillingsByUserAndMonth($userId, $month = null)
-    {
-        try {
-            // Validate user ID
-            if (empty($userId) || !is_numeric($userId)) {
-                log_message('error', "Invalid user ID provided: " . var_export($userId, true));
-                return [];
-            }
-
-            $builder = $this->db->table('billings');
-            $builder->where('user_id', (int)$userId);
-            
-            // ✅ FIX: Use 'Pending' with capital P to match ENUM values
-            $builder->where('status', 'Pending');
-
-            if ($month) {
-                // Handle different month formats
-                if (preg_match('/^\d{4}-\d{2}$/', $month)) {
-                    // YYYY-MM format
-                    $builder->where('billing_month', $month);
-                } elseif (preg_match('/^\d{4}-\d{2}-\d{2}$/', $month)) {
-                    // YYYY-MM-DD format - extract year-month part
-                    $yearMonth = substr($month, 0, 7);
-                    $builder->where('billing_month', $yearMonth);
-                } else {
-                    log_message('warning', "Invalid month format provided: {$month}");
-                }
-            }
-
-            // Add order by to get most recent first
-            $builder->orderBy('created_at', 'DESC');
-
-            $result = $builder->get()->getResultArray();
-            
-            // Debug logging
-            log_message('info', "getPendingBillings - UserID: {$userId}, Month: {$month}, Found: " . count($result) . " billings");
-            
-            return $result;
-
-        } catch (\Exception $e) {
-            log_message('error', "BillingModel getPendingBillingsByUserAndMonth error: " . $e->getMessage());
+public function getPendingBillingsByUserAndMonth($userId, $month = null)
+{
+    try {
+        if (empty($userId) || !is_numeric($userId)) {
+            log_message('error', "Invalid user ID provided: " . var_export($userId, true));
             return [];
         }
+
+        $builder = $this->db->table('billings');
+        $builder->where('user_id', (int)$userId);
+        $builder->where('status', 'Pending');
+        $builder->where('paid_date IS NULL'); // Only unpaid bills
+
+        if ($month && preg_match('/^\d{4}-\d{2}$/', $month)) {
+            // Show bills for the selected month and all previous months
+            $builder->where('DATE_FORMAT(billing_month, "%Y-%m") <=', $month);
+        }
+
+        $builder->orderBy('billing_month', 'ASC');
+        $result = $builder->get()->getResultArray();
+
+        log_message('info', "getPendingBillings - UserID: {$userId}, Month: {$month}, Found: " . count($result) . " billings");
+        return $result;
+
+    } catch (\Exception $e) {
+        log_message('error', "BillingModel getPendingBillingsByUserAndMonth error: " . $e->getMessage());
+        return [];
     }
+}
 }
