@@ -691,6 +691,7 @@ html, body {
                 <a href="<?= base_url('admin/registeredUsers') ?>" class="collapse-item ajax-link">All Users</a>
                 <a href="<?= base_url('admin/pendingAccounts') ?>" class="collapse-item ajax-link">Verify User</a>
                 <a href="<?= base_url('admin/inactiveUsers') ?>" class="collapse-item ajax-link">Inactive Users</a>
+                <a href="<?= base_url('admin/suspendedUsers') ?>" class="collapse-item ajax-link">Suspended Users</a>
 
         </div>
       </div>
@@ -707,6 +708,7 @@ html, body {
         <div class="py-2 collapse-inner">
           <h6 class="collapse-header">Custom Utilities:</h6>
             <a href="<?= base_url('admin/gcash-settings') ?>" class="collapse-item ajax-link">Gcash Settings</a>
+            <a href="<?= base_url('admin/overdueBills') ?>" class="collapse-item ajax-link">Overdue Bills</a>
             <a href="<?= base_url('admin/transactionRecords') ?>" class="collapse-item ajax-link">Transactions</a>
             <a href="<?= base_url('admin/billingManagement') ?>" class="collapse-item ajax-link">Billing Management</a>
             <a href="<?= base_url('admin/failedTransactions') ?>" class="collapse-item ajax-link">Failed Transactions</a>

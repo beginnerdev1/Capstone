@@ -483,6 +483,139 @@ class Admin extends BaseController
         return $this->response->setJSON($out);
     }
 
+    // Suspended Users page (view)
+    public function suspendedUsers()
+    {
+        return view('admin/suspended_users');
+    }
+
+    // Fetch suspended users (AJAX)
+    public function getSuspendedUsers()
+    {
+        $search = trim((string)$this->request->getGet('search'));
+        $role   = trim((string)$this->request->getGet('role'));
+        $from   = trim((string)$this->request->getGet('from'));
+        $to     = trim((string)$this->request->getGet('to'));
+
+        $db = \Config\Database::connect();
+        $builder = $db->table('users u')
+            ->select('u.id, u.email, u.active, u.status, u.updated_at, ui.first_name, ui.last_name, ui.phone, ui.purok')
+            ->join('user_information ui', 'ui.user_id = u.id', 'left')
+            ->groupStart()
+                ->where('u.status', 'suspended')
+                ->orWhere('u.active', -1)
+            ->groupEnd();
+
+        if ($search !== '') {
+            $builder->groupStart()
+                ->like('u.email', $search)
+                ->orLike('ui.first_name', $search)
+                ->orLike('ui.last_name', $search)
+                ->groupEnd();
+        }
+        // Note: user role is not stored in schema; ignore `role` filter if provided.
+        if ($from !== '' && $to !== '') {
+            $builder->where('DATE(u.updated_at) >=', $from)
+                    ->where('DATE(u.updated_at) <=', $to);
+        }
+
+        // Pagination
+        $page = max(1, (int)($this->request->getGet('page') ?? 1));
+        $limit = max(10, (int)($this->request->getGet('limit') ?? 20));
+        $offset = ($page - 1) * $limit;
+
+        $total = (int)$builder->countAllResults(false);
+        $rows = $builder->orderBy('u.updated_at', 'DESC')->limit($limit, $offset)->get()->getResultArray();
+
+        return $this->response->setJSON([
+            'data' => $rows,
+            'meta' => ['total' => $total, 'page' => $page, 'per_page' => $limit]
+        ]);
+    }
+
+    // Overdue Bills page (view)
+    public function overdueBills()
+    {
+        return view('admin/overdue_bills');
+    }
+
+    // Fetch overdue bills (AJAX)
+    public function getOverdueBills()
+    {
+        $search = trim((string)$this->request->getGet('search'));
+        $minDays = (int)$this->request->getGet('min_days');
+        $from = trim((string)$this->request->getGet('from'));
+        $to = trim((string)$this->request->getGet('to'));
+
+        $db = \Config\Database::connect();
+        $builder = $db->table('billings b')
+            ->select('b.id, b.bill_no, b.user_id, b.billing_month, b.due_date, b.amount_due, b.status, u.email, ui.first_name, ui.last_name')
+            ->join('users u', 'u.id = b.user_id', 'left')
+            ->join('user_information ui', 'ui.user_id = u.id', 'left')
+            ->where('DATE(b.due_date) <', date('Y-m-d'))
+            ->where('b.status <>', 'Paid');
+
+        if ($search !== '') {
+            $builder->groupStart()
+                ->like('b.bill_no', $search)
+                ->orLike('u.email', $search)
+                ->orLike('ui.first_name', $search)
+                ->orLike('ui.last_name', $search)
+                ->groupEnd();
+        }
+        if ($from !== '' && $to !== '') {
+            $builder->where('DATE(b.due_date) >=', $from)
+                    ->where('DATE(b.due_date) <=', $to);
+        }
+        if ($minDays > 0) {
+            $builder->where('DATEDIFF(CURDATE(), b.due_date) >=', $minDays);
+        }
+
+        // Pagination
+        $page = max(1, (int)($this->request->getGet('page') ?? 1));
+        $limit = max(10, (int)($this->request->getGet('limit') ?? 20));
+        $offset = ($page - 1) * $limit;
+
+        $total = (int)$builder->countAllResults(false);
+        $rows = $builder->orderBy('b.due_date', 'ASC')->limit($limit, $offset)->get()->getResultArray();
+
+        // add days_overdue for convenience
+        $today = strtotime(date('Y-m-d'));
+        foreach ($rows as &$r) {
+            $due = $r['due_date'] ?? null;
+            $dueTs = $due ? strtotime($due) : null;
+            $days = ($dueTs !== null) ? (int)floor(($today - $dueTs) / 86400) : 0;
+            $r['days_overdue'] = $days > 0 ? $days : 0;
+            // compute a display status without changing DB: if still pending but past due, treat as overdue for display
+            $status = strtolower(trim($r['status'] ?? ''));
+            if ($status === 'pending' && $dueTs !== null && $today > $dueTs) {
+                $r['display_status'] = 'overdue';
+            } else {
+                $r['display_status'] = $r['status'];
+            }
+        }
+
+        return $this->response->setJSON([
+            'data' => $rows,
+            'meta' => ['total' => $total, 'page' => $page, 'per_page' => $limit]
+        ]);
+    }
+
+    // Mark a bill as paid (AJAX)
+    public function markBillPaid($id)
+    {
+        try {
+            $ok = $this->billingModel->updateBillingStatus((int)$id, 'Paid');
+            if ($ok) {
+                return $this->response->setJSON(['success' => true]);
+            }
+            return $this->response->setJSON(['success' => false, 'message' => 'Failed to update billing']);
+        } catch (\Throwable $e) {
+            log_message('error', 'markBillPaid error: ' . $e->getMessage());
+            return $this->response->setJSON(['success' => false, 'message' => 'Server error']);
+        }
+    }
+
     // Reactivate user (AJAX)
     public function reactivateUser($id)
     {
