@@ -722,42 +722,6 @@ html, body {
 
     <div class="sidebar-divider"></div>
 
-    <div class="sidebar-heading">Addons</div>
-
-    <li class="nav-item">
-      <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapsePages"
-         aria-expanded="false" aria-controls="collapsePages">
-        <i class="fas fa-folder"></i>
-        <span>Pages</span>
-        <i class="fas fa-chevron-right arrow"></i>
-      </a>
-      <div id="collapsePages" class="collapse" aria-labelledby="headingPages" data-parent="#accordionSidebar">
-        <div class="py-2 collapse-inner">
-          <div class="collapse-header">Login Screens:</div>
-          <a href="#" class="collapse-item">Login</a>
-          <a href="#" class="collapse-item">Register</a>
-          <a href="#" class="collapse-item">Forgot Password</a>
-          <hr style="margin: 0.5rem 0; border: none; height: 1px; background: rgba(255,255,255,0.2);">
-          <div class="collapse-header">Other Pages:</div>
-          <a href="#" class="collapse-item">404 Page</a>
-          <a href="#" class="collapse-item">Blank Page</a>
-        </div>
-      </div>
-    </li>
-
-    <li class="nav-item">
-      <a href="#" class="nav-link">
-        <i class="fas fa-chart-area"></i>
-        <span>Charts</span>
-      </a>
-    </li>
-
-    <li class="nav-item">
-      <a href="#" class="nav-link">
-        <i class="fas fa-table"></i>
-        <span>Tables</span>
-      </a>
-    </li>
 
     <li class="nav-item">
         <a href="<?= base_url('admin/logs') ?>" class="nav-link ajax-link">

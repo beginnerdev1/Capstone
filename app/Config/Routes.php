@@ -205,16 +205,21 @@ $routes->get('getFailedPaymentsData', 'Admin::getFailedPaymentsData');// Get Fai
 $routes->group('superadmin', ['namespace' => 'App\Controllers'], function ($routes) {
     $routes->get('login', 'SuperAdminAuth::loginForm', ['filter' => 'superadminguest']);
     $routes->post('login', 'SuperAdminAuth::login', ['filter' => 'superadminguest']);
+    // Change password for superadmin (allow even when force_password_change is set)
+    $routes->get('change-password', 'SuperAdminAuth::changePassword', ['filter' => 'superadminauth']);
+    $routes->post('setPassword', 'SuperAdminAuth::setPassword', ['filter' => 'superadminauth']);
     $routes->get('check-code', 'SuperAdminAuth::checkCodeForm', ['filter' => 'superadminguest']);
     $routes->post('check-code', 'SuperAdminAuth::checkCode', ['filter' => 'superadminguest']);
     
-    $routes->group('', ['filter' => 'superadminauth'], function ($routes) {
+    $routes->group('', ['filter' => ['superadminauth','forcepasswordchange']], function ($routes) {
         $routes->get('/', 'SuperAdmin::index');
         $routes->get('dashboard', 'SuperAdmin::index');
         $routes->get('dashboard-content', 'SuperAdmin::content');
         $routes->get('content', 'SuperAdmin::content');
         $routes->get('users', 'SuperAdmin::users');
         $routes->get('settings', 'SuperAdmin::settings');
+        $routes->get('backup', 'SuperAdmin::backup');
+        $routes->post('backup', 'SuperAdmin::backup');
         $routes->get('logs', 'SuperAdmin::logs');
         $routes->get('getLogs', 'SuperAdmin::getLogs');
         $routes->get('exportLogs', 'SuperAdmin::exportLogs');

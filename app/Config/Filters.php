@@ -115,7 +115,8 @@ class Filters extends BaseFilters
     public array $filters = [
         'forcepasswordchange' => [
             'before' => [
-                'admin/*', // Apply to all admin routes
+                'admin',
+                'admin/*', // Apply to admin routes and root
             ],
             'except' => [
                 'admin/change-password',

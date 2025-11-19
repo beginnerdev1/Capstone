@@ -4,6 +4,8 @@ namespace App\Controllers;
 
 use CodeIgniter\Controller;
 use App\Models\AdminModel;
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
 
 
 
@@ -102,7 +104,24 @@ class SuperAdmin extends Controller
         ];
 
         $insertId = $model->insert($data);
-        if ($insertId) return $this->response->setJSON(['status'=>'success','message'=>'Super admin created']);
+        if ($insertId) {
+            // Send notification email to the new super admin (if email provided)
+            try {
+                $fromEmail = getenv('SMTP_FROM') ?: (getenv('SMTP_USER') ?: 'no-reply@localhost');
+                $fromName  = getenv('MAIL_FROM_NAME') ?: getenv('SMTP_FROM_NAME') ?: 'Support';
+                $subject = 'Your Super Admin Account has been created';
+                $loginUrl = site_url('superadmin/login');
+                $html = "<p>Hello " . esc($firstName) . ",</p>" .
+                    "<p>Your super admin account has been created.</p>" .
+                    "<p><strong>Email:</strong> " . esc($email) . "</p>" .
+                    "<p>Please log in at <a href=\"{$loginUrl}\">{$loginUrl}</a>. For security, change your password after first login.</p>";
+                $this->sendEmail($email, trim($firstName . ' ' . $lastName), $subject, $html);
+            } catch (\Exception $e) {
+                // swallow email errors but continue
+            }
+
+            return $this->response->setJSON(['status'=>'success','message'=>'Super admin created']);
+        }
         return $this->response->setJSON(['status'=>'error','message'=>'Failed to create super admin']);
     }
 
@@ -110,19 +129,53 @@ class SuperAdmin extends Controller
     public function retireSuperAdmin()
     {
         $id = (int) ($this->request->getPost('id') ?? 0);
+        $providedCode = trim($this->request->getPost('admin_code') ?? '');
         $current = session()->get('superadmin_id');
         if (!$current) return $this->response->setJSON(['status'=>'error','message'=>'Not authenticated']);
         if (!$id) return $this->response->setJSON(['status'=>'error','message'=>'Missing target id']);
+        if ($id === $current) return $this->response->setJSON(['status'=>'error','message'=>'You cannot retire your own account']);
+
+        // Require current superadmin to confirm with their admin_code
+        if ($providedCode === '') {
+            return $this->response->setJSON(['status' => 'error', 'message' => 'Admin code required for confirmation']);
+        }
+
         $model = new \App\Models\SuperAdminModel();
+        $currentRow = $model->find($current);
+        if (!$currentRow || empty($currentRow['admin_code']) || $currentRow['admin_code'] !== $providedCode) {
+            return $this->response->setJSON(['status' => 'error', 'message' => 'Invalid admin code']);
+        }
+
         $target = $model->find($id);
         if (!$target) return $this->response->setJSON(['status'=>'error','message'=>'Target not found']);
         if (!empty($target['is_primary'])) return $this->response->setJSON(['status'=>'error','message'=>'Cannot delete primary super admin']);
-        if ($id === $current) return $this->response->setJSON(['status'=>'error','message'=>'You cannot retire your own account']);
 
         $actionModel = new \App\Models\SuperAdminActionModel();
         $payload = ['target_id'=>$id];
         $aid = $actionModel->createAction('delete', $payload, $current);
-        if ($aid) return $this->response->setJSON(['status'=>'pending','message'=>'Retire proposed, awaiting approval','action_id'=>$aid]);
+        if ($aid) {
+            // Send confirmation to the acting superadmin (who proposed)
+            try {
+                $actorEmail = $currentRow['email'] ?? '';
+                if (!empty($actorEmail)) {
+                    $actorName = trim(($currentRow['first_name'] ?? '') . ' ' . ($currentRow['last_name'] ?? '')) ?: $actorEmail;
+                    $targetName = trim(($target['first_name'] ?? '') . ' ' . ($target['last_name'] ?? '')) ?: ($target['email'] ?? 'superadmin#'.$id);
+                    $time = date('Y-m-d H:i:s');
+                    $html = view('emails/action_confirmation', [
+                        'recipientName' => $actorName,
+                        'actionLabel'   => 'Proposed SuperAdmin Deletion',
+                        'targetName'    => $targetName,
+                        'targetEmail'   => $target['email'] ?? '',
+                        'time'          => $time,
+                        'actionId'      => $aid,
+                        'phase'         => 'proposed',
+                    ]);
+                    $this->sendEmail($actorEmail, $actorName, 'SuperAdmin Deletion Proposed', $html);
+                }
+            } catch (\Exception $_) { }
+
+            return $this->response->setJSON(['status'=>'pending','message'=>'Retire proposed, awaiting approval','action_id'=>$aid]);
+        }
         return $this->response->setJSON(['status'=>'error','message'=>'Failed to propose retire']);
     }
 
@@ -154,8 +207,53 @@ class SuperAdmin extends Controller
             if (!$target) return $this->response->setJSON(['status'=>'error','message'=>'Target not found']);
             if (!empty($target['is_primary'])) return $this->response->setJSON(['status'=>'error','message'=>'Cannot delete primary super admin']);
             $model->delete($targetId);
+
+            // Notify the deleted superadmin (best-effort)
+            try {
+                $targetEmail = $target['email'] ?? '';
+                if (!empty($targetEmail)) {
+                    $targetName = trim(($target['first_name'] ?? '') . ' ' . ($target['last_name'] ?? '')) ?: $targetEmail;
+                    $actorName = '';
+                    $currentRow = (new \App\Models\SuperAdminModel())->find($current);
+                    if (!empty($currentRow)) {
+                        $actorName = trim(($currentRow['first_name'] ?? '') . ' ' . ($currentRow['last_name'] ?? '')) ?: ($currentRow['email'] ?? 'Super Admin');
+                    }
+                    $time = date('Y-m-d H:i:s');
+                    $html = view('emails/superadmin_removed', [
+                        'targetName' => $targetName,
+                        'actorName'  => $actorName,
+                        'targetEmail'=> $targetEmail,
+                        'time'       => $time,
+                    ]);
+                    $this->sendEmail($targetEmail, $targetName, 'Your Super Admin Account Has Been Removed', $html);
+                }
+            } catch (\Exception $e) {
+                // ignore email failures
+            }
         }
         $actionModel->markApproved($actionId, $current);
+
+        // Send confirmation to the approver
+        try {
+            $approver = (new \App\Models\SuperAdminModel())->find($current);
+            if (!empty($approver) && !empty($approver['email'])) {
+                $approverEmail = $approver['email'];
+                $approverName  = trim(($approver['first_name'] ?? '') . ' ' . ($approver['last_name'] ?? '')) ?: $approverEmail;
+                $targetName = isset($targetName) ? $targetName : (trim(($target['first_name'] ?? '') . ' ' . ($target['last_name'] ?? '')) ?: ($target['email'] ?? ''));
+                $time = date('Y-m-d H:i:s');
+                $html = view('emails/action_confirmation', [
+                    'recipientName' => $approverName,
+                    'actionLabel'   => 'Approved SuperAdmin Deletion',
+                    'targetName'    => $targetName,
+                    'targetEmail'   => $target['email'] ?? '',
+                    'time'          => $time,
+                    'actionId'      => $actionId,
+                    'phase'         => 'approved',
+                ]);
+                $this->sendEmail($approverEmail, $approverName, 'SuperAdmin Deletion Approved', $html);
+            }
+        } catch (\Exception $_) { }
+
         return $this->response->setJSON(['status'=>'success','message'=>'Action approved and executed']);
     }
 
@@ -372,32 +470,18 @@ class SuperAdmin extends Controller
         $email      = trim($this->request->getPost('email') ?? '');
         $username   = trim($this->request->getPost('username') ?? '');
         $position   = trim($this->request->getPost('position') ?? '');
-        $password   = $this->request->getPost('password') ?? '';
-        $confirm    = $this->request->getPost('confirm_password') ?? '';
+        // Default password for newly created admins (from env, fallback to '123456')
+        $defaultPassword = getenv('DEFAULT_PASSWORD') ?: '123456';
 
-        // Basic required checks
-        if (!$firstName || !$middleName || !$lastName || !$email || !$username || !$position || !$password || !$confirm) {
+        // Basic required checks (password set server-side)
+        if (!$firstName || !$middleName || !$lastName || !$email || !$username || !$position) {
             return $this->response->setJSON([
                 'status' => 'error',
                 'message' => 'All fields are required.'
             ]);
         }
-
-        // Password confirmation
-        if ($password !== $confirm) {
-            return $this->response->setJSON([
-                'status' => 'error',
-                'message' => 'Passwords do not match.'
-            ]);
-        }
-
-        // Password policy (simple)
-        if (strlen($password) < 8) {
-            return $this->response->setJSON([
-                'status' => 'error',
-                'message' => 'Password must be at least 8 characters.'
-            ]);
-        }
+        // Note: we no longer accept password inputs from the form; the default password
+        // below will be hashed and stored. Encourage admins to change their password.
 
         // Uniqueness checks for email, username
         if ($adminModel->where('email', $email)->first()) {
@@ -450,12 +534,27 @@ class SuperAdmin extends Controller
             'email'           => $email,
             'username'        => $username,
             'position'        => $position,
-            'password'        => password_hash($password, PASSWORD_DEFAULT),
+            'password'        => password_hash($defaultPassword, PASSWORD_DEFAULT),
+            'must_change_password' => 1,
             'is_verified'     => 0,
             'profile_picture' => $profilePath,
         ];
 
         if ($adminModel->insert($data)) {
+            // Send email notification to the newly created admin
+            try {
+                $subject = 'Your Admin Account Has Been Created';
+                $loginUrl = site_url('admin/login');
+                $html = "<p>Hello " . esc($firstName) . ",</p>" .
+                    "<p>An admin account has been created for you.</p>" .
+                    "<p><strong>Username:</strong> " . esc($username) . "<br>" .
+                    "<strong>Default Password:</strong> 123456</p>" .
+                    "<p>Please log in at <a href=\"{$loginUrl}\">{$loginUrl}</a> and change your password immediately.</p>";
+                $this->sendEmail($email, trim($firstName . ' ' . $lastName), $subject, $html);
+            } catch (\Exception $e) {
+                // ignore email failures for now
+            }
+
             return $this->response->setJSON([
                 'status'  => 'success',
                 'message' => 'Admin account created successfully.'
@@ -480,6 +579,174 @@ class SuperAdmin extends Controller
     public function settings()
     {
         return view('superadmin/settings');
+    }
+
+    // Produce a ZIP backup (JSON + CSV + metadata) for all database tables
+    public function backup()
+    {
+        $current = session()->get('superadmin_id');
+        if (! $current) return redirect()->to(site_url('superadmin/login'));
+
+        // Only allow POST to create backup to avoid accidental GET triggers
+        if ($this->request->getMethod() !== 'post') {
+            return redirect()->to(site_url('superadmin/settings'));
+        }
+
+        $db = \Config\Database::connect();
+        $tables = $db->listTables();
+
+        $tmpDir = WRITEPATH . 'backups' . DIRECTORY_SEPARATOR . uniqid('backup_', true);
+        if (!is_dir($tmpDir) && !@mkdir($tmpDir, 0775, true)) {
+            return $this->response->setJSON(['status'=>'error','message'=>'Failed to create temp directory']);
+        }
+
+        $counts = [];
+        $batchSize = 500;
+
+        foreach ($tables as $table) {
+            // Skip if we cannot get fields for the table
+            try {
+                $fields = $db->getFieldNames($table);
+            } catch (\Exception $e) {
+                $fields = [];
+            }
+
+            $csvPath = $tmpDir . DIRECTORY_SEPARATOR . $table . '.csv';
+            $jsonPath = $tmpDir . DIRECTORY_SEPARATOR . $table . '.json';
+
+            $fhCsv = fopen($csvPath, 'w');
+            $fhJson = fopen($jsonPath, 'w');
+            if ($fhCsv === false || $fhJson === false) continue;
+
+            // CSV header
+            if (!empty($fields)) {
+                fputcsv($fhCsv, $fields);
+            }
+
+            // JSON array start
+            fwrite($fhJson, "[");
+            $firstJson = true;
+
+            $offset = 0;
+            $tableCount = 0;
+            while (true) {
+                $builder = $db->table($table);
+                $rows = $builder->limit($batchSize, $offset)->get()->getResultArray();
+                if (empty($rows)) break;
+
+                foreach ($rows as $r) {
+                    // CSV line matching fields order
+                    if (!empty($fields)) {
+                        $line = [];
+                        foreach ($fields as $f) {
+                            $val = isset($r[$f]) ? $r[$f] : '';
+                            if (is_array($val) || is_object($val)) $val = json_encode($val);
+                            $line[] = $val;
+                        }
+                        fputcsv($fhCsv, $line);
+                    }
+
+                    // JSON write
+                    if ($firstJson) {
+                        fwrite($fhJson, json_encode($r, JSON_UNESCAPED_UNICODE));
+                        $firstJson = false;
+                    } else {
+                        fwrite($fhJson, ",\n" . json_encode($r, JSON_UNESCAPED_UNICODE));
+                    }
+
+                    $tableCount++;
+                }
+
+                // advance
+                $offset += $batchSize;
+            }
+
+            // JSON end
+            fwrite($fhJson, "]");
+            fclose($fhJson);
+            fclose($fhCsv);
+
+            $counts[$table] = $tableCount;
+        }
+
+        // metadata
+        $meta = [
+            'created_at' => date('Y-m-d H:i:s'),
+            'requestor_id' => $current,
+            'requestor_email' => session()->get('superadmin_email') ?: '',
+            'counts' => $counts,
+        ];
+        file_put_contents($tmpDir . DIRECTORY_SEPARATOR . 'metadata.json', json_encode($meta, JSON_PRETTY_PRINT));
+
+        // Create ZIP
+        if (!is_dir(WRITEPATH . 'backups')) @mkdir(WRITEPATH . 'backups', 0775, true);
+        $zipName = 'backup-all-' . date('Ymd-His') . '.zip';
+        $zipPath = WRITEPATH . 'backups' . DIRECTORY_SEPARATOR . $zipName;
+        $zip = new \ZipArchive();
+        if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+            array_map('unlink', glob($tmpDir . DIRECTORY_SEPARATOR . '*'));
+            @rmdir($tmpDir);
+            return $this->response->setJSON(['status'=>'error','message'=>'Failed to create ZIP file']);
+        }
+
+        foreach (glob($tmpDir . DIRECTORY_SEPARATOR . '*') as $file) {
+            $zip->addFile($file, basename($file));
+        }
+        $zip->close();
+
+        // Log the backup action
+        try {
+            $logModel = new \App\Models\AdminActivityLogModel();
+            $details = ['filename' => $zipName, 'counts' => $counts];
+            $logModel->insert([
+                'actor_type' => 'superadmin',
+                'actor_id'   => $current,
+                'action'     => 'backup',
+                'route'      => '/superadmin/backup',
+                'resource'   => 'all_tables',
+                'method'     => 'POST',
+                'ip_address' => $this->request->getIPAddress(),
+                'user_agent' => substr((string)($this->request->getUserAgent() ?? ''), 0, 255),
+                'details'    => json_encode($details),
+            ]);
+        } catch (\Throwable $_) { }
+
+        // Send notification email to requester (best-effort)
+        try {
+            $actorEmail = session()->get('superadmin_email') ?: '';
+            if (!empty($actorEmail)) {
+                $actorName = session()->get('superadmin_first_name') ? trim(session()->get('superadmin_first_name') . ' ' . session()->get('superadmin_last_name')) : $actorEmail;
+                $html = view('emails/action_confirmation', [
+                    'recipientName' => $actorName,
+                    'actionLabel'   => 'Full Database Backup',
+                    'targetName'    => 'All Tables',
+                    'targetEmail'   => $actorEmail,
+                    'time'          => $meta['created_at'],
+                    'actionId'      => null,
+                    'phase'         => 'approved',
+                ]);
+                $this->sendEmail($actorEmail, $actorName, 'Database Backup Completed', $html);
+            }
+        } catch (\Exception $_) { }
+
+        // Stream ZIP to client
+        if (!file_exists($zipPath)) {
+            array_map('unlink', glob($tmpDir . DIRECTORY_SEPARATOR . '*'));
+            @rmdir($tmpDir);
+            return $this->response->setJSON(['status'=>'error','message'=>'ZIP file missing']);
+        }
+
+        $size = filesize($zipPath);
+        $this->response->setHeader('Content-Type', 'application/zip')
+                       ->setHeader('Content-Disposition', 'attachment; filename="' . $zipName . '"')
+                       ->setHeader('Content-Length', (string)$size);
+
+        $body = fopen($zipPath, 'rb');
+        // Cleanup temp files (keep the zip in backups folder)
+        foreach (glob($tmpDir . DIRECTORY_SEPARATOR . '*') as $file) { @unlink($file); }
+        @rmdir($tmpDir);
+
+        return $this->response->setBody(stream_get_contents($body));
     }
 
     // Show profile edit form for current superadmin
@@ -555,9 +822,23 @@ class SuperAdmin extends Controller
     public function retireUser()
     {
         $id = (int) ($this->request->getPost('id') ?? 0);
+        $providedCode = trim($this->request->getPost('admin_code') ?? '');
+        $current = session()->get('superadmin_id');
+        if (!$current) return $this->response->setJSON(['status' => 'error', 'message' => 'Not authenticated']);
         if (!$id) {
             return $this->response->setJSON(['status' => 'error', 'message' => 'Invalid admin id']);
         }
+
+        // Require confirmation of acting superadmin's code
+        if ($providedCode === '') {
+            return $this->response->setJSON(['status' => 'error', 'message' => 'Admin code required for confirmation']);
+        }
+        $superModel = new \App\Models\SuperAdminModel();
+        $currentRow = $superModel->find($current);
+        if (!$currentRow || empty($currentRow['admin_code']) || $currentRow['admin_code'] !== $providedCode) {
+            return $this->response->setJSON(['status' => 'error', 'message' => 'Invalid admin code']);
+        }
+
         $adminModel = new AdminModel();
         $row = $adminModel->find($id);
         if (!$row) {
@@ -584,6 +865,48 @@ class SuperAdmin extends Controller
         $archiveModel->insert($archiveData);
         $adminModel->delete($id);
 
+        // Attempt to send email notification to the retired admin (best-effort)
+        try {
+            $targetEmail = $row['email'] ?? '';
+            if (!empty($targetEmail)) {
+                $targetName = trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')) ?: ($row['username'] ?? $targetEmail);
+                $actorName = '';
+                if (!empty($currentRow)) {
+                    $actorName = trim(($currentRow['first_name'] ?? '') . ' ' . ($currentRow['last_name'] ?? '')) ?: ($currentRow['email'] ?? 'Super Admin');
+                }
+                $time = date('Y-m-d H:i:s');
+                $html = view('emails/admin_retired', [
+                    'targetName' => $targetName,
+                    'actorName'  => $actorName,
+                    'username'   => $row['username'] ?? '',
+                    'targetEmail'=> $targetEmail,
+                    'time'       => $time,
+                ]);
+                $this->sendEmail($targetEmail, $targetName, 'Your Admin Account Has Been Retired', $html);
+            }
+        } catch (\Exception $e) {
+            // swallow email errors; retiring should not fail because of email
+        }
+
+        // Send confirmation to acting superadmin (who performed the retire)
+        try {
+            $actorEmail = $currentRow['email'] ?? '';
+            if (!empty($actorEmail)) {
+                $actorName = trim(($currentRow['first_name'] ?? '') . ' ' . ($currentRow['last_name'] ?? '')) ?: $actorEmail;
+                $targetName = trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')) ?: ($row['username'] ?? $targetEmail);
+                $time = date('Y-m-d H:i:s');
+                $html = view('emails/action_confirmation', [
+                    'recipientName' => $actorName,
+                    'actionLabel'   => 'Admin Retired and Archived',
+                    'targetName'    => $targetName,
+                    'targetEmail'   => $targetEmail,
+                    'time'          => $time,
+                    'phase'         => 'approved'
+                ]);
+                $this->sendEmail($actorEmail, $actorName, 'Admin Retired: Confirmation', $html);
+            }
+        } catch (\Exception $_) { }
+
         return $this->response->setJSON(['status' => 'success', 'message' => 'Admin retired and archived.']);
     }
 
@@ -591,6 +914,42 @@ class SuperAdmin extends Controller
     {
         session()->destroy();
         return redirect()->to('/superadmin/login');
+    }
+
+    /**
+     * Send email using PHPMailer with SMTP settings from environment.
+     */
+    private function sendEmail(string $to, string $toName, string $subject, string $htmlBody, string $altBody = ''): bool
+    {
+        try {
+            $mail = new PHPMailer(true);
+            // SMTP configuration
+            $mail->isSMTP();
+            $mail->Host = getenv('SMTP_HOST') ?: getenv('MAIL_HOST');
+            $mail->SMTPAuth = true;
+            $mail->Username = getenv('SMTP_USER') ?: getenv('MAIL_USERNAME');
+            $mail->Password = getenv('SMTP_PASS') ?: getenv('MAIL_PASSWORD');
+            $mail->SMTPSecure = getenv('SMTP_SECURE') ?: 'tls';
+            $mail->Port = (int) (getenv('SMTP_PORT') ?: getenv('MAIL_PORT') ?: 587);
+
+            $fromEmail = getenv('SMTP_FROM') ?: getenv('MAIL_FROM') ?: (getenv('SMTP_USER') ?: 'no-reply@localhost');
+            $fromName = getenv('MAIL_FROM_NAME') ?: getenv('SMTP_FROM_NAME') ?: 'Support';
+
+            $mail->setFrom($fromEmail, $fromName);
+            $mail->addAddress($to, $toName ?: '');
+            $mail->isHTML(true);
+            $mail->Subject = $subject;
+            $mail->Body = $htmlBody;
+            $mail->AltBody = $altBody ?: strip_tags($htmlBody);
+
+            return (bool) $mail->send();
+        } catch (Exception $e) {
+            // Log email error if logger available
+            if (function_exists('log_message')) {
+                log_message('error', 'Email send failed: ' . $e->getMessage());
+            }
+            return false;
+        }
     }
 
 }

@@ -22,6 +22,11 @@ class AdminAuth extends BaseController
     // Show login view
     public function adminLogin()
     {
+        // If already logged in as admin, send them to dashboard
+        if (session()->get('is_admin_logged_in')) {
+            return redirect()->to('admin/')->with('info', 'You are already logged in.');
+        }
+
         return view('admin/login');
     }
 
@@ -87,8 +92,10 @@ class AdminAuth extends BaseController
             return redirect()->back()->with('error', 'Invalid Email or Password.');
         }
 
-        $defaultPassword = '123456';
-        $forceChange = password_verify($defaultPassword, $admin['password']);
+        // Default password for newly-created admin accounts is configurable via env
+        $defaultPassword = getenv('DEFAULT_PASSWORD') ?: '123456';
+        // Prefer explicit DB flag for forced password change when available
+        $forceChange = !empty($admin['must_change_password']) ? true : password_verify($defaultPassword, $admin['password']);
 
         session()->set([
             'admin_id'              => $admin['id'],
@@ -159,8 +166,9 @@ class AdminAuth extends BaseController
             ]);
 
             $updatedAdmin = $this->adminModel->find($adminId);
-            if (empty($updatedAdmin['password'])) {
+            if (!empty($updatedAdmin['must_change_password'])) {
                 session()->setFlashdata('force_password_change', true);
+                session()->set('force_password_change', true);
             }
 
             // Log login after OTP verification
@@ -263,7 +271,7 @@ class AdminAuth extends BaseController
         }
 
         $hashed = password_hash($newPassword, PASSWORD_DEFAULT);
-        $this->adminModel->update($adminId, ['password' => $hashed]);
+        $this->adminModel->update($adminId, ['password' => $hashed, 'must_change_password' => 0]);
 
         $session = session();
         $session->set('force_password_change', false);

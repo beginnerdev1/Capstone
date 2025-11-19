@@ -1262,6 +1262,29 @@ public function confirmGCashPayment()
                 log_message('info', "No billing_id associated with payment {$paymentId}; skipping billing update.");
             }
 
+            // Record admin activity: confirm payment
+            try {
+                $logId = session()->get('admin_activity_log_id') ?? session()->get('superadmin_activity_log_id');
+                if ($logId) {
+                    $details = [
+                        'payment_id' => $paymentId,
+                        'user_id' => $userId ?? null,
+                        'amount' => $payment['amount'] ?? null,
+                        'method' => $payment['method'] ?? null,
+                        'reference_number' => $payment['reference_number'] ?? null,
+                        'admin_reference' => $adminRef ?? ($payment['admin_reference'] ?? null),
+                        'billing_id' => $billingId ?? null,
+                    ];
+
+                    // Prevent ActivityLogger from duplicating this action and append details
+                    session()->set('skip_activity_logger', true);
+                    $logModel = new \App\Models\AdminActivityLogModel();
+                    $logModel->appendAction($logId, 'confirm_payment', '/admin/confirmGCashPayment', $this->request->getMethod() ?: 'POST', $paymentId, $details);
+                }
+            } catch (\Throwable $_) {
+                // ignore logging failures
+            }
+
             // Send confirmation email (non-blocking) via Brevo if we have recipient and API key
             if ($toEmail) {
                 try {
@@ -1523,6 +1546,28 @@ public function rejectGCashPayment()
             }
         }
 
+        // Record admin activity: reject payment
+        try {
+            $logId = session()->get('admin_activity_log_id') ?? session()->get('superadmin_activity_log_id');
+            if ($logId) {
+                $details = [
+                    'payment_id' => $paymentId,
+                    'user_id' => $payment['user_id'] ?? null,
+                    'amount' => $payment['amount'] ?? null,
+                    'method' => $payment['method'] ?? null,
+                    'reference_number' => $payment['reference_number'] ?? null,
+                    'admin_reference' => $adminRef ?? ($payment['admin_reference'] ?? null),
+                    'billing_id' => $payment['billing_id'] ?? null,
+                ];
+
+                session()->set('skip_activity_logger', true);
+                $logModel = new \App\Models\AdminActivityLogModel();
+                $logModel->appendAction($logId, 'reject_payment', '/admin/rejectGCashPayment', $this->request->getMethod() ?: 'POST', $paymentId, $details);
+            }
+        } catch (\Throwable $_) {
+            // ignore logging failures
+        }
+
         return $this->response->setJSON([
             'success' => (bool)$updated,
             'message' => $updated ? 'Payment rejected successfully' : 'Failed to reject payment'
@@ -1741,7 +1786,8 @@ public function rejectGCashPayment()
                 $payment['status'] ?? 'Pending',
                 $payment['reference_number'] ?? 'N/A',
                 $payment['admin_reference'] ?? 'N/A',
-                date('Y-m-d', strtotime($payment['created_at'] ?? 'now'))
+                // Format datetime for CSV in a consistent, Excel-friendly format
+                (function($dt){ $ts = strtotime($dt ?? ''); return $ts ? date('Y-m-d H:i:s', $ts) : ''; })($payment['created_at'] ?? null)
             ]);
         }
 
@@ -2240,7 +2286,7 @@ public function rejectGCashPayment()
                     ->findAll();
                 if (!empty($paidRows)) {
                     $paid = 'Yes';
-                    $dates = array_map(function($r){ return $r['updated_at']; }, $paidRows);
+                    $dates = array_map(function($r){ $dt = $r['updated_at'] ?? null; $ts = strtotime($dt); return $ts ? date('Y-m-d H:i:s', $ts) : ''; }, $paidRows);
                     $amounts = array_map(function($r){ return number_format($r['amount_due'],2,'.',''); }, $paidRows);
                     $dateStr = implode('; ', $dates);
                     $amtStr = implode('; ', $amounts);
@@ -2320,7 +2366,7 @@ public function rejectGCashPayment()
                     ->findAll();
                 if (!empty($paidRows)) {
                     $paid = 'Yes';
-                    $dates = array_map(function($r){ return $r['updated_at']; }, $paidRows);
+                    $dates = array_map(function($r){ $dt = $r['updated_at'] ?? null; $ts = strtotime($dt); return $ts ? date('Y-m-d H:i:s', $ts) : ''; }, $paidRows);
                     $amounts = array_map(function($r){ return number_format($r['amount_due'],2,'.',''); }, $paidRows);
                     $dateStr = implode('; ', $dates);
                     $amtStr = implode('; ', $amounts);

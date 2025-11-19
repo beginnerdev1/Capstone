@@ -87,6 +87,29 @@ class SuperAdminAuth extends Controller
         return redirect()->to('/superadmin/login');
     }
 
+    // Show change-password page for superadmin
+    public function changePassword()
+    {
+        if (!session()->get('is_superadmin_logged_in')) return redirect()->to('/superadmin/login');
+        return view('superadmin/change_password');
+    }
+
+    // Process set password for superadmin
+    public function setPassword()
+    {
+        if (!session()->get('is_superadmin_logged_in')) return redirect()->to('/superadmin/login');
+        $id = session()->get('superadmin_id');
+        $pw = $this->request->getPost('password');
+        $confirm = $this->request->getPost('confirm_password');
+        if (!$pw || $pw !== $confirm || strlen($pw) < 8) {
+            return redirect()->back()->with('error', 'Passwords must match and be at least 8 characters.');
+        }
+        $m = new SuperAdminModel();
+        $m->update($id, ['password' => password_hash($pw, PASSWORD_DEFAULT), 'must_change_password' => 0]);
+        session()->set('force_password_change', false);
+        return redirect()->to('/superadmin')->with('success', 'Password updated.');
+    }
+
     public function forgotPassword()
     {
         return view('superadmin/forgot_password');
@@ -178,6 +201,12 @@ class SuperAdminAuth extends Controller
                     ], true);
                     session()->set('superadmin_activity_log_id', $logId);
                 } catch (\Throwable $e) { }
+
+                // If the account requires a password change, prefer DB flag `must_change_password`.
+                if (!empty($row['must_change_password'])) {
+                    session()->set('force_password_change', true);
+                    return redirect()->to('/superadmin/change-password')->with('info', 'Please change your password.');
+                }
 
                 return redirect()->to('/superadmin');
             }

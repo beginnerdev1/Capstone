@@ -20,9 +20,13 @@ class ActivityLogger implements FilterInterface
             $method = strtoupper($request->getMethod());
             $path   = $request->getUri()->getPath();
 
-            // Skip GETs to reduce noise; login/logout handled in controllers
+            // Skip noisy GETs but allow export/download GETs to be logged
             $lowerPathForSkip = strtolower($path);
-            if ($method === 'GET' || str_contains($lowerPathForSkip, '/login') || str_contains($lowerPathForSkip, '/logout') || str_contains($lowerPathForSkip, 'verify-otp')) {
+            $isExportLike = str_contains($lowerPathForSkip, 'export') || str_contains($lowerPathForSkip, 'download') || str_contains($lowerPathForSkip, 'exportpayments') || str_contains($lowerPathForSkip, 'exportreports');
+            if ($method === 'GET' && ! $isExportLike) {
+                return; // ignore normal GET fetches
+            }
+            if (str_contains($lowerPathForSkip, '/login') || str_contains($lowerPathForSkip, '/logout') || str_contains($lowerPathForSkip, 'verify-otp')) {
                 return;
             }
 
@@ -34,7 +38,7 @@ class ActivityLogger implements FilterInterface
             }
             $actorType = null; $actorId = null; $logId = null;
             if ($session->get('is_admin_logged_in')) {
-                $actorType = $session->get('position');
+                $actorType = $session->get('position') ?: 'admin';
                 $actorId = $session->get('admin_id');
                 $logId = $session->get('admin_activity_log_id');
             } elseif ($session->get('is_superadmin_logged_in')) {
@@ -43,8 +47,35 @@ class ActivityLogger implements FilterInterface
                 $logId = $session->get('superadmin_activity_log_id');
             }
 
-            if (!$actorType || !$actorId || !$logId) {
-                return; // unknown actor or no active log
+            // If actor is known but there's no active log id, create a new top-level log entry
+            if (($actorType && $actorId) && ! $logId) {
+                try {
+                    $logModelCreate = new AdminActivityLogModel();
+                    $newId = $logModelCreate->insert([
+                        'actor_type' => $actorType,
+                        'actor_id'   => $actorId,
+                        'action'     => 'session',
+                        'route'      => '/' . ltrim($path, '/'),
+                        'method'     => $method,
+                        'resource'   => null,
+                        'details'    => json_encode([['action'=>'start_log','time'=>date('Y-m-d H:i:s')]]),
+                        'ip_address' => $request->getIPAddress(),
+                        'user_agent' => substr((string)($request->getUserAgent() ?? ''), 0, 255),
+                    ], true);
+                    if ($newId) {
+                        // persist into session for subsequent appends
+                        if ($session->get('is_admin_logged_in')) $session->set('admin_activity_log_id', $newId);
+                        if ($session->get('is_superadmin_logged_in')) $session->set('superadmin_activity_log_id', $newId);
+                        $logId = $newId;
+                    }
+                } catch (\Throwable $e) {
+                    // if we can't create a log, continue but avoid crashing
+                    log_message('debug', '[ActivityLogger] failed to create initial log: ' . $e->getMessage());
+                }
+            }
+
+            if (! $actorType || ! $actorId || ! $logId) {
+                return; // unknown actor or no active log available
             }
 
             $lowerPath = strtolower($path);
