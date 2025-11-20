@@ -42,8 +42,14 @@
           <input type="password" class="form-control" id="password" name="password" placeholder="Password" >
           <i class="fa-solid fa-eye position-absolute top-50 end-0 translate-middle-y me-3 text-muted" id="togglePassword" style="cursor:pointer;"></i>
         </div>
-
         <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold shadow-sm">Login</button>
+
+        <div class="d-flex justify-content-between align-items-center mt-3">
+          <a href="<?= base_url('/forgot-password') ?>" class="text-decoration-none small text-muted">
+            <i class="fa-solid fa-key me-1"></i> Forgot password?
+          </a>
+          <a href="<?= base_url('/') ?>" class="text-decoration-none small text-muted">Back to site</a>
+        </div>
       </form>
 
       <!-- <div class="text-center mt-4 small text-muted">

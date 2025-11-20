@@ -79,8 +79,14 @@ $(function(){
 	const csrfName = '<?= csrf_token() ?>';
 	let csrfHash = '<?= csrf_hash() ?>';
 
+	// Determine chat route base: use superadmin routes when served under /superadmin
+	const isSuper = (window.location.pathname.indexOf('/superadmin') !== -1);
+	const chatBase = isSuper
+		? '<?= base_url('superadmin/chat') ?>'
+		: '<?= base_url('admin/chat') ?>';
+
 	function loadAdmins(){
-		$.get('<?= base_url('admin/chat/getAdmins') ?>', function(data){
+		$.get(chatBase + '/getAdmins', function(data){
 			$('#admin-contacts, #admin-contacts-mobile').empty();
 			adminMap = {};
 			data.forEach(function(a){
@@ -108,7 +114,10 @@ $(function(){
 	}
 
 	function loadConversations(){
-		$.get('<?= base_url('admin/chat/getConversations') ?>', function(data){
+		// For superadmin view we do NOT load user conversations — only show admins
+		if (isSuper) return;
+
+		$.get(chatBase + '/getConversations', function(data){
 			$('#conversation-list, #conversation-list-mobile').empty();
 			data.forEach(function(c){
 				var li = $('<li class="list-group-item d-flex justify-content-between align-items-start"></li>');
@@ -176,7 +185,7 @@ $(function(){
 
 	function loadConversationMessages(userId, incremental){
 		if (!userId) return;
-		var url = '<?= base_url('admin/chat/getMessages') ?>/' + encodeURIComponent(userId);
+		var url = chatBase + '/getMessages/' + encodeURIComponent(userId);
 		if (incremental && lastTimestamp) {
 			url += '?since=' + encodeURIComponent(lastTimestamp);
 		}
@@ -188,7 +197,7 @@ $(function(){
 			if (!incremental || (data && data.length)) {
 				var markPayload = {};
 				markPayload[csrfName] = csrfHash;
-				$.post('<?= base_url('admin/chat/markRead') ?>/' + encodeURIComponent(userId), markPayload).always(function(){
+				$.post(chatBase + '/markRead/' + encodeURIComponent(userId), markPayload).always(function(){
 					loadConversations();
 				});
 			}
@@ -215,7 +224,7 @@ $(function(){
 		if (!selectedUserId) { alert('Select a conversation (user) to reply to.'); return; }
 		var payload = { message: msg, user_id: selectedUserId };
 		payload[csrfName] = csrfHash;
-		$.post('<?= base_url('admin/chat/postMessage') ?>', payload, function(res){
+		$.post(chatBase + '/postMessage', payload, function(res){
 			$('#chat-input').val('');
 			loadConversationMessages(selectedUserId);
 		});
@@ -227,9 +236,16 @@ $(function(){
 
 	// initial load
 	loadAdmins();
-	loadConversations();
-	// poll conversations every 8s to keep unread badges up-to-date
-	setInterval(loadConversations, 8000);
+	if (!isSuper) {
+		loadConversations();
+		// poll conversations every 8s to keep unread badges up-to-date
+		setInterval(loadConversations, 8000);
+	} else {
+		// If superadmin, hide user conversation UI and message form — show admins only
+		$('#side-panel, #side-panel-mobile, #conversation-list, #conversation-list-mobile').hide();
+		$('#chat-messages, #chat-form').hide();
+		$('.card-header').first().text('Admins');
+	}
 
 	// stop message polling when navigating away via ajax links
 	$(document).on('click', '.ajax-link', function(){ stopMessagePolling(); });
