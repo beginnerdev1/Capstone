@@ -728,7 +728,16 @@
                   $label = 'Failed';
               }
 
-              $modalId = 'modalT' . $payment['id'];
+                $modalId = 'modalT' . $payment['id'];
+                // Normalize method label for display
+                $rawMethod = strtolower(trim($payment['method'] ?? ''));
+                if ($rawMethod === 'manual') {
+                  $methodLabel = 'Manual Payment';
+                } elseif ($rawMethod === 'offline' || $rawMethod === 'over the counter') {
+                  $methodLabel = 'Over the Counter';
+                } else {
+                  $methodLabel = 'Online Payment';
+                }
           ?>
             <div class="transaction-item" data-bs-toggle="modal" data-bs-target="#<?= $modalId ?>" data-aos="fade-up" data-aos-delay="<?= $index * 50 ?>">
               <div class="transaction-details">
@@ -741,7 +750,7 @@
                     <?= esc($time) ?>
                   </div>
                   <div class="transaction-name">
-                    <?= esc($payment['method'] === 'manual' ? 'Manual Payment' : 'Online Payment') ?>
+                    <?= esc($methodLabel) ?>
                   </div>
                   <span class="transaction-status <?= $status_class ?>">
                     <i class="bi <?= $icon ?>"></i>
@@ -780,7 +789,16 @@
           $icon = 'bi-x-circle';
           $label = 'Failed';
       }
-      $modalId = 'modalT' . $payment['id'];
+        $modalId = 'modalT' . $payment['id'];
+        // Normalize method label for modal display as well
+        $rawMethod = strtolower(trim($payment['method'] ?? ''));
+        if ($rawMethod === 'manual') {
+          $methodLabel = 'Manual Payment';
+        } elseif ($rawMethod === 'offline' || $rawMethod === 'over the counter') {
+          $methodLabel = 'Over the Counter';
+        } else {
+          $methodLabel = 'Online Payment';
+        }
       $paymentDate = date('F d, Y', strtotime($payment['paid_at'] ?? $payment['created_at']));
       $time = date('h:i A', strtotime($payment['paid_at'] ?? $payment['created_at']));
   ?>
@@ -807,7 +825,7 @@
               <i class="bi bi-credit-card text-primary"></i>
               Payment Method
             </span>
-            <span class="receipt-value"><?= esc($payment['method'] === 'manual' ? 'Manual Payment' : 'Online Payment') ?></span>
+            <span class="receipt-value"><?= esc($methodLabel) ?></span>
           </div>
           <div class="receipt-item">
             <span class="receipt-label">

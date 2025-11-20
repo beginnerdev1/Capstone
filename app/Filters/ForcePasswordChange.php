@@ -12,14 +12,14 @@ class ForcePasswordChange implements FilterInterface
     {
         $session = session();
 
-        // Only redirect if admin is logged in AND password change is required
+        // Only redirect if password change is required for admin
+        $currentPath = uri_string();
+
+        // Admin enforcement
         if ($session->get('is_admin_logged_in') === true && $session->get('force_password_change') === true) {
-            $currentPath = uri_string();
             $excluded = ['admin/change-password', 'admin/setPassword', 'admin/logout'];
-
             if (!in_array($currentPath, $excluded)) {
-                log_message('info', '🧩 ForcePasswordChange triggered for ' . $currentPath);
-
+                log_message('info', '🧩 ForcePasswordChange (admin) triggered for ' . $currentPath);
                 return redirect()->to(base_url('admin/change-password'))
                                  ->with('info', 'Please change your default password first.');
             }

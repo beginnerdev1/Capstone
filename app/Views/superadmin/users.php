@@ -77,13 +77,8 @@
               <label class="form-label">Profile Picture (optional)</label>
               <input type="file" name="profile_picture" class="form-control" accept="image/*">
             </div>
-            <div class="col-md-6">
-              <label class="form-label">Password (min 8)</label>
-              <input type="password" name="password" class="form-control" required>
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">Confirm Password</label>
-              <input type="password" name="confirm_password" class="form-control" required>
+            <div class="col-12">
+              <div class="alert alert-info small mb-0">A default password of <strong>123456</strong> will be assigned. Ask the new admin to change their password after first login.</div>
             </div>
           </div>
         </form>
@@ -142,16 +137,7 @@
     $('#newAdminAlerts').empty();
     const form = document.getElementById('newAdminForm');
     const fd = new FormData(form);
-    const pwd = fd.get('password');
-    const cpw = fd.get('confirm_password');
-    if(pwd.length < 8){
-      $('#newAdminAlerts').html('<div class="alert alert-danger">Password must be at least 8 characters.</div>');
-      return;
-    }
-    if(pwd !== cpw){
-      $('#newAdminAlerts').html('<div class="alert alert-danger">Passwords do not match.</div>');
-      return;
-    }
+    // Passwords are assigned server-side (default: 123456)
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Saving...');
     $.ajax({
       url: '<?= site_url('superadmin/createUser') ?>',
@@ -192,7 +178,8 @@
     const btn = $(this);
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Processing...');
     const id = $('#retireAdminId').val();
-    $.post('<?= site_url('superadmin/retireUser') ?>', {id}).done(function(res){
+    const code = $('#retireAdminCode').val() || '';
+    $.post('<?= site_url('superadmin/retireUser') ?>', {id, admin_code: code}).done(function(res){
       if(res && res.status === 'success'){
         $('#retireAlerts').html('<div class="alert alert-success">'+res.message+'</div>');
         loadAdmins();
@@ -223,6 +210,11 @@
       <div class="modal-body">
         <p id="retireConfirmText" class="mb-3"></p>
         <input type="hidden" id="retireAdminId" value="">
+        <div class="mb-3">
+          <label class="form-label">Confirm Super Admin Code</label>
+          <input type="text" id="retireAdminCode" class="form-control" placeholder="Enter your super admin code to confirm" required>
+          <div class="form-text">Enter your super admin admin_code to confirm this action.</div>
+        </div>
         <div id="retireAlerts"></div>
       </div>
       <div class="modal-footer">

@@ -33,6 +33,10 @@
             <a href="<?= site_url('superadmin/logs') ?>" class="btn btn-sm btn-outline-secondary">View Logs</a>
             <a href="<?= site_url('superadmin/pendingActions') ?>" class="btn btn-sm btn-outline-warning">Pending Actions</a>
             <a href="<?= site_url('superadmin/getSuperAdmins') ?>" class="btn btn-sm btn-outline-info">API: List SuperAdmins</a>
+            <form id="backupForm" method="post" action="<?= site_url('superadmin/backup') ?>" style="display:inline">
+              <?= csrf_field() ?>
+              <button type="submit" class="btn btn-sm btn-outline-success" onclick="return confirm('Create a full backup of all database tables? This may take a while. Continue?')">Create Backup (All Data)</button>
+            </form>
           </div>
 
           <hr>
