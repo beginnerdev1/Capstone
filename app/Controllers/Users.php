@@ -529,6 +529,7 @@ public function getBillDetails()
     }
   
     
+    // Check for existing pending transaction for a bill
 public function hasPendingTransaction($billId)
     {
         $userId = session()->get('user_id');
@@ -1098,6 +1099,32 @@ public function getGcashSettings()
         'success' => true,
         'gcash_number' => $settings['gcash_number'] ?? null,
         'qr_code_url' => $qrUrl
+    ]);
+}
+
+// Check disconnection status
+public function getDisconnectionStatus()
+{
+    if (! session()->get('user_id')) {
+        return $this->response->setJSON(['error' => 'Unauthenticated'])->setStatusCode(401);
+    }
+
+    $userId = session()->get('user_id');
+    $billModel = new \App\Models\BillModel();
+
+    // server timezone considerations: compare dates using YYYY-MM-DD
+    $thresholdDate = date('Y-m-d', strtotime('+1 day'));
+
+    $urgent = $billModel
+        ->select('bill_no, due_date')
+        ->where('user_id', $userId)
+        ->where('status', 'pending')
+        ->where('due_date <=', $thresholdDate)
+        ->findAll();
+
+    return $this->response->setJSON([
+        'count' => count($urgent),
+        'bills' => $urgent
     ]);
 }
 

@@ -636,6 +636,16 @@
       box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
       color: white;
     }
+
+    /* Spacer between main content and footer */
+    .content-footer-spacer {
+      height: 60px;
+      width: 100%;
+    }
+
+    @media (max-width: 768px) {
+      .content-footer-spacer { height: 40px; }
+    }
   </style>
 
   
@@ -882,6 +892,7 @@
   <?php endforeach; ?>
 <?php endif; ?>
 
+<div class="content-footer-spacer"></div>
 <?= $this->include('Users/footer') ?>
 <a href="#" id="scrollTop" class="scroll-top">
   <i class="bi bi-arrow-up"></i>
