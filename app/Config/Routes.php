@@ -239,5 +239,15 @@ $routes->group('superadmin', ['namespace' => 'App\Controllers'], function ($rout
         $routes->post('createUser', 'SuperAdmin::createUser');
         $routes->post('retireUser', 'SuperAdmin::retireUser');
         $routes->get('logout', 'SuperAdminAuth::logout');
+        // Superadmin chat (wraps Admin chat implementation)
+        $routes->get('chat', 'Superadmin\Chat::index');
+        $routes->get('chat/getAdmins', 'Superadmin\Chat::getAdmins');
+        $routes->get('chat/getMessages', 'Superadmin\Chat::getMessages');
+        $routes->get('chat/getConversations', 'Superadmin\Chat::getConversations');
+        $routes->get('chat/getMessages/(:num)', 'Superadmin\Chat::getMessagesFor/$1');
+        $routes->post('chat/markRead/(:num)', 'Superadmin\Chat::markRead/$1');
+        $routes->post('chat/postMessage', 'Superadmin\Chat::postMessage');
+        $routes->get('chat/unreadCount', 'Superadmin\Chat::unreadCount');
+        $routes->post('chat/importJson', 'Superadmin\Chat::importJson');
     });
 });

@@ -31,7 +31,14 @@ class Chat extends BaseController
         $admins = $this->adminModel->select('id, first_name, last_name, email')
             ->orderBy('first_name')->findAll();
 
-        $hasPhone = array_key_exists('phone', $this->adminModel->getAllowedFields()) || $this->db->fieldExists('phone', $this->adminModel->table);
+        // Determine if `phone` column exists on `admin` table. Don't rely on getAllowedFields()
+        // (may not be available on older CI4 versions); use the model's DB connection.
+        $hasPhone = false;
+        try {
+            $hasPhone = (bool) ($this->adminModel->db->fieldExists('phone', $this->adminModel->table));
+        } catch (\Throwable $_) {
+            $hasPhone = false;
+        }
 
         $list = [];
         foreach ($admins as $a) {
@@ -64,7 +71,8 @@ class Chat extends BaseController
     public function postMessage()
     {
         $session = session();
-        $adminId = $session->get('admin_id') ?? null;
+        // Allow superadmin to act as admin in chat UI
+        $adminId = $session->get('admin_id') ?? $session->get('superadmin_id') ?? null;
 
         $text = $this->request->getPost('message');
         if (! $text) {
@@ -247,7 +255,8 @@ class Chat extends BaseController
 
         $now = date('Y-m-d H:i:s');
         $table = $this->chatModel->table;
-        $this->db->table($table)
+        $db = \Config\Database::connect();
+        $db->table($table)
             ->where('user_id', (int)$userId)
             ->where('sender', 'user')
             ->where('is_read', 0)
@@ -275,13 +284,13 @@ class Chat extends BaseController
     public function fixParticipantFields()
     {
         $session = session();
-        $adminId = $session->get('admin_id') ?? null;
+        $adminId = $session->get('admin_id') ?? $session->get('superadmin_id') ?? null;
         if (! $adminId) {
             return $this->response->setStatusCode(ResponseInterface::HTTP_UNAUTHORIZED)->setJSON(['error' => 'Admin required']);
         }
 
         $table = $this->chatModel->table;
-        $db = $this->db;
+        $db = \Config\Database::connect();
         $affected = ['cleared_admin_on_user_sender' => 0, 'cleared_user_on_admin_sender' => 0];
 
         // Clear admin_id on messages that were sent by users
@@ -307,19 +316,19 @@ class Chat extends BaseController
     public function backfillUserNames()
     {
         $session = session();
-        $adminId = $session->get('admin_id') ?? null;
+        $adminId = $session->get('admin_id') ?? $session->get('superadmin_id') ?? null;
         if (! $adminId) {
             return $this->response->setStatusCode(ResponseInterface::HTTP_UNAUTHORIZED)->setJSON(['error' => 'Admin required']);
         }
 
         $usersModel = new UsersModel();
         $table = $this->chatModel->table;
-        $db = $this->db;
+        $db = \Config\Database::connect();
 
         $updated = 0;
         // Ensure the `user_name` column exists before attempting backfill
         try {
-            if (! $this->db->fieldExists('user_name', $table)) {
+            if (! $db->fieldExists('user_name', $table)) {
                 return $this->response->setStatusCode(ResponseInterface::HTTP_BAD_REQUEST)->setJSON(['error' => 'user_name column missing; run migrations first']);
             }
         } catch (\Exception $e) {
