@@ -19,7 +19,18 @@ $routes->get('/verify', 'Auth::verify', ['filter' => 'guest']);
 $routes->post('/verifyOtp', 'Auth::verifyOtp', ['filter' => 'guest']);
 $routes->get('/resendOtp', 'Auth::resendOtp', ['filter' => 'guest']);
 
+$routes->get('/forgotPasswordForm', 'Auth::forgotPasswordForm', ['filter' => 'guest']);
+$routes->post('/forgot-password', 'Auth::sendResetLink', ['filter' => 'guest']);
+$routes->post('/reset-password', 'Auth::processResetPassword', ['filter' => 'guest']);
+
+// Friendly forgot-password GET (use this)
 $routes->get('/forgot-password', 'Auth::forgotPasswordForm', ['filter' => 'guest']);
+// Keep old alias for backward compatibility
+$routes->get('/forgotPasswordForm', 'Auth::forgotPasswordForm', ['filter' => 'guest']);
+
+// Reset link opens form (GET /reset?email=...&token=...)
+$routes->get('/reset', 'Auth::resetForm', ['filter' => 'guest']);
+
 $routes->post('/forgot-password', 'Auth::sendResetLink', ['filter' => 'guest']);
 $routes->post('/reset-password', 'Auth::processResetPassword', ['filter' => 'guest']);
 

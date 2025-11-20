@@ -83,7 +83,7 @@
 
     /* Main Container */
     #main {
-      max-width: 900px;
+      max-width: 1200px;
       margin: 0 auto;
       padding: 0 1rem;
       position: relative;
@@ -751,7 +751,7 @@
               </div>
               <div class="transaction-amount">
                 <div class="amount-value <?= $amount_class ?>">
-                  ₱<?= $amount_prefix . number_format($payment['amount'], 2) ?>
+                  ₱<?= number_format($payment['amount'], 2) ?>
                 </div>
                 <div class="amount-label">Bill Payment</div>
               </div>

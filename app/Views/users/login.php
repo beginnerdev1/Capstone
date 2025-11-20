@@ -225,7 +225,7 @@
                         <!-- Remember me checkbox (optional) -->
                         <!-- <input class="form-check-input" type="checkbox" id="remember"> -->
                     </div>
-                    <a href="<?= base_url('forgot-password') ?>" class="forgot-link">Forgot Password?</a>
+                    <a href="<?= base_url('forgotPasswordForm') ?>" class="forgot-link">Forgot Password?</a>
                 </div>
 
                 <button type="submit" class="btn btn-login w-100">Log In</button>

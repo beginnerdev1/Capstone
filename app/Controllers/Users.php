@@ -38,11 +38,28 @@ public function index()
 
         // Fetch all payments for this user, latest first
         $data['payments'] = $paymentsModel
-        ->select('payments.*, billings.bill_no, billings.due_date')
-        ->join('billings', 'billings.id = payments.billing_id', 'left')
-        ->where('payments.user_id', $userId)
-        ->orderBy('payments.created_at', 'DESC')
-        ->findAll();
+            ->select('payments.*, payments.payment_intent_id, billings.bill_no, billings.due_date')
+            ->join('billings', 'billings.id = payments.billing_id', 'left')
+            ->where('payments.user_id', $userId)
+            ->orderBy('payments.created_at', 'DESC')
+            ->findAll();
+
+        // Ensure the view's `reference_number` shows the payment_intent_id for gateway payments
+        $data['payments'] = array_map(function($p) {
+            $method = strtolower($p['method'] ?? '');
+            $reference = '-';
+
+            if ($method === 'gateway' && !empty($p['payment_intent_id'])) {
+                $reference = $p['payment_intent_id'];
+            } elseif (!empty($p['reference_number'])) {
+                $reference = $p['reference_number'];
+            }
+
+            // Overwrite reference_number so existing views keep working
+            $p['reference_number'] = $reference;
+
+            return $p;
+        }, $data['payments']);
 
         // Load the history view (file: app/Views/Users/history.php)
         return view('users/history', $data);
@@ -435,7 +452,7 @@ public function getBillDetails()
 
 
 
-    // Show payments page Null pa
+    // Show payments 
     public function payments()
     {
         $userId = session()->get('user_id');

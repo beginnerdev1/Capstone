@@ -44,6 +44,7 @@ class PaymentsModel extends Model
             p.method,
             p.status,
             p.reference_number,
+            p.payment_intent_id,
             p.admin_reference,
             p.receipt_image,
             p.created_at,

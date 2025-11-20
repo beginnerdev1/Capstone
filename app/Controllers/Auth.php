@@ -3,7 +3,7 @@
 namespace App\Controllers;
 
 use App\Models\UsersModel;
-use PHPMailer\PHPMailer\PHPMailer;
+use App\Models\PasswordResetModel;
 use Brevo\Client\Api\TransactionalEmailsApi;
 use Brevo\Client\Configuration;
 use Brevo\Client\Model\SendSmtpEmail;
@@ -258,5 +258,179 @@ class Auth extends BaseController
     {
         session()->destroy();
         return redirect()->to('/login');
+    }
+
+    //---------------Forgot Password-------------------------
+
+    // Show forgot-password form
+    public function forgotPasswordForm()
+    {
+        return view('users/forgot_password');
+    }
+
+    // Show reset form (GET /reset?email=...&token=...)
+    public function resetForm()
+    {
+        $email = $this->request->getGet('email');
+        $token = $this->request->getGet('token');
+
+        if (empty($email) || empty($token)) {
+            return redirect()->to('/forgot-password')->with('error', 'Invalid reset link.');
+        }
+
+        $prModel = new PasswordResetModel();
+        $tokenHash = hash('sha256', $token);
+
+        $row = $prModel->where('email', $email)
+                       ->where('token', $tokenHash)
+                       ->where('expires_at >', date('Y-m-d H:i:s'))
+                       ->first();
+
+        if (!$row) {
+            return redirect()->to('/forgot-password')->with('error', 'Reset link is invalid or has expired.');
+        }
+
+        return view('users/reset', ['email' => $email, 'token' => $token]);
+    }
+
+    // Handle forgot-password form submit: create token + send email
+    public function sendResetLink()
+    {
+        $email = $this->request->getPost('email');
+        if (empty($email)) {
+            return redirect()->back()->with('error', 'Please provide an email address.');
+        }
+
+        $usersModel = new UsersModel();
+        $user = $usersModel->where('email', $email)->first();
+
+        // Always return generic message to avoid email enumeration
+        if (!$user) {
+            return redirect()->back()->with('message', 'If that email exists we sent a reset link.');
+        }
+
+        // Basic rate-limiting (cache-based) to avoid abuse
+        try {
+            $cache = \Config\Services::cache();
+            $key = 'password_reset_req_' . md5($email . $this->request->getIPAddress());
+            if ($cache->get($key)) {
+                return redirect()->back()->with('message', 'Please wait a minute before requesting another reset link.');
+            }
+            $cache->save($key, 1, 60);
+        } catch (\Throwable $e) {
+            log_message('error', 'Password reset rate-limit check failed: ' . $e->getMessage());
+        }
+
+        $prModel = new PasswordResetModel();
+
+        try {
+            $prModel->where('email', $email)->delete();
+        } catch (\Throwable $e) {
+            log_message('error', 'PasswordReset cleanup failed: ' . $e->getMessage());
+        }
+
+        try {
+            $token = bin2hex(random_bytes(32));
+        } catch (\Throwable $e) {
+            $token = bin2hex(openssl_random_pseudo_bytes(32));
+        }
+
+        $tokenHash = hash('sha256', $token);
+        $expiresAt = date('Y-m-d H:i:s', strtotime('+1 hour'));
+
+        $prModel->insert([
+            'email' => $email,
+            'token' => $tokenHash,
+            'expires_at' => $expiresAt,
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        // Send reset email (Brevo)
+        try {
+            require ROOTPATH . 'vendor/autoload.php';
+            $config = \Brevo\Client\Configuration::getDefaultConfiguration()
+                ->setApiKey('api-key', getenv('BREVO_API_KEY'));
+            $api = new \Brevo\Client\Api\TransactionalEmailsApi(new \GuzzleHttp\Client(), $config);
+
+            $fromEmail = getenv('SMTP_FROM') ?: (getenv('SMTP_USER') ?: 'no-reply@localhost');
+            $resetLink = base_url('/reset') . '?email=' . urlencode($email) . '&token=' . urlencode($token);
+
+            // Log link in non-production to aid development (do not enable in production)
+            if (defined('ENVIRONMENT') && ENVIRONMENT !== 'production') {
+                log_message('debug', 'Password reset link for ' . $email . ': ' . $resetLink);
+            }
+
+            $payload = new \Brevo\Client\Model\SendSmtpEmail([
+                'subject' => 'Reset your password',
+                'sender'  => ['name' => 'Water Billing System', 'email' => $fromEmail],
+                'to'      => [[ 'email' => $email ]],
+                'htmlContent' => "<p>You requested a password reset. Click the link below to set a new password (link expires in 1 hour):</p>
+                                  <p><a href=\"{$resetLink}\">Reset password</a></p>
+                                  <p>If you didn't request this, ignore this email.</p>"
+            ]);
+
+            $api->sendTransacEmail($payload);
+        } catch (\Throwable $e) {
+            log_message('error', 'Failed to send reset email: ' . $e->getMessage());
+        }
+
+        return redirect()->back()->with('message', 'If that email exists we sent a reset link.');
+    }
+
+    // Handle actual password update (POST /reset-password)
+    public function processResetPassword()
+    {
+        $email = $this->request->getPost('email');
+        $token = $this->request->getPost('token');
+        $password = $this->request->getPost('password');
+        $confirm = $this->request->getPost('confirm_password') ?? '';
+
+        if (empty($email) || empty($token) || empty($password) || empty($confirm)) {
+            return redirect()->back()->with('error', 'All fields are required.');
+        }
+
+        if ($password !== $confirm) {
+            return redirect()->back()->with('error', 'Passwords do not match.');
+        }
+
+        // Password policy: at least 8 chars, upper/lower, number (adjust if needed)
+        if (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/', $password)) {
+            return redirect()->back()->with('error', 'Password must be at least 8 characters, contain upper/lower and a number.');
+        }
+
+        $prModel = new PasswordResetModel();
+        $tokenHash = hash('sha256', $token);
+
+        $row = $prModel->where('email', $email)
+                       ->where('token', $tokenHash)
+                       ->where('expires_at >', date('Y-m-d H:i:s'))
+                       ->first();
+
+        if (!$row) {
+            return redirect()->to('/forgot-password')->with('error', 'Reset token invalid or expired.');
+        }
+
+        $usersModel = new UsersModel();
+        $user = $usersModel->where('email', $email)->first();
+        if (!$user) {
+            try { $prModel->where('email', $email)->delete(); } catch (\Throwable $e) { log_message('error', 'PasswordReset cleanup failed: ' . $e->getMessage()); }
+            return redirect()->to('/forgot-password')->with('error', 'User account not found.');
+        }
+
+        try {
+            $usersModel->update($user['id'], [
+                'password' => password_hash($password, PASSWORD_DEFAULT),
+            ]);
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', 'Failed to update password.');
+        }
+
+        try {
+            $prModel->where('email', $email)->delete();
+        } catch (\Throwable $e) {
+            log_message('error', 'PasswordReset cleanup failed: ' . $e->getMessage());
+        }
+
+        return redirect()->to('/login')->with('message', 'Your password has been reset. You may now log in.');
     }
 }

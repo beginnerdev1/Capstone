@@ -722,6 +722,216 @@ class Admin extends BaseController
         return $this->response->setJSON($result);
     }
 
+        // Activate user account
+    public function activateUser($id)
+    {
+        $this->usersModel->update($id, ['active' => 2, 'status' => 'approved']);
+        // Remove any stale inactive_users snapshots for this user
+        try {
+            $db = \Config\Database::connect();
+            $db->table('inactive_users')->where('user_id', $id)->delete();
+        } catch (\Throwable $_) {
+            // ignore cleanup errors
+        }
+        // Persist friendly display name into the activity log to guarantee history
+        try {
+            $logId = session()->get('admin_activity_log_id') ?? session()->get('superadmin_activity_log_id');
+            if ($logId) {
+                $user = $this->usersModel->find($id);
+                $info = $this->userInfoModel->getByUserId($id) ?? [];
+                $display = trim(($info['first_name'] ?? '') . ' ' . ($info['last_name'] ?? '')) ?: ($user['email'] ?? null);
+                $details = [
+                    'id' => $id,
+                    'user_name' => $display,
+                    'first_name' => $info['first_name'] ?? null,
+                    'last_name' => $info['last_name'] ?? null,
+                    'email' => $user['email'] ?? null,
+                ];
+
+                // mark to skip the ActivityLogger to avoid duplicate entry
+                session()->set('skip_activity_logger', true);
+                $logModel = new \App\Models\AdminActivityLogModel();
+                $logModel->appendAction($logId, 'activate', '/admin/activateUser/' . $id, $this->request->getMethod() ?: 'POST', $id, $details);
+            }
+        } catch (\Throwable $_) {
+            // ignore logging failures
+        }
+
+        return redirect()->back()->with('success', 'User activated successfully.');
+    }
+
+    // Deactivate user account
+    public function deactivateUser($id)
+    {
+        $db = \Config\Database::connect();
+        $db->transStart();
+
+        $user = $this->usersModel->find($id);
+        if (!$user) {
+            if ($this->request->isAJAX() || $this->request->is('post')) {
+                return $this->response->setJSON(['success' => false, 'message' => 'User not found.']);
+            }
+            return redirect()->back()->with('error', 'User not found.');
+        }
+
+        // Block deactivation if user has outstanding balance/pending bills
+        try {
+            $outstanding = $this->billingModel
+                ->where('user_id', $id)
+                ->where('status', 'Pending')
+                ->countAllResults();
+            log_message('debug', '[Admin::deactivateUser] outstanding count for user ' . $id . ' => ' . $outstanding);
+            if ($outstanding > 0) {
+                try {
+                    $samples = $this->billingModel->select('id, bill_no, status')->where('user_id', $id)->where('status', 'Pending')->findAll(5);
+                    $ids = array_map(fn($b)=> $b['id'], $samples);
+                    log_message('debug', '[Admin::deactivateUser] sample pending bill ids for user ' . $id . ': ' . json_encode($ids));
+                } catch (\Throwable $_) {
+                    // ignore
+                }
+            }
+        } catch (\Throwable $e) {
+            $outstanding = 0; // Fail open on count error to avoid false positives
+        }
+        if ($outstanding > 0) {
+            $db->transRollback();
+            $msg = 'Cannot deactivate: user has pending bill(s). Please settle or cancel pending bills first.';
+            if ($this->request->isAJAX() || $this->request->is('post')) {
+                return $this->response->setJSON(['success' => false, 'message' => $msg]);
+            }
+            return redirect()->back()->with('error', $msg);
+        }
+
+        $info = $this->userInfoModel->getByUserId($id) ?? [];
+        $now = date('Y-m-d H:i:s');
+        $adminId = (int)(session()->get('admin_id') ?? 0);
+
+        // 1) Update user status/active
+        $this->usersModel->update($id, ['active' => 1, 'status' => 'inactive']);
+
+        // 2) Insert snapshot into inactive_users and capture the insert id
+        $inactiveData = [
+            'user_id'        => $id,
+            'email'          => $user['email'] ?? '',
+            'first_name'     => $info['first_name'] ?? null,
+            'last_name'      => $info['last_name'] ?? null,
+            'phone'          => $info['phone'] ?? null,
+            'purok'          => isset($info['purok']) ? (int)$info['purok'] : null,
+            'barangay'       => $info['barangay'] ?? 'Borlongan',
+            'municipality'   => $info['municipality'] ?? 'Dipaculao',
+            'province'       => $info['province'] ?? 'Aurora',
+            'zipcode'        => $info['zipcode'] ?? '3203',
+            'inactivated_at' => $now,
+            'inactivated_by' => $adminId ?: null,
+            'reason'         => $this->request->getPost('reason') ?? null,
+            'created_at'     => $now,
+            'updated_at'     => $now,
+        ];
+
+        try {
+            $db->table('inactive_users')->insert($inactiveData);
+            $inactiveId = (int)$db->insertID();
+        } catch (\Throwable $e) {
+            // If insertion fails, rollback and return error
+            $db->transRollback();
+            if ($this->request->isAJAX() || $this->request->is('post')) {
+                return $this->response->setJSON(['success' => false, 'message' => 'Failed to persist inactive user snapshot.']);
+            }
+            return redirect()->back()->with('error', 'Failed to persist inactive user snapshot.');
+        }
+
+        // Append action with display name into activity log (controller-level)
+        try {
+            $logId = session()->get('admin_activity_log_id') ?? session()->get('superadmin_activity_log_id');
+            if ($logId) {
+                $display = trim(($info['first_name'] ?? '') . ' ' . ($info['last_name'] ?? '')) ?: ($user['email'] ?? null);
+                $details = [
+                    'id' => $id,
+                    'user_name' => $display,
+                    'first_name' => $info['first_name'] ?? null,
+                    'last_name' => $info['last_name'] ?? null,
+                    'email' => $user['email'] ?? null,
+                    'reason' => $this->request->getPost('reason') ?? null,
+                    'inactive_ref_id' => $inactiveId,
+                ];
+                session()->set('skip_activity_logger', true);
+                $logModel = new \App\Models\AdminActivityLogModel();
+                $logModel->appendAction($logId, 'deactivate', '/admin/deactivateUser/' . $id, $this->request->getMethod() ?: 'POST', $id, $details);
+            }
+        } catch (\Throwable $_) {
+            // ignore logging failures
+        }
+        // 3) Archive last two years of billings before inactivation
+        // Prefer billing_month as reference; fallback to created_at
+        $twoYearsAgo = date('Y-m-d', strtotime('-2 years', strtotime($now)));
+
+        // Fetch eligible billings
+        $billings = $db->table('billings')
+            ->select('*')
+            ->where('user_id', $id)
+            ->groupStart()
+                ->groupStart()
+                    ->where('billing_month <=', date('Y-m-d', strtotime($now)))
+                    ->where('billing_month >=', $twoYearsAgo)
+                ->groupEnd()
+                ->orGroupStart()
+                    ->where('billing_month', null)
+                    ->where('DATE(created_at) <=', date('Y-m-d', strtotime($now)))
+                    ->where('DATE(created_at) >=', $twoYearsAgo)
+                ->groupEnd()
+            ->groupEnd()
+            ->get()
+            ->getResultArray();
+
+        if (!empty($billings)) {
+            foreach ($billings as $b) {
+                $db->table('archived_billings')->insert([
+                    'inactive_ref_id'    => $inactiveId,
+                    'original_billing_id'=> $b['id'],
+                    'user_id'            => $b['user_id'],
+                    'bill_no'            => $b['bill_no'] ?? null,
+                    'amount_due'         => $b['amount_due'] ?? null,
+                    'billing_month'      => $b['billing_month'] ?? null,
+                    'due_date'           => $b['due_date'] ?? null,
+                    'status'             => $b['status'] ?? null,
+                    'paid_date'          => $b['paid_date'] ?? null,
+                    'created_at'         => $b['created_at'] ?? null,
+                    'updated_at'         => $b['updated_at'] ?? null,
+                    'archived_at'        => $now,
+                ]);
+            }
+
+            // Remove archived rows from active billings
+            $ids = array_column($billings, 'id');
+            if (!empty($ids)) {
+                $db->table('billings')->whereIn('id', $ids)->delete();
+            }
+        }
+
+        $db->transComplete();
+        if (!$db->transStatus()) {
+            if ($this->request->isAJAX() || $this->request->is('post')) {
+                return $this->response->setJSON(['success' => false, 'message' => 'Failed to deactivate and archive user records.']);
+            }
+            return redirect()->back()->with('error', 'Failed to deactivate and archive user records.');
+        }
+
+        if ($this->request->isAJAX() || $this->request->is('post')) {
+            return $this->response->setJSON(['success' => true, 'message' => 'User deactivated and last 2 years of billings archived.']);
+        }
+        return redirect()->back()->with('success', 'User deactivated and last 2 years of billings archived.');
+    }
+
+    // Suspend user account
+    public function suspendUser($id)
+    {
+        $this->usersModel->update($id, [
+            'active' => -1,
+            'status' => 'suspended'
+        ]);
+        return redirect()->back()->with('success', 'User suspended successfully.');
+    }
+
 
     //------------------VERIFY USER-----------------------------
 
@@ -773,225 +983,225 @@ class Admin extends BaseController
         ]);
     }
 
-    // Approve user account
-public function approve($id)
-{
-    if (!$id) return redirect()->back()->with('error', 'No user ID provided.');
+        // Approve user account
+    public function approve($id)
+    {
+        if (!$id) return redirect()->back()->with('error', 'No user ID provided.');
 
-    $user = $this->usersModel->find($id);
-    if (!$user) {
-        return redirect()->back()->with('error', 'User not found.');
-    }
-
-    if ($this->usersModel->update($id, ['status' => 'approved', 'active' => 2])) {
-        // Get display name
-        try {
-            $info = $this->userInfoModel->getByUserId($id) ?? [];
-        } catch (\Throwable $_) {
-            $info = [];
+        $user = $this->usersModel->find($id);
+        if (!$user) {
+            return redirect()->back()->with('error', 'User not found.');
         }
-        $fullName = trim(($info['first_name'] ?? '') . ' ' . ($info['last_name'] ?? ''));
-        $displayName = $fullName ?: ($user['email'] ?? 'User');
 
-        // Prepare email values (escaped)
-        $siteUrl = rtrim(base_url(), '/');
-        $loginUrl = $siteUrl . '/login';
-        $fromEmail = getenv('SMTP_FROM') ?: getenv('MAIL_FROM') ?: (getenv('SMTP_USER') ?: 'no-reply@localhost');
-        $fromName  = getenv('MAIL_FROM_NAME') ?: getenv('SMTP_FROM_NAME') ?: 'Support';
-        $displayNameEsc = htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8');
-        $loginUrlEsc = htmlspecialchars($loginUrl, ENT_QUOTES, 'UTF-8');
-        $fromNameEsc = htmlspecialchars($fromName, ENT_QUOTES, 'UTF-8');
-
-        // Send approval email (non-blocking)
-        try {
-            $apiKey = getenv('BREVO_API_KEY') ?: null;
-            if ($apiKey) {
-                $config = \Brevo\Client\Configuration::getDefaultConfiguration()
-                    ->setApiKey('api-key', $apiKey);
-                $apiInstance = new \Brevo\Client\Api\TransactionalEmailsApi(new \GuzzleHttp\Client(), $config);
-
-                $subject = 'Your account has been approved';
-
-                $html = <<<HTML
-    <!doctype html>
-    <html>
-    <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
-    </head>
-    <body style="margin:0;padding:0;background:#f5f7fa;font-family:Poppins,Arial,sans-serif;">
-    <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-        <tr>
-        <td align="center" style="padding:24px 12px;">
-            <table width="600" cellpadding="0" cellspacing="0" role="presentation" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 4px 18px rgba(16,24,40,0.08);">
-            <tr>
-                <td style="padding:28px 32px 16px;">
-                <h2 style="margin:0 0 8px;font-weight:600;color:#111827;font-size:20px;">Account Approved</h2>
-                <p style="margin:0;color:#6b7280;">Hello {$displayNameEsc},</p>
-                </td>
-            </tr>
-            <tr>
-                <td style="padding:0 32px 24px;color:#374151;">
-                <p style="margin:0 0 12px;line-height:1.5;">We are pleased to let you know that your account has been approved by our administrator. You can now sign in using your registered email and password.</p>
-                <p style="margin:0 0 20px;">
-                    <a href="{$loginUrlEsc}" style="display:inline-block;padding:10px 18px;background:#2563eb;color:#ffffff;border-radius:6px;text-decoration:none;font-weight:600;">Sign in to your account</a>
-                </p>
-                <p style="margin:0;color:#9ca3af;font-size:12px;">If the button above does not work, copy and paste this link into your browser: {$loginUrlEsc}</p>
-                </td>
-            </tr>
-            <tr>
-                <td style="padding:16px 32px 28px;background:#f9fafb;color:#6b7280;font-size:12px;">
-                <div style="margin-bottom:6px;">Best regards,</div>
-                <div style="font-weight:600;color:#111827;">{$fromNameEsc}</div>
-                <div style="margin-top:8px;font-size:11px;color:#9ca3af;">This is an automated message. Please do not reply directly to this email.</div>
-                </td>
-            </tr>
-            </table>
-
-            <div style="max-width:600px;margin-top:12px;color:#9ca3af;font-size:12px;text-align:center;">
-            &copy; {$siteUrl} ' . date('Y') . '
-            </div>
-        </td>
-        </tr>
-    </table>
-    </body>
-    </html>
-    HTML;
-
-                $plain = "Hello {$displayName},\n\nYour account has been approved. You can sign in at: {$loginUrl}\n\nThis is an automated message.";
-
-                $email = new \Brevo\Client\Model\SendSmtpEmail([
-                    'subject' => $subject,
-                    'sender' => ['name' => $fromName, 'email' => $fromEmail],
-                    'to' => [['email' => $user['email'], 'name' => $displayName]],
-                    'htmlContent' => $html,
-                    'textContent' => $plain
-                ]);
-
-                $apiInstance->sendTransacEmail($email);
-            } else {
-                log_message('warning', 'BREVO_API_KEY not configured — skipping approval email for user ' . ($user['email'] ?? 'unknown'));
+        if ($this->usersModel->update($id, ['status' => 'approved', 'active' => 2])) {
+            // Get display name
+            try {
+                $info = $this->userInfoModel->getByUserId($id) ?? [];
+            } catch (\Throwable $_) {
+                $info = [];
             }
-        } catch (\Throwable $e) {
-            log_message('error', 'Approval email failed for user ' . ($user['email'] ?? 'unknown') . ': ' . $e->getMessage());
-        }
+            $fullName = trim(($info['first_name'] ?? '') . ' ' . ($info['last_name'] ?? ''));
+            $displayName = $fullName ?: ($user['email'] ?? 'User');
 
-        return redirect()->back()->with('success', 'User approved successfully.');
-    }
+            // Prepare email values (escaped)
+            $siteUrl = rtrim(base_url(), '/');
+            $loginUrl = $siteUrl . '/login';
+            $fromEmail = getenv('SMTP_FROM') ?: getenv('MAIL_FROM') ?: (getenv('SMTP_USER') ?: 'no-reply@localhost');
+            $fromName  = getenv('MAIL_FROM_NAME') ?: getenv('SMTP_FROM_NAME') ?: 'Support';
+            $displayNameEsc = htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8');
+            $loginUrlEsc = htmlspecialchars($loginUrl, ENT_QUOTES, 'UTF-8');
+            $fromNameEsc = htmlspecialchars($fromName, ENT_QUOTES, 'UTF-8');
 
-    return redirect()->back()->with('error', 'Failed to approve user.');
-}
-    // Reject user account
-public function reject($id)
-{
-    if (!$id) return redirect()->back()->with('error', 'No user ID provided.');
+            // Send approval email (non-blocking)
+            try {
+                $apiKey = getenv('BREVO_API_KEY') ?: null;
+                if ($apiKey) {
+                    $config = \Brevo\Client\Configuration::getDefaultConfiguration()
+                        ->setApiKey('api-key', $apiKey);
+                    $apiInstance = new \Brevo\Client\Api\TransactionalEmailsApi(new \GuzzleHttp\Client(), $config);
 
-    $user = $this->usersModel->find($id);
-    if (!$user) {
-        return redirect()->back()->with('error', 'User not found.');
-    }
+                    $subject = 'Your account has been approved';
 
-    // Update status to rejected
-    if ($this->usersModel->update($id, ['status' => 'rejected'])) {
-        // Build display name
-        try {
-            $info = $this->userInfoModel->getByUserId($id) ?? [];
-        } catch (\Throwable $_) {
-            $info = [];
-        }
-        $fullName = trim(($info['first_name'] ?? '') . ' ' . ($info['last_name'] ?? ''));
-        $displayName = $fullName ?: ($user['email'] ?? 'User');
-
-        // Prepare email values (escaped)
-        $siteUrl = rtrim(base_url(), '/');
-        $helpUrl = $siteUrl . '/contact';
-        $fromEmail = getenv('SMTP_FROM') ?: getenv('MAIL_FROM') ?: (getenv('SMTP_USER') ?: 'no-reply@localhost');
-        $fromName  = getenv('MAIL_FROM_NAME') ?: getenv('SMTP_FROM_NAME') ?: 'Support';
-        $displayNameEsc = htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8');
-        $helpUrlEsc = htmlspecialchars($helpUrl, ENT_QUOTES, 'UTF-8');
-        $fromNameEsc = htmlspecialchars($fromName, ENT_QUOTES, 'UTF-8');
-
-        // Send rejection email (non-blocking)
-        try {
-            $apiKey = getenv('BREVO_API_KEY') ?: null;
-            if ($apiKey) {
-                $config = \Brevo\Client\Configuration::getDefaultConfiguration()
-                    ->setApiKey('api-key', $apiKey);
-                $apiInstance = new \Brevo\Client\Api\TransactionalEmailsApi(new \GuzzleHttp\Client(), $config);
-
-                $subject = 'Your account application status';
-
-                $html = <<<HTML
-                <!doctype html>
-                <html>
-                <head>
-                <meta charset="utf-8">
-                <meta name="viewport" content="width=device-width,initial-scale=1">
-                <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
-                </head>
-                <body style="margin:0;padding:0;background:#f5f7fa;font-family:Poppins,Arial,sans-serif;">
-                <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-                    <tr>
-                    <td align="center" style="padding:24px 12px;">
-                        <table width="600" cellpadding="0" cellspacing="0" role="presentation" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 4px 18px rgba(16,24,40,0.08);">
-                        <tr>
-                            <td style="padding:28px 32px 16px;">
-                            <h2 style="margin:0 0 8px;font-weight:600;color:#111827;font-size:20px;">Application Update</h2>
-                            <p style="margin:0;color:#6b7280;">Hello {$displayNameEsc},</p>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="padding:0 32px 24px;color:#374151;">
-                            <p style="margin:0 0 12px;line-height:1.5;">We regret to inform you that your account application has been rejected by our administrator. If you believe this is an error or need more details, please contact our support team.</p>
-                            <p style="margin:0 0 20px;">
-                                <a href="{$helpUrlEsc}" style="display:inline-block;padding:10px 18px;background:#2563eb;color:#ffffff;border-radius:6px;text-decoration:none;font-weight:600;">Contact Support</a>
-                            </p>
-                            <p style="margin:0;color:#9ca3af;font-size:12px;">If the button above does not work, copy and paste this link into your browser: {$helpUrlEsc}</p>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="padding:16px 32px 28px;background:#f9fafb;color:#6b7280;font-size:12px;">
-                            <div style="margin-bottom:6px;">Best regards,</div>
-                            <div style="font-weight:600;color:#111827;">{$fromNameEsc}</div>
-                            <div style="margin-top:8px;font-size:11px;color:#9ca3af;">This is an automated message. Please do not reply directly to this email.</div>
-                            </td>
-                        </tr>
-                        </table>
-
-                        <div style="max-width:600px;margin-top:12px;color:#9ca3af;font-size:12px;text-align:center;">
-                        &copy; {$siteUrl} ' . date('Y') . '
-                        </div>
+                    $html = <<<HTML
+        <!doctype html>
+        <html>
+        <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1">
+        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+        </head>
+        <body style="margin:0;padding:0;background:#f5f7fa;font-family:Poppins,Arial,sans-serif;">
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+            <tr>
+            <td align="center" style="padding:24px 12px;">
+                <table width="600" cellpadding="0" cellspacing="0" role="presentation" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 4px 18px rgba(16,24,40,0.08);">
+                <tr>
+                    <td style="padding:28px 32px 16px;">
+                    <h2 style="margin:0 0 8px;font-weight:600;color:#111827;font-size:20px;">Account Approved</h2>
+                    <p style="margin:0;color:#6b7280;">Hello {$displayNameEsc},</p>
                     </td>
-                    </tr>
+                </tr>
+                <tr>
+                    <td style="padding:0 32px 24px;color:#374151;">
+                    <p style="margin:0 0 12px;line-height:1.5;">We are pleased to let you know that your account has been approved by our administrator. You can now sign in using your registered email and password.</p>
+                    <p style="margin:0 0 20px;">
+                        <a href="{$loginUrlEsc}" style="display:inline-block;padding:10px 18px;background:#2563eb;color:#ffffff;border-radius:6px;text-decoration:none;font-weight:600;">Sign in to your account</a>
+                    </p>
+                    <p style="margin:0;color:#9ca3af;font-size:12px;">If the button above does not work, copy and paste this link into your browser: {$loginUrlEsc}</p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:16px 32px 28px;background:#f9fafb;color:#6b7280;font-size:12px;">
+                    <div style="margin-bottom:6px;">Best regards,</div>
+                    <div style="font-weight:600;color:#111827;">{$fromNameEsc}</div>
+                    <div style="margin-top:8px;font-size:11px;color:#9ca3af;">This is an automated message. Please do not reply directly to this email.</div>
+                    </td>
+                </tr>
                 </table>
-                </body>
-                </html>
-                HTML;
 
-                $plain = "Hello {$displayName},\n\nWe regret to inform you that your account application has been rejected. If you believe this is an error, please contact support: {$helpUrl}\n\nThis is an automated message.";
+                <div style="max-width:600px;margin-top:12px;color:#9ca3af;font-size:12px;text-align:center;">
+                &copy; {$siteUrl} ' . date('Y') . '
+                </div>
+            </td>
+            </tr>
+        </table>
+        </body>
+        </html>
+        HTML;
 
-                $email = new \Brevo\Client\Model\SendSmtpEmail([
-                    'subject' => $subject,
-                    'sender' => ['name' => $fromName, 'email' => $fromEmail],
-                    'to' => [['email' => $user['email'], 'name' => $displayName]],
-                    'htmlContent' => $html,
-                    'textContent' => $plain
-                ]);
+                    $plain = "Hello {$displayName},\n\nYour account has been approved. You can sign in at: {$loginUrl}\n\nThis is an automated message.";
 
-                $apiInstance->sendTransacEmail($email);
-            } else {
-                log_message('warning', 'BREVO_API_KEY not configured — skipping rejection email for user ' . ($user['email'] ?? 'unknown'));
+                    $email = new \Brevo\Client\Model\SendSmtpEmail([
+                        'subject' => $subject,
+                        'sender' => ['name' => $fromName, 'email' => $fromEmail],
+                        'to' => [['email' => $user['email'], 'name' => $displayName]],
+                        'htmlContent' => $html,
+                        'textContent' => $plain
+                    ]);
+
+                    $apiInstance->sendTransacEmail($email);
+                } else {
+                    log_message('warning', 'BREVO_API_KEY not configured — skipping approval email for user ' . ($user['email'] ?? 'unknown'));
+                }
+            } catch (\Throwable $e) {
+                log_message('error', 'Approval email failed for user ' . ($user['email'] ?? 'unknown') . ': ' . $e->getMessage());
             }
-        } catch (\Throwable $e) {
-            log_message('error', 'Rejection email failed for user ' . ($user['email'] ?? 'unknown') . ': ' . $e->getMessage());
+
+            return redirect()->back()->with('success', 'User approved successfully.');
         }
 
-        return redirect()->back()->with('success', 'User rejected successfully.');
+        return redirect()->back()->with('error', 'Failed to approve user.');
     }
+        // Reject user account
+    public function reject($id)
+    {
+        if (!$id) return redirect()->back()->with('error', 'No user ID provided.');
 
-    return redirect()->back()->with('error', 'Failed to reject user.');
-}
+        $user = $this->usersModel->find($id);
+        if (!$user) {
+            return redirect()->back()->with('error', 'User not found.');
+        }
+
+        // Update status to rejected
+        if ($this->usersModel->update($id, ['status' => 'rejected'])) {
+            // Build display name
+            try {
+                $info = $this->userInfoModel->getByUserId($id) ?? [];
+            } catch (\Throwable $_) {
+                $info = [];
+            }
+            $fullName = trim(($info['first_name'] ?? '') . ' ' . ($info['last_name'] ?? ''));
+            $displayName = $fullName ?: ($user['email'] ?? 'User');
+
+            // Prepare email values (escaped)
+            $siteUrl = rtrim(base_url(), '/');
+            $helpUrl = $siteUrl . '/contact';
+            $fromEmail = getenv('SMTP_FROM') ?: getenv('MAIL_FROM') ?: (getenv('SMTP_USER') ?: 'no-reply@localhost');
+            $fromName  = getenv('MAIL_FROM_NAME') ?: getenv('SMTP_FROM_NAME') ?: 'Support';
+            $displayNameEsc = htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8');
+            $helpUrlEsc = htmlspecialchars($helpUrl, ENT_QUOTES, 'UTF-8');
+            $fromNameEsc = htmlspecialchars($fromName, ENT_QUOTES, 'UTF-8');
+
+            // Send rejection email (non-blocking)
+            try {
+                $apiKey = getenv('BREVO_API_KEY') ?: null;
+                if ($apiKey) {
+                    $config = \Brevo\Client\Configuration::getDefaultConfiguration()
+                        ->setApiKey('api-key', $apiKey);
+                    $apiInstance = new \Brevo\Client\Api\TransactionalEmailsApi(new \GuzzleHttp\Client(), $config);
+
+                    $subject = 'Your account application status';
+
+                    $html = <<<HTML
+                    <!doctype html>
+                    <html>
+                    <head>
+                    <meta charset="utf-8">
+                    <meta name="viewport" content="width=device-width,initial-scale=1">
+                    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+                    </head>
+                    <body style="margin:0;padding:0;background:#f5f7fa;font-family:Poppins,Arial,sans-serif;">
+                    <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                        <tr>
+                        <td align="center" style="padding:24px 12px;">
+                            <table width="600" cellpadding="0" cellspacing="0" role="presentation" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 4px 18px rgba(16,24,40,0.08);">
+                            <tr>
+                                <td style="padding:28px 32px 16px;">
+                                <h2 style="margin:0 0 8px;font-weight:600;color:#111827;font-size:20px;">Application Update</h2>
+                                <p style="margin:0;color:#6b7280;">Hello {$displayNameEsc},</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0 32px 24px;color:#374151;">
+                                <p style="margin:0 0 12px;line-height:1.5;">We regret to inform you that your account application has been rejected by our administrator. If you believe this is an error or need more details, please contact our support team.</p>
+                                <p style="margin:0 0 20px;">
+                                    <a href="{$helpUrlEsc}" style="display:inline-block;padding:10px 18px;background:#2563eb;color:#ffffff;border-radius:6px;text-decoration:none;font-weight:600;">Contact Support</a>
+                                </p>
+                                <p style="margin:0;color:#9ca3af;font-size:12px;">If the button above does not work, copy and paste this link into your browser: {$helpUrlEsc}</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding:16px 32px 28px;background:#f9fafb;color:#6b7280;font-size:12px;">
+                                <div style="margin-bottom:6px;">Best regards,</div>
+                                <div style="font-weight:600;color:#111827;">{$fromNameEsc}</div>
+                                <div style="margin-top:8px;font-size:11px;color:#9ca3af;">This is an automated message. Please do not reply directly to this email.</div>
+                                </td>
+                            </tr>
+                            </table>
+
+                            <div style="max-width:600px;margin-top:12px;color:#9ca3af;font-size:12px;text-align:center;">
+                            &copy; {$siteUrl} ' . date('Y') . '
+                            </div>
+                        </td>
+                        </tr>
+                    </table>
+                    </body>
+                    </html>
+                    HTML;
+
+                    $plain = "Hello {$displayName},\n\nWe regret to inform you that your account application has been rejected. If you believe this is an error, please contact support: {$helpUrl}\n\nThis is an automated message.";
+
+                    $email = new \Brevo\Client\Model\SendSmtpEmail([
+                        'subject' => $subject,
+                        'sender' => ['name' => $fromName, 'email' => $fromEmail],
+                        'to' => [['email' => $user['email'], 'name' => $displayName]],
+                        'htmlContent' => $html,
+                        'textContent' => $plain
+                    ]);
+
+                    $apiInstance->sendTransacEmail($email);
+                } else {
+                    log_message('warning', 'BREVO_API_KEY not configured — skipping rejection email for user ' . ($user['email'] ?? 'unknown'));
+                }
+            } catch (\Throwable $e) {
+                log_message('error', 'Rejection email failed for user ' . ($user['email'] ?? 'unknown') . ': ' . $e->getMessage());
+            }
+
+            return redirect()->back()->with('success', 'User rejected successfully.');
+        }
+
+        return redirect()->back()->with('error', 'Failed to reject user.');
+    }
 
 
     // ======================================================
@@ -1001,92 +1211,92 @@ public function reject($id)
     // GCash Settings Page
     public function gcashsettings() { return view('admin/gcash_settings'); }
 
-// Save GCash Settings (AJAX)
-public function saveGcashSettings()
-{
-    try {
-        if (!$this->request->is('post')) {
-            return $this->response->setJSON(['success' => false, 'message' => 'Invalid request method']);
-        }
-
-        $model = new \App\Models\GcashSettingsModel();
-
-        $rules = [
-            'gcash_number' => 'required|regex_match[/^[0-9]{11}$/]',
-            'gcash_qr'     => 'max_size[gcash_qr,5000]|is_image[gcash_qr]|mime_in[gcash_qr,image/png,image/jpg,image/jpeg]'
-        ];
-
-        if (!$this->validate($rules)) {
-            return $this->response->setJSON([
-                'success' => false,
-                'message' => $this->validator->getErrors()
-            ]);
-        }
-
-        // Start transaction for DB and file operation safety
-        $db = \Config\Database::connect();
-        $db->transStart();
-
-        // Ensure we operate on a single settings row — use the first if present
-        $settings = $model->orderBy('id', 'ASC')->first();
-        $file = $this->request->getFile('gcash_qr');
-        $qrCodePath = null;
-
-        // If a new file was uploaded, move it to uploads and prepare to delete the old file
-        if ($file && $file->isValid() && !$file->hasMoved()) {
-            $uploadPath = FCPATH . 'uploads/qrcodes';
-            if (!is_dir($uploadPath)) {
-                mkdir($uploadPath, 0755, true);
+    // Save GCash Settings (AJAX)
+    public function saveGcashSettings()
+    {
+        try {
+            if (!$this->request->is('post')) {
+                return $this->response->setJSON(['success' => false, 'message' => 'Invalid request method']);
             }
 
-            $newName = $file->getRandomName();
-            $file->move($uploadPath, $newName);
-            $qrCodePath = 'uploads/qrcodes/' . $newName;
+            $model = new \App\Models\GcashSettingsModel();
 
-            // If there is an existing settings record and it has an old qr path, delete the old file
-            if ($settings && !empty($settings['qr_code_path'])) {
-                $oldPath = FCPATH . $settings['qr_code_path'];
-                if (file_exists($oldPath)) {
-                    @unlink($oldPath);
+            $rules = [
+                'gcash_number' => 'required|regex_match[/^[0-9]{11}$/]',
+                'gcash_qr'     => 'max_size[gcash_qr,5000]|is_image[gcash_qr]|mime_in[gcash_qr,image/png,image/jpg,image/jpeg]'
+            ];
+
+            if (!$this->validate($rules)) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => $this->validator->getErrors()
+                ]);
+            }
+
+            // Start transaction for DB and file operation safety
+            $db = \Config\Database::connect();
+            $db->transStart();
+
+            // Ensure we operate on a single settings row — use the first if present
+            $settings = $model->orderBy('id', 'ASC')->first();
+            $file = $this->request->getFile('gcash_qr');
+            $qrCodePath = null;
+
+            // If a new file was uploaded, move it to uploads and prepare to delete the old file
+            if ($file && $file->isValid() && !$file->hasMoved()) {
+                $uploadPath = FCPATH . 'uploads/qrcodes';
+                if (!is_dir($uploadPath)) {
+                    mkdir($uploadPath, 0755, true);
+                }
+
+                $newName = $file->getRandomName();
+                $file->move($uploadPath, $newName);
+                $qrCodePath = 'uploads/qrcodes/' . $newName;
+
+                // If there is an existing settings record and it has an old qr path, delete the old file
+                if ($settings && !empty($settings['qr_code_path'])) {
+                    $oldPath = FCPATH . $settings['qr_code_path'];
+                    if (file_exists($oldPath)) {
+                        @unlink($oldPath);
+                    }
                 }
             }
+
+            $gcashNumber = $this->request->getPost('gcash_number');
+
+            // Build data to update. Always overwrite the gcash_number.
+            $updateData = ['gcash_number' => $gcashNumber];
+            if ($qrCodePath !== null) {
+                $updateData['qr_code_path'] = $qrCodePath;
+            }
+
+            if ($settings) {
+                // Update existing settings row
+                $model->update($settings['id'], $updateData);
+
+                // Remove any stray extra rows to keep a single settings record (defensive)
+                $model->where('id !=', $settings['id'])->delete();
+            } else {
+                // No existing settings: insert a new single-row record
+                $model->insert($updateData);
+            }
+
+            $db->transComplete();
+
+            if ($db->transStatus() === false) {
+                return $this->response->setJSON(['success' => false, 'message' => 'Database transaction failed while saving settings']);
+            }
+
+            return $this->response->setJSON(['success' => true, 'message' => 'Settings saved successfully']);
+        } catch (\Exception $e) {
+            // Attempt to log and return a safe error
+            log_message('error', 'saveGcashSettings error: ' . $e->getMessage());
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Error: ' . $e->getMessage()
+            ]);
         }
-
-        $gcashNumber = $this->request->getPost('gcash_number');
-
-        // Build data to update. Always overwrite the gcash_number.
-        $updateData = ['gcash_number' => $gcashNumber];
-        if ($qrCodePath !== null) {
-            $updateData['qr_code_path'] = $qrCodePath;
-        }
-
-        if ($settings) {
-            // Update existing settings row
-            $model->update($settings['id'], $updateData);
-
-            // Remove any stray extra rows to keep a single settings record (defensive)
-            $model->where('id !=', $settings['id'])->delete();
-        } else {
-            // No existing settings: insert a new single-row record
-            $model->insert($updateData);
-        }
-
-        $db->transComplete();
-
-        if ($db->transStatus() === false) {
-            return $this->response->setJSON(['success' => false, 'message' => 'Database transaction failed while saving settings']);
-        }
-
-        return $this->response->setJSON(['success' => true, 'message' => 'Settings saved successfully']);
-    } catch (\Exception $e) {
-        // Attempt to log and return a safe error
-        log_message('error', 'saveGcashSettings error: ' . $e->getMessage());
-        return $this->response->setJSON([
-            'success' => false,
-            'message' => 'Error: ' . $e->getMessage()
-        ]);
     }
-}
 
 
     // =======================Transaction Payments===============================
@@ -1193,6 +1403,13 @@ public function saveGcashSettings()
                 $methodValue = 'unknown';
             }
 
+            $reference = '-';
+            if ($methodValue === 'gateway' && !empty($payment['payment_intent_id'])) {
+                $reference = $payment['payment_intent_id'];
+            } elseif (!empty($payment['reference_number'])) {
+                $reference = $payment['reference_number'];
+            }
+
             return [
                 'id' => $payment['id'],
                 'user_name' => $payment['user_name'] ?? 'Unknown',
@@ -1200,7 +1417,7 @@ public function saveGcashSettings()
                 'amount' => $payment['amount'] ?? 0,
                 'method' => $methodValue,
                 'status' => strtolower($payment['status'] ?? 'pending'),
-                'reference_number' => $payment['reference_number'] ?? '-',
+                'reference_number' => $reference, // <-- now uses computed reference
                 'admin_reference' => $payment['admin_reference'] ?? '',
                 'receipt_image' => $payment['receipt_image'] ? base_url($payment['receipt_image']) : null,
                 'created_at' => $payment['created_at'] ?? date('Y-m-d H:i:s'),
@@ -1217,269 +1434,112 @@ public function saveGcashSettings()
     }
 
     // Confirm GCash Payment (AJAX) - Transaction Payments
-public function confirmGCashPayment()
-{
-    $data = $this->request->getJSON(true);
-    $paymentId = $data['payment_id'] ?? null;
-    $adminRef = $data['admin_reference'] ?? null;
+    public function confirmGCashPayment()
+    {
+        $data = $this->request->getJSON(true);
+        $paymentId = $data['payment_id'] ?? null;
+        $adminRef = $data['admin_reference'] ?? null;
 
-    if (!$paymentId) {
-        return $this->response->setJSON(['success' => false, 'message' => 'Payment ID is required']);
-    }
-
-    try {
-        // Mark payment as paid
-        $updated = $this->paymentsModel->confirmGCashPayment($paymentId, $adminRef);
-        $billingUpdated = false;
-        $billingId = null;
-
-        if ($updated) {
-            // Fetch updated payment
-            $payment = $this->paymentsModel->find($paymentId);
-            $userId = $payment['user_id'] ?? null;
-            $toEmail = $payment['email'] ?? null;
-            $billingId = $payment['billing_id'] ?? null;
-
-            // Fallback: get email from users table if not stored on payment
-            if (!$toEmail && $userId) {
-                $u = $this->usersModel->find($userId);
-                $toEmail = $u['email'] ?? null;
-            }
-
-            // Update billing status if billing_id exists
-            if ($billingId) {
-                try {
-                    $billingUpdated = (bool)$this->billingModel->updateBillingStatus($billingId, 'Paid');
-                    if ($billingUpdated) {
-                        log_message('info', "Billing ID {$billingId} marked as Paid for payment {$paymentId}.");
-                    } else {
-                        log_message('warning', "Failed to update billing ID {$billingId} for payment {$paymentId} (update returned false).");
-                    }
-                } catch (\Throwable $e) {
-                    log_message('error', "Exception while updating billing {$billingId} for payment {$paymentId}: " . $e->getMessage());
-                }
-            } else {
-                log_message('info', "No billing_id associated with payment {$paymentId}; skipping billing update.");
-            }
-
-            // Send confirmation email (non-blocking) via Brevo if we have recipient and API key
-            if ($toEmail) {
-                try {
-                    try {
-                        $info = $this->userInfoModel->getByUserId($userId) ?? [];
-                    } catch (\Throwable $_) {
-                        $info = [];
-                    }
-                    $displayName = trim(($info['first_name'] ?? '') . ' ' . ($info['last_name'] ?? '')) ?: $toEmail;
-
-                    // Prepare email values (escaped)
-                    $siteUrl = rtrim(base_url(), '/');
-                    $accountUrl = $siteUrl . '/account';
-                    $supportUrl = $siteUrl . '/contact';
-                    $fromEmail = getenv('SMTP_FROM') ?: getenv('MAIL_FROM') ?: (getenv('SMTP_USER') ?: 'no-reply@localhost');
-                    $fromName  = getenv('MAIL_FROM_NAME') ?: getenv('SMTP_FROM_NAME') ?: 'Support';
-                    $displayNameEsc = htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8');
-                    $accountUrlEsc = htmlspecialchars($accountUrl, ENT_QUOTES, 'UTF-8');
-                    $supportUrlEsc = htmlspecialchars($supportUrl, ENT_QUOTES, 'UTF-8');
-                    $fromNameEsc = htmlspecialchars($fromName, ENT_QUOTES, 'UTF-8');
-
-                    $amount = isset($payment['amount']) ? number_format((float)$payment['amount'], 2) : '-';
-                    $paidAt = $payment['paid_at'] ?? date('Y-m-d H:i:s');
-                    $refText = $adminRef ? htmlspecialchars($adminRef, ENT_QUOTES, 'UTF-8') : ($payment['admin_reference'] ?? 'N/A');
-
-                    $apiKey = getenv('BREVO_API_KEY') ?: null;
-                    if ($apiKey) {
-                        $config = \Brevo\Client\Configuration::getDefaultConfiguration()
-                            ->setApiKey('api-key', $apiKey);
-                        $apiInstance = new \Brevo\Client\Api\TransactionalEmailsApi(new \GuzzleHttp\Client(), $config);
-
-                        $subject = 'Payment confirmed';
-
-                        $html = <<<HTML
-                        <!doctype html>
-                        <html>
-                        <head>
-                        <meta charset="utf-8">
-                        <meta name="viewport" content="width=device-width,initial-scale=1">
-                        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
-                        </head>
-                        <body style="margin:0;padding:0;background:#f5f7fa;font-family:Poppins,Arial,sans-serif;">
-                        <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-                        <tr>
-                        <td align="center" style="padding:24px 12px;">
-                            <table width="600" cellpadding="0" cellspacing="0" role="presentation" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 4px 18px rgba(16,24,40,0.08);">
-                            <tr>
-                                <td style="padding:28px 32px 16px;">
-                                <h2 style="margin:0 0 8px;font-weight:600;color:#111827;font-size:20px;">Payment Confirmed</h2>
-                                <p style="margin:0;color:#6b7280;">Hello {$displayNameEsc},</p>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td style="padding:0 32px 24px;color:#374151;">
-                                <p style="margin:0 0 12px;line-height:1.5;">Thank you — we have confirmed your GCash payment. Details are shown below:</p>
-                                <p style="margin:6px 0;"><strong>Amount:</strong> ₱{$amount}</p>
-                                <p style="margin:6px 0;"><strong>Admin Reference:</strong> {$refText}</p>
-                                <p style="margin:6px 0;"><strong>Confirmed At:</strong> {$paidAt}</p>
-                                <p style="margin:12px 0 20px;line-height:1.5;">You can view your payment history and receipts in your account.</p>
-
-                                <p style="margin:0;color:#9ca3af;font-size:12px;">If you have questions, contact our support team: {$supportUrlEsc}</p>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td style="padding:16px 32px 28px;background:#f9fafb;color:#6b7280;font-size:12px;">
-                                <div style="margin-bottom:6px;">Best regards,</div>
-                                <div style="font-weight:600;color:#111827;">{$fromNameEsc}</div>
-                                <div style="margin-top:8px;font-size:11px;color:#9ca3af;">This is an automated message. Please do not reply directly to this email.</div>
-                                </td>
-                            </tr>
-                            </table>
-
-                            <div style="max-width:600px;margin-top:12px;color:#9ca3af;font-size:12px;text-align:center;">
-                            &copy; {$siteUrl} HTML_YEAR
-                            </div>
-                        </td>
-                        </tr>
-                        </table>
-                        </body>
-                        </html>
-                        HTML;
-                        $html = str_replace('HTML_YEAR', date('Y'), $html);
-
-                        $plain = "Hello {$displayName},\n\nYour GCash payment has been confirmed.\n\nAmount: ₱{$amount}\nAdmin Reference: {$refText}\nConfirmed At: {$paidAt}\n\nView your account: {$accountUrl}\n\nThis is an automated message.";
-
-                        $email = new \Brevo\Client\Model\SendSmtpEmail([
-                            'subject' => $subject,
-                            'sender' => ['name' => $fromName, 'email' => $fromEmail],
-                            'to' => [['email' => $toEmail, 'name' => $displayName]],
-                            'htmlContent' => $html,
-                            'textContent' => $plain
-                        ]);
-
-                        try {
-                            $result = $apiInstance->sendTransacEmail($email);
-                            log_message('info', 'Brevo sendTransacEmail success for payment ' . $paymentId . ' to ' . $toEmail);
-                        } catch (\Brevo\Client\ApiException $e) {
-                            $respBody = null;
-                            try { $respBody = $e->getResponseBody(); } catch (\Throwable $_) { $respBody = null; }
-                            log_message('error', 'Brevo ApiException for payment ' . $paymentId . ': ' . $e->getMessage() . ' ResponseBody: ' . json_encode($respBody));
-                        } catch (\Throwable $e) {
-                            log_message('error', 'Brevo sendTransacEmail failed for payment ' . $paymentId . ': ' . $e->getMessage());
-                        }
-                    } else {
-                        log_message('warning', 'BREVO_API_KEY not configured — skipping GCash confirmation email for payment ' . $paymentId . ' (user ' . ($toEmail ?? 'unknown') . ')');
-                    }
-                } catch (\Throwable $e) {
-                    log_message('error', 'Confirm GCash email failed for payment ' . $paymentId . ': ' . $e->getMessage());
-                }
-            } else {
-                log_message('warning', 'No recipient email found for confirmed GCash payment ID ' . $paymentId);
-            }
-        } else {
-            log_message('warning', 'PaymentsModel::confirmGCashPayment returned falsy for payment ' . $paymentId);
+        if (!$paymentId) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Payment ID is required']);
         }
 
-        $message = $updated ? 'Payment confirmed successfully' : 'Failed to confirm payment';
-        if ($updated && $billingId !== null) {
-            $message .= $billingUpdated ? ' and billing marked as Paid' : ' but billing update failed';
-        }
+        try {
+            // Mark payment as paid
+            $updated = $this->paymentsModel->confirmGCashPayment($paymentId, $adminRef);
+            $billingUpdated = false;
+            $billingId = null;
 
-        return $this->response->setJSON([
-            'success' => (bool)$updated,
-            'message' => $message
-        ]);
-    } catch (\Throwable $e) {
-        log_message('error', 'confirmGCashPayment exception for payment ' . $paymentId . ': ' . $e->getMessage());
-        return $this->response->setJSON(['success' => false, 'message' => 'Exception: ' . $e->getMessage()]);
-    }
-}
-    
-    // Reject GCash Payment (AJAX) - Transaction Payments
-public function rejectGCashPayment()
-{
-    $data = $this->request->getJSON(true);
-    $paymentId = $data['payment_id'] ?? null;
-    $adminRef = $data['admin_reference'] ?? null;
-
-    if (!$paymentId) {
-        return $this->response->setJSON(['success' => false, 'message' => 'Missing payment_id']);
-    }
-
-    try {
-        $updated = $this->paymentsModel->rejectGCashPayment($paymentId, $adminRef);
-
-        // If we successfully updated the payment record, try to notify the user by email (non-blocking)
-        if ($updated) {
-            try {
-                // Fetch payment and user info
+            if ($updated) {
+                // Fetch updated payment
                 $payment = $this->paymentsModel->find($paymentId);
                 $userId = $payment['user_id'] ?? null;
                 $toEmail = $payment['email'] ?? null;
+                $billingId = $payment['billing_id'] ?? null;
 
+                // Fallback: get email from users table if not stored on payment
                 if (!$toEmail && $userId) {
                     $u = $this->usersModel->find($userId);
                     $toEmail = $u['email'] ?? null;
                 }
 
-                if ($toEmail) {
-                    // Prepare display name
-                    $info = [];
+                // Update billing status if billing_id exists
+                if ($billingId) {
                     try {
-                        $info = $this->userInfoModel->getByUserId($userId) ?? [];
-                    } catch (\Throwable $_) {
-                        $info = [];
+                        $billingUpdated = (bool)$this->billingModel->updateBillingStatus($billingId, 'Paid');
+                        if ($billingUpdated) {
+                            log_message('info', "Billing ID {$billingId} marked as Paid for payment {$paymentId}.");
+                        } else {
+                            log_message('warning', "Failed to update billing ID {$billingId} for payment {$paymentId} (update returned false).");
+                        }
+                    } catch (\Throwable $e) {
+                        log_message('error', "Exception while updating billing {$billingId} for payment {$paymentId}: " . $e->getMessage());
                     }
-                    $displayName = trim(($info['first_name'] ?? '') . ' ' . ($info['last_name'] ?? '')) ?: ($toEmail);
+                } else {
+                    log_message('info', "No billing_id associated with payment {$paymentId}; skipping billing update.");
+                }
 
-                    // Prepare email values
-                    $siteUrl = rtrim(base_url(), '/');
-                    $supportUrl = $siteUrl . '/contact';
-                    $fromEmail = getenv('SMTP_FROM') ?: getenv('MAIL_FROM') ?: (getenv('SMTP_USER') ?: 'no-reply@localhost');
-                    $fromName  = getenv('MAIL_FROM_NAME') ?: getenv('SMTP_FROM_NAME') ?: 'Support';
-                    $displayNameEsc = htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8');
-                    $supportUrlEsc = htmlspecialchars($supportUrl, ENT_QUOTES, 'UTF-8');
-                    $fromNameEsc = htmlspecialchars($fromName, ENT_QUOTES, 'UTF-8');
+                // Send confirmation email (non-blocking) via Brevo if we have recipient and API key
+                if ($toEmail) {
+                    try {
+                        try {
+                            $info = $this->userInfoModel->getByUserId($userId) ?? [];
+                        } catch (\Throwable $_) {
+                            $info = [];
+                        }
+                        $displayName = trim(($info['first_name'] ?? '') . ' ' . ($info['last_name'] ?? '')) ?: $toEmail;
 
-                    $amount = isset($payment['amount']) ? number_format((float)$payment['amount'], 2) : '-';
-                    $refText = $adminRef ? htmlspecialchars($adminRef, ENT_QUOTES, 'UTF-8') : 'N/A';
+                        // Prepare email values (escaped)
+                        $siteUrl = rtrim(base_url(), '/');
+                        $accountUrl = $siteUrl . '/account';
+                        $supportUrl = $siteUrl . '/contact';
+                        $fromEmail = getenv('SMTP_FROM') ?: getenv('MAIL_FROM') ?: (getenv('SMTP_USER') ?: 'no-reply@localhost');
+                        $fromName  = getenv('MAIL_FROM_NAME') ?: getenv('SMTP_FROM_NAME') ?: 'Support';
+                        $displayNameEsc = htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8');
+                        $accountUrlEsc = htmlspecialchars($accountUrl, ENT_QUOTES, 'UTF-8');
+                        $supportUrlEsc = htmlspecialchars($supportUrl, ENT_QUOTES, 'UTF-8');
+                        $fromNameEsc = htmlspecialchars($fromName, ENT_QUOTES, 'UTF-8');
 
-                    // Send rejection email via Brevo (non-blocking)
-                    $apiKey = getenv('BREVO_API_KEY') ?: null;
-                    if ($apiKey) {
-                        $config = \Brevo\Client\Configuration::getDefaultConfiguration()
-                            ->setApiKey('api-key', $apiKey);
-                        $apiInstance = new \Brevo\Client\Api\TransactionalEmailsApi(new \GuzzleHttp\Client(), $config);
+                        $amount = isset($payment['amount']) ? number_format((float)$payment['amount'], 2) : '-';
+                        $paidAt = $payment['paid_at'] ?? date('Y-m-d H:i:s');
+                        $refText = $adminRef ? htmlspecialchars($adminRef, ENT_QUOTES, 'UTF-8') : ($payment['admin_reference'] ?? 'N/A');
 
-                        $subject = 'Your payment has been rejected';
+                        $apiKey = getenv('BREVO_API_KEY') ?: null;
+                        if ($apiKey) {
+                            $config = \Brevo\Client\Configuration::getDefaultConfiguration()
+                                ->setApiKey('api-key', $apiKey);
+                            $apiInstance = new \Brevo\Client\Api\TransactionalEmailsApi(new \GuzzleHttp\Client(), $config);
 
-                        $html = <<<HTML
-                        <!doctype html>
-                        <html>
-                        <head>
-                        <meta charset="utf-8">
-                        <meta name="viewport" content="width=device-width,initial-scale=1">
-                        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
-                        </head>
-                        <body style="margin:0;padding:0;background:#f5f7fa;font-family:Poppins,Arial,sans-serif;">
-                        <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                            $subject = 'Payment confirmed';
+
+                            $html = <<<HTML
+                            <!doctype html>
+                            <html>
+                            <head>
+                            <meta charset="utf-8">
+                            <meta name="viewport" content="width=device-width,initial-scale=1">
+                            <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+                            </head>
+                            <body style="margin:0;padding:0;background:#f5f7fa;font-family:Poppins,Arial,sans-serif;">
+                            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
                             <tr>
-                            <td align ="center" style="padding:24px 12px;">
+                            <td align="center" style="padding:24px 12px;">
                                 <table width="600" cellpadding="0" cellspacing="0" role="presentation" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 4px 18px rgba(16,24,40,0.08);">
                                 <tr>
                                     <td style="padding:28px 32px 16px;">
-                                    <h2 style="margin:0 0 8px;font-weight:600;color:#111827;font-size:20px;">Payment Update</h2>
+                                    <h2 style="margin:0 0 8px;font-weight:600;color:#111827;font-size:20px;">Payment Confirmed</h2>
                                     <p style="margin:0;color:#6b7280;">Hello {$displayNameEsc},</p>
                                     </td>
                                 </tr>
                                 <tr>
                                     <td style="padding:0 32px 24px;color:#374151;">
-                                    <p style="margin:0 0 12px;line-height:1.5;">We reviewed the GCash payment you submitted and it has been rejected by our administrator. Details below:</p>
+                                    <p style="margin:0 0 12px;line-height:1.5;">Thank you — we have confirmed your GCash payment. Details are shown below:</p>
                                     <p style="margin:6px 0;"><strong>Amount:</strong> ₱{$amount}</p>
                                     <p style="margin:6px 0;"><strong>Admin Reference:</strong> {$refText}</p>
-                                    <p style="margin:12px 0 20px;line-height:1.5;">If you believe this was done in error, please re-upload a valid proof of payment or contact our support team for assistance.</p>
-                                    <p style="margin:0 0 20px;">
-                                        <a href="{$supportUrlEsc}" style="display:inline-block;padding:10px 18px;background:#2563eb;color:#ffffff;border-radius:6px;text-decoration:none;font-weight:600;">Contact Support</a>
-                                    </p>
-                                    <p style="margin:0;color:#9ca3af;font-size:12px;">If the button above does not work, copy and paste this link into your browser: {$supportUrlEsc}</p>
+                                    <p style="margin:6px 0;"><strong>Confirmed At:</strong> {$paidAt}</p>
+                                    <p style="margin:12px 0 20px;line-height:1.5;">You can view your payment history and receipts in your account.</p>
+
+                                    <p style="margin:0;color:#9ca3af;font-size:12px;">If you have questions, contact our support team: {$supportUrlEsc}</p>
                                     </td>
                                 </tr>
                                 <tr>
@@ -1492,45 +1552,202 @@ public function rejectGCashPayment()
                                 </table>
 
                                 <div style="max-width:600px;margin-top:12px;color:#9ca3af;font-size:12px;text-align:center;">
-                                &copy; {$siteUrl} ' . date('Y') . '
+                                &copy; {$siteUrl} HTML_YEAR
                                 </div>
                             </td>
                             </tr>
-                        </table>
-                        </body>
-                        </html>
-                        HTML;
+                            </table>
+                            </body>
+                            </html>
+                            HTML;
+                            $html = str_replace('HTML_YEAR', date('Y'), $html);
 
-                        $plain = "Hello {$displayName},\n\nYour GCash payment has been rejected.\n\nAmount: ₱{$amount}\nAdmin Reference: {$adminRef}\n\nIf you believe this is an error, please contact support: {$supportUrl}\n\nThis is an automated message.";
+                            $plain = "Hello {$displayName},\n\nYour GCash payment has been confirmed.\n\nAmount: ₱{$amount}\nAdmin Reference: {$refText}\nConfirmed At: {$paidAt}\n\nView your account: {$accountUrl}\n\nThis is an automated message.";
 
-                        $email = new \Brevo\Client\Model\SendSmtpEmail([
-                            'subject' => $subject,
-                            'sender' => ['name' => $fromName, 'email' => $fromEmail],
-                            'to' => [['email' => $toEmail, 'name' => $displayName]],
-                            'htmlContent' => $html,
-                            'textContent' => $plain
-                        ]);
+                            $email = new \Brevo\Client\Model\SendSmtpEmail([
+                                'subject' => $subject,
+                                'sender' => ['name' => $fromName, 'email' => $fromEmail],
+                                'to' => [['email' => $toEmail, 'name' => $displayName]],
+                                'htmlContent' => $html,
+                                'textContent' => $plain
+                            ]);
 
-                        $apiInstance->sendTransacEmail($email);
-                    } else {
-                        log_message('warning', 'BREVO_API_KEY not configured — skipping GCash rejection email for payment ' . $paymentId . ' (user ' . ($toEmail ?? 'unknown') . ')');
+                            try {
+                                $result = $apiInstance->sendTransacEmail($email);
+                                log_message('info', 'Brevo sendTransacEmail success for payment ' . $paymentId . ' to ' . $toEmail);
+                            } catch (\Brevo\Client\ApiException $e) {
+                                $respBody = null;
+                                try { $respBody = $e->getResponseBody(); } catch (\Throwable $_) { $respBody = null; }
+                                log_message('error', 'Brevo ApiException for payment ' . $paymentId . ': ' . $e->getMessage() . ' ResponseBody: ' . json_encode($respBody));
+                            } catch (\Throwable $e) {
+                                log_message('error', 'Brevo sendTransacEmail failed for payment ' . $paymentId . ': ' . $e->getMessage());
+                            }
+                        } else {
+                            log_message('warning', 'BREVO_API_KEY not configured — skipping GCash confirmation email for payment ' . $paymentId . ' (user ' . ($toEmail ?? 'unknown') . ')');
+                        }
+                    } catch (\Throwable $e) {
+                        log_message('error', 'Confirm GCash email failed for payment ' . $paymentId . ': ' . $e->getMessage());
                     }
                 } else {
-                    log_message('warning', 'No recipient email found for rejected GCash payment ID ' . $paymentId);
+                    log_message('warning', 'No recipient email found for confirmed GCash payment ID ' . $paymentId);
                 }
-            } catch (\Throwable $e) {
-                log_message('error', 'Reject GCash email failed for payment ' . $paymentId . ': ' . $e->getMessage());
+            } else {
+                log_message('warning', 'PaymentsModel::confirmGCashPayment returned falsy for payment ' . $paymentId);
             }
+
+            $message = $updated ? 'Payment confirmed successfully' : 'Failed to confirm payment';
+            if ($updated && $billingId !== null) {
+                $message .= $billingUpdated ? ' and billing marked as Paid' : ' but billing update failed';
+            }
+
+            return $this->response->setJSON([
+                'success' => (bool)$updated,
+                'message' => $message
+            ]);
+        } catch (\Throwable $e) {
+            log_message('error', 'confirmGCashPayment exception for payment ' . $paymentId . ': ' . $e->getMessage());
+            return $this->response->setJSON(['success' => false, 'message' => 'Exception: ' . $e->getMessage()]);
+        }
+    }
+        
+    // Reject GCash Payment (AJAX) - Transaction Payments
+    public function rejectGCashPayment()
+    {
+        $data = $this->request->getJSON(true);
+        $paymentId = $data['payment_id'] ?? null;
+        $adminRef = $data['admin_reference'] ?? null;
+
+        if (!$paymentId) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Missing payment_id']);
         }
 
-        return $this->response->setJSON([
-            'success' => (bool)$updated,
-            'message' => $updated ? 'Payment rejected successfully' : 'Failed to reject payment'
-        ]);
-    } catch (\Throwable $e) {
-        return $this->response->setJSON(['success' => false, 'message' => 'Exception: ' . $e->getMessage()]);
+        try {
+            $updated = $this->paymentsModel->rejectGCashPayment($paymentId, $adminRef);
+
+            // If we successfully updated the payment record, try to notify the user by email (non-blocking)
+            if ($updated) {
+                try {
+                    // Fetch payment and user info
+                    $payment = $this->paymentsModel->find($paymentId);
+                    $userId = $payment['user_id'] ?? null;
+                    $toEmail = $payment['email'] ?? null;
+
+                    if (!$toEmail && $userId) {
+                        $u = $this->usersModel->find($userId);
+                        $toEmail = $u['email'] ?? null;
+                    }
+
+                    if ($toEmail) {
+                        // Prepare display name
+                        $info = [];
+                        try {
+                            $info = $this->userInfoModel->getByUserId($userId) ?? [];
+                        } catch (\Throwable $_) {
+                            $info = [];
+                        }
+                        $displayName = trim(($info['first_name'] ?? '') . ' ' . ($info['last_name'] ?? '')) ?: ($toEmail);
+
+                        // Prepare email values
+                        $siteUrl = rtrim(base_url(), '/');
+                        $supportUrl = $siteUrl . '/contact';
+                        $fromEmail = getenv('SMTP_FROM') ?: getenv('MAIL_FROM') ?: (getenv('SMTP_USER') ?: 'no-reply@localhost');
+                        $fromName  = getenv('MAIL_FROM_NAME') ?: getenv('SMTP_FROM_NAME') ?: 'Support';
+                        $displayNameEsc = htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8');
+                        $supportUrlEsc = htmlspecialchars($supportUrl, ENT_QUOTES, 'UTF-8');
+                        $fromNameEsc = htmlspecialchars($fromName, ENT_QUOTES, 'UTF-8');
+
+                        $amount = isset($payment['amount']) ? number_format((float)$payment['amount'], 2) : '-';
+                        $refText = $adminRef ? htmlspecialchars($adminRef, ENT_QUOTES, 'UTF-8') : 'N/A';
+
+                        // Send rejection email via Brevo (non-blocking)
+                        $apiKey = getenv('BREVO_API_KEY') ?: null;
+                        if ($apiKey) {
+                            $config = \Brevo\Client\Configuration::getDefaultConfiguration()
+                                ->setApiKey('api-key', $apiKey);
+                            $apiInstance = new \Brevo\Client\Api\TransactionalEmailsApi(new \GuzzleHttp\Client(), $config);
+
+                            $subject = 'Your payment has been rejected';
+
+                            $html = <<<HTML
+                            <!doctype html>
+                            <html>
+                            <head>
+                            <meta charset="utf-8">
+                            <meta name="viewport" content="width=device-width,initial-scale=1">
+                            <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+                            </head>
+                            <body style="margin:0;padding:0;background:#f5f7fa;font-family:Poppins,Arial,sans-serif;">
+                            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                                <tr>
+                                <td align ="center" style="padding:24px 12px;">
+                                    <table width="600" cellpadding="0" cellspacing="0" role="presentation" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 4px 18px rgba(16,24,40,0.08);">
+                                    <tr>
+                                        <td style="padding:28px 32px 16px;">
+                                        <h2 style="margin:0 0 8px;font-weight:600;color:#111827;font-size:20px;">Payment Update</h2>
+                                        <p style="margin:0;color:#6b7280;">Hello {$displayNameEsc},</p>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding:0 32px 24px;color:#374151;">
+                                        <p style="margin:0 0 12px;line-height:1.5;">We reviewed the GCash payment you submitted and it has been rejected by our administrator. Details below:</p>
+                                        <p style="margin:6px 0;"><strong>Amount:</strong> ₱{$amount}</p>
+                                        <p style="margin:6px 0;"><strong>Admin Reference:</strong> {$refText}</p>
+                                        <p style="margin:12px 0 20px;line-height:1.5;">If you believe this was done in error, please re-upload a valid proof of payment or contact our support team for assistance.</p>
+                                        <p style="margin:0 0 20px;">
+                                            <a href="{$supportUrlEsc}" style="display:inline-block;padding:10px 18px;background:#2563eb;color:#ffffff;border-radius:6px;text-decoration:none;font-weight:600;">Contact Support</a>
+                                        </p>
+                                        <p style="margin:0;color:#9ca3af;font-size:12px;">If the button above does not work, copy and paste this link into your browser: {$supportUrlEsc}</p>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding:16px 32px 28px;background:#f9fafb;color:#6b7280;font-size:12px;">
+                                        <div style="margin-bottom:6px;">Best regards,</div>
+                                        <div style="font-weight:600;color:#111827;">{$fromNameEsc}</div>
+                                        <div style="margin-top:8px;font-size:11px;color:#9ca3af;">This is an automated message. Please do not reply directly to this email.</div>
+                                        </td>
+                                    </tr>
+                                    </table>
+
+                                    <div style="max-width:600px;margin-top:12px;color:#9ca3af;font-size:12px;text-align:center;">
+                                    &copy; {$siteUrl} ' . date('Y') . '
+                                    </div>
+                                </td>
+                                </tr>
+                            </table>
+                            </body>
+                            </html>
+                            HTML;
+
+                            $plain = "Hello {$displayName},\n\nYour GCash payment has been rejected.\n\nAmount: ₱{$amount}\nAdmin Reference: {$adminRef}\n\nIf you believe this is an error, please contact support: {$supportUrl}\n\nThis is an automated message.";
+
+                            $email = new \Brevo\Client\Model\SendSmtpEmail([
+                                'subject' => $subject,
+                                'sender' => ['name' => $fromName, 'email' => $fromEmail],
+                                'to' => [['email' => $toEmail, 'name' => $displayName]],
+                                'htmlContent' => $html,
+                                'textContent' => $plain
+                            ]);
+
+                            $apiInstance->sendTransacEmail($email);
+                        } else {
+                            log_message('warning', 'BREVO_API_KEY not configured — skipping GCash rejection email for payment ' . $paymentId . ' (user ' . ($toEmail ?? 'unknown') . ')');
+                        }
+                    } else {
+                        log_message('warning', 'No recipient email found for rejected GCash payment ID ' . $paymentId);
+                    }
+                } catch (\Throwable $e) {
+                    log_message('error', 'Reject GCash email failed for payment ' . $paymentId . ': ' . $e->getMessage());
+                }
+            }
+
+            return $this->response->setJSON([
+                'success' => (bool)$updated,
+                'message' => $updated ? 'Payment rejected successfully' : 'Failed to reject payment'
+            ]);
+        } catch (\Throwable $e) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Exception: ' . $e->getMessage()]);
+        }
     }
-}
 
     // Get users by Purok (AJAX) - Transaction Payments
     public function getUsersByPurok($purok)
@@ -2346,9 +2563,8 @@ public function rejectGCashPayment()
         return view('admin/billing_management');
     }
 
-    /**
-     * Get all billings (AJAX endpoint for billing management)
-     */
+    // Get all billings (AJAX endpoint for billing management)
+
     public function getAllBillings()
     {
         try {
@@ -3277,215 +3493,6 @@ public function rejectGCashPayment()
     {
         return view('admin/edit_profile');
     }
-
-
-    public function activateUser($id)
-    {
-        $this->usersModel->update($id, ['active' => 2, 'status' => 'approved']);
-        // Remove any stale inactive_users snapshots for this user
-        try {
-            $db = \Config\Database::connect();
-            $db->table('inactive_users')->where('user_id', $id)->delete();
-        } catch (\Throwable $_) {
-            // ignore cleanup errors
-        }
-        // Persist friendly display name into the activity log to guarantee history
-        try {
-            $logId = session()->get('admin_activity_log_id') ?? session()->get('superadmin_activity_log_id');
-            if ($logId) {
-                $user = $this->usersModel->find($id);
-                $info = $this->userInfoModel->getByUserId($id) ?? [];
-                $display = trim(($info['first_name'] ?? '') . ' ' . ($info['last_name'] ?? '')) ?: ($user['email'] ?? null);
-                $details = [
-                    'id' => $id,
-                    'user_name' => $display,
-                    'first_name' => $info['first_name'] ?? null,
-                    'last_name' => $info['last_name'] ?? null,
-                    'email' => $user['email'] ?? null,
-                ];
-
-                // mark to skip the ActivityLogger to avoid duplicate entry
-                session()->set('skip_activity_logger', true);
-                $logModel = new \App\Models\AdminActivityLogModel();
-                $logModel->appendAction($logId, 'activate', '/admin/activateUser/' . $id, $this->request->getMethod() ?: 'POST', $id, $details);
-            }
-        } catch (\Throwable $_) {
-            // ignore logging failures
-        }
-
-        return redirect()->back()->with('success', 'User activated successfully.');
-    }
-
-    public function deactivateUser($id)
-    {
-        $db = \Config\Database::connect();
-        $db->transStart();
-
-        $user = $this->usersModel->find($id);
-        if (!$user) {
-            if ($this->request->isAJAX() || $this->request->is('post')) {
-                return $this->response->setJSON(['success' => false, 'message' => 'User not found.']);
-            }
-            return redirect()->back()->with('error', 'User not found.');
-        }
-
-        // Block deactivation if user has outstanding balance/pending bills
-        try {
-            $outstanding = $this->billingModel
-                ->where('user_id', $id)
-                ->where('status', 'Pending')
-                ->countAllResults();
-            log_message('debug', '[Admin::deactivateUser] outstanding count for user ' . $id . ' => ' . $outstanding);
-            if ($outstanding > 0) {
-                try {
-                    $samples = $this->billingModel->select('id, bill_no, status')->where('user_id', $id)->where('status', 'Pending')->findAll(5);
-                    $ids = array_map(fn($b)=> $b['id'], $samples);
-                    log_message('debug', '[Admin::deactivateUser] sample pending bill ids for user ' . $id . ': ' . json_encode($ids));
-                } catch (\Throwable $_) {
-                    // ignore
-                }
-            }
-        } catch (\Throwable $e) {
-            $outstanding = 0; // Fail open on count error to avoid false positives
-        }
-        if ($outstanding > 0) {
-            $db->transRollback();
-            $msg = 'Cannot deactivate: user has pending bill(s). Please settle or cancel pending bills first.';
-            if ($this->request->isAJAX() || $this->request->is('post')) {
-                return $this->response->setJSON(['success' => false, 'message' => $msg]);
-            }
-            return redirect()->back()->with('error', $msg);
-        }
-
-        $info = $this->userInfoModel->getByUserId($id) ?? [];
-        $now = date('Y-m-d H:i:s');
-        $adminId = (int)(session()->get('admin_id') ?? 0);
-
-        // 1) Update user status/active
-        $this->usersModel->update($id, ['active' => 1, 'status' => 'inactive']);
-
-        // 2) Insert snapshot into inactive_users and capture the insert id
-        $inactiveData = [
-            'user_id'        => $id,
-            'email'          => $user['email'] ?? '',
-            'first_name'     => $info['first_name'] ?? null,
-            'last_name'      => $info['last_name'] ?? null,
-            'phone'          => $info['phone'] ?? null,
-            'purok'          => isset($info['purok']) ? (int)$info['purok'] : null,
-            'barangay'       => $info['barangay'] ?? 'Borlongan',
-            'municipality'   => $info['municipality'] ?? 'Dipaculao',
-            'province'       => $info['province'] ?? 'Aurora',
-            'zipcode'        => $info['zipcode'] ?? '3203',
-            'inactivated_at' => $now,
-            'inactivated_by' => $adminId ?: null,
-            'reason'         => $this->request->getPost('reason') ?? null,
-            'created_at'     => $now,
-            'updated_at'     => $now,
-        ];
-
-        try {
-            $db->table('inactive_users')->insert($inactiveData);
-            $inactiveId = (int)$db->insertID();
-        } catch (\Throwable $e) {
-            // If insertion fails, rollback and return error
-            $db->transRollback();
-            if ($this->request->isAJAX() || $this->request->is('post')) {
-                return $this->response->setJSON(['success' => false, 'message' => 'Failed to persist inactive user snapshot.']);
-            }
-            return redirect()->back()->with('error', 'Failed to persist inactive user snapshot.');
-        }
-
-        // Append action with display name into activity log (controller-level)
-        try {
-            $logId = session()->get('admin_activity_log_id') ?? session()->get('superadmin_activity_log_id');
-            if ($logId) {
-                $display = trim(($info['first_name'] ?? '') . ' ' . ($info['last_name'] ?? '')) ?: ($user['email'] ?? null);
-                $details = [
-                    'id' => $id,
-                    'user_name' => $display,
-                    'first_name' => $info['first_name'] ?? null,
-                    'last_name' => $info['last_name'] ?? null,
-                    'email' => $user['email'] ?? null,
-                    'reason' => $this->request->getPost('reason') ?? null,
-                    'inactive_ref_id' => $inactiveId,
-                ];
-                session()->set('skip_activity_logger', true);
-                $logModel = new \App\Models\AdminActivityLogModel();
-                $logModel->appendAction($logId, 'deactivate', '/admin/deactivateUser/' . $id, $this->request->getMethod() ?: 'POST', $id, $details);
-            }
-        } catch (\Throwable $_) {
-            // ignore logging failures
-        }
-        // 3) Archive last two years of billings before inactivation
-        // Prefer billing_month as reference; fallback to created_at
-        $twoYearsAgo = date('Y-m-d', strtotime('-2 years', strtotime($now)));
-
-        // Fetch eligible billings
-        $billings = $db->table('billings')
-            ->select('*')
-            ->where('user_id', $id)
-            ->groupStart()
-                ->groupStart()
-                    ->where('billing_month <=', date('Y-m-d', strtotime($now)))
-                    ->where('billing_month >=', $twoYearsAgo)
-                ->groupEnd()
-                ->orGroupStart()
-                    ->where('billing_month', null)
-                    ->where('DATE(created_at) <=', date('Y-m-d', strtotime($now)))
-                    ->where('DATE(created_at) >=', $twoYearsAgo)
-                ->groupEnd()
-            ->groupEnd()
-            ->get()
-            ->getResultArray();
-
-        if (!empty($billings)) {
-            foreach ($billings as $b) {
-                $db->table('archived_billings')->insert([
-                    'inactive_ref_id'    => $inactiveId,
-                    'original_billing_id'=> $b['id'],
-                    'user_id'            => $b['user_id'],
-                    'bill_no'            => $b['bill_no'] ?? null,
-                    'amount_due'         => $b['amount_due'] ?? null,
-                    'billing_month'      => $b['billing_month'] ?? null,
-                    'due_date'           => $b['due_date'] ?? null,
-                    'status'             => $b['status'] ?? null,
-                    'paid_date'          => $b['paid_date'] ?? null,
-                    'created_at'         => $b['created_at'] ?? null,
-                    'updated_at'         => $b['updated_at'] ?? null,
-                    'archived_at'        => $now,
-                ]);
-            }
-
-            // Remove archived rows from active billings
-            $ids = array_column($billings, 'id');
-            if (!empty($ids)) {
-                $db->table('billings')->whereIn('id', $ids)->delete();
-            }
-        }
-
-        $db->transComplete();
-        if (!$db->transStatus()) {
-            if ($this->request->isAJAX() || $this->request->is('post')) {
-                return $this->response->setJSON(['success' => false, 'message' => 'Failed to deactivate and archive user records.']);
-            }
-            return redirect()->back()->with('error', 'Failed to deactivate and archive user records.');
-        }
-
-        if ($this->request->isAJAX() || $this->request->is('post')) {
-            return $this->response->setJSON(['success' => true, 'message' => 'User deactivated and last 2 years of billings archived.']);
-        }
-        return redirect()->back()->with('success', 'User deactivated and last 2 years of billings archived.');
-    }
-
-    public function suspendUser($id)
-    {
-        $this->usersModel->update($id, [
-            'active' => -1,
-            'status' => 'suspended'
-        ]);
-        return redirect()->back()->with('success', 'User suspended successfully.');
-    }
-
 
     public function viewUser($id)
     {
