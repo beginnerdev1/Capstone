@@ -541,6 +541,26 @@
 
   <?= $this->include('Users/header') ?>
 
+  <!-- Disconnection Notice Modal -->
+  <div class="modal fade" id="disconnectionModal" tabindex="-1" aria-labelledby="disconnectionModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header bg-warning text-dark">
+          <h5 class="modal-title" id="disconnectionModalLabel"><i class="bi bi-exclamation-triangle me-2"></i>Babala: Disconnection Notice</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p id="disconnectionMessage" class="mb-3">May overdue bills ka. Kung hindi mababayaran, maaari itong magresulta sa disconnection 1 araw bago ang suspension.</p>
+          <ul id="disconnectionList" class="mb-3"></ul>
+          <div class="text-end">
+            <button id="payNowBtn" class="btn btn-primary me-2">Magbayad Ngayon</button>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Isara</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <?php if (isset($_GET['payment']) && $_GET['payment'] === 'success'): ?>
   <div class="d-flex justify-content-center my-3" data-aos="fade-down">
     <div class="alert alert-success text-center w-50 border-0 rounded-4 shadow">
@@ -620,6 +640,8 @@
                 <i class="bi bi-currency-dollar text-white"></i>
               </div>
               <div class="stat-value" id="totalAmount">₱0.00</div>
+              <div class="small text-muted mt-1" id="balanceLine">Balance: ₱0.00</div>
+              <div class="small text-danger fw-semibold mt-1" id="overdueLine"></div>
               <div class="stat-label">Total Amount</div>
               <div class="stat-trend" id="amountTrend">
                 <i class="bi bi-graph-up"></i>
@@ -884,6 +906,25 @@ $(function () {
     setTimeout(() => loadDashboardData(), 500);
     setTimeout(() => loadRecentBills(), 800);
 
+    // Hook pay now button in disconnection modal to open payment flow
+    document.getElementById('payNowBtn')?.addEventListener('click', function (e) {
+      e.preventDefault();
+      // Trigger the existing payment flow if available
+      const openPayment = document.getElementById('openPaymentBtn');
+      if (openPayment) openPayment.click();
+      // Close modal after initiating
+      const modalEl = document.getElementById('disconnectionModal');
+      if (modalEl) {
+        const inst = bootstrap.Modal.getInstance(modalEl) || bootstrap.Modal.getOrCreateInstance(modalEl);
+        try { inst.hide(); } catch (e) { console.warn('Error hiding disconnection modal', e); }
+        // ensure any leftover backdrop or modal-open state is removed
+        setTimeout(() => {
+          document.body.classList.remove('modal-open');
+          document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+        }, 200);
+      }
+    });
+
     // Enhanced payment button handler
     $("#openPaymentBtn").on("click", function (e) {
         e.preventDefault();
@@ -1015,12 +1056,28 @@ $(function () {
 });
 
 // Load dashboard data with animations
+let latestBills = []; // cache latest bills fetched from server (used as fallback)
 function loadDashboardData() {
     $.get("<?= base_url('users/getBillingsAjax') ?>", { limit: 100 }, function(bills) {
+    // cache bills for fallback disconnection check
+    latestBills = Array.isArray(bills) ? bills : [];
         let totalBills = bills.length;
         let pendingBills = bills.filter(b => b.status.toLowerCase() === 'pending').length;
         let paidBills = bills.filter(b => b.status.toLowerCase() === 'paid').length;
-        let totalAmount = bills.reduce((sum, bill) => sum + bill.amount, 0);
+        let totalAmount = bills.reduce((sum, bill) => sum + (parseFloat(bill.amount) || 0), 0);
+        // compute outstanding and overdue amounts
+        const toNumber = v => {
+          const n = parseFloat(v);
+          return isNaN(n) ? 0 : n;
+        };
+        const pendingList = bills.filter(b => (b.status || '').toLowerCase() === 'pending');
+        const totalOutstanding = pendingList.reduce((s, b) => s + toNumber(b.amount || b.balance || b.due_amount || 0), 0);
+        const now = new Date();
+        const overdueList = pendingList.filter(b => {
+          const d = new Date(b.due_date || b.dueDate || b.due || '');
+          return !isNaN(d) && d < now;
+        });
+        const overdueAmount = overdueList.reduce((s, b) => s + toNumber(b.amount || b.balance || b.due_amount || 0), 0);
 
         // Animate counters with staggered timing
         setTimeout(() => animateCounter('totalBills', totalBills), 100);
@@ -1028,11 +1085,23 @@ function loadDashboardData() {
         setTimeout(() => animateCounter('paidBills', paidBills), 300);
         setTimeout(() => animateCounter('totalAmount', totalAmount, true), 400);
 
+        // Update outstanding/overdue lines in stats
+        try {
+          const fmt = v => '₱' + Number(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          const outEl = document.getElementById('balanceLine');
+          const overEl = document.getElementById('overdueLine');
+          if (outEl) outEl.textContent = totalOutstanding > 0 ? `Balance: ${fmt(totalOutstanding)}` : 'Balance: ₱0.00';
+          if (overEl) overEl.textContent = overdueAmount > 0 ? `Overdue: ${fmt(overdueAmount)}` : '';
+        } catch (e) { console.warn('Error updating outstanding/overdue lines', e); }
+
         // Update chart with animation
         setTimeout(() => updatePaymentChart(paidBills, pendingBills), 500);
 
         // Update trend indicators
         updateTrendIndicators(pendingBills, paidBills);
+
+        // Dynamic: check disconnection status after loading bills
+        try { fetchDisconnectionStatus(); } catch (e) { console.warn('fetchDisconnectionStatus error', e); }
     }).fail(function() {
         console.error('Failed to load dashboard data');
         showErrorState();
@@ -1231,10 +1300,13 @@ function showErrorState() {
     document.getElementById('totalAmount').textContent = '₱--.--';
 }
 
+// Call fetchDisconnectionStatus on load (see bottom where it's also attached)
+
 // Auto-refresh data every 5 minutes with user-friendly notification
 let refreshInterval = setInterval(() => {
     loadDashboardData();
     loadRecentBills();
+  fetchDisconnectionStatus();
     
     // Show subtle notification
     const toast = document.createElement('div');
@@ -1257,6 +1329,117 @@ let refreshInterval = setInterval(() => {
 window.addEventListener('beforeunload', () => {
     clearInterval(refreshInterval);
 });
+
+// Disconnection status check and modal handling
+function showModalWithBills(bills) {
+  const modalEl = document.getElementById('disconnectionModal');
+  const listEl = document.getElementById('disconnectionList');
+  if (!modalEl || !listEl) return;
+
+  listEl.innerHTML = '';
+  bills.forEach(b => {
+    const li = document.createElement('li');
+    // support different property names gracefully
+    const dueVal = b.due_date || b.dueDate || b.due || '';
+    const due = isNaN(new Date(dueVal)) ? new Date() : new Date(dueVal);
+    li.textContent = `Bill: ${b.bill_no || b.billNo || 'N/A'} — Due: ${due.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+    li.className = 'mb-1';
+    listEl.appendChild(li);
+  });
+
+  const now = new Date();
+  const anyOverdue = bills.some(b => {
+    const d = new Date(b.due_date || b.dueDate || b.due || '');
+    return !isNaN(d) && d < now && (b.status || '').toLowerCase() === 'pending';
+  });
+
+  document.getElementById('disconnectionMessage').textContent = anyOverdue
+    ? 'May overdue bills ka na. Agad na magbayad upang maiwasan ang suspension.'
+    : 'May mga bill na malapit nang due. Magbayad sa loob ng isang araw upang maiwasan ang disconnection.';
+
+  const disModal = bootstrap.Modal.getOrCreateInstance(modalEl, { backdrop: 'static', keyboard: false });
+  disModal.show();
+}
+
+function hideDisconnectionModal() {
+  const modalEl = document.getElementById('disconnectionModal');
+  if (!modalEl) return;
+  const bsModal = bootstrap.Modal.getInstance(modalEl);
+  if (bsModal) {
+    try { bsModal.hide(); } catch (e) { console.warn('Error hiding modal', e); }
+    try { bsModal.dispose(); } catch (e) { /* ignore */ }
+  }
+  // Remove any leftover backdrop elements and body class to avoid blocking clicks
+  setTimeout(() => {
+    document.body.classList.remove('modal-open');
+    document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+  }, 200);
+}
+
+function fetchDisconnectionStatus() {
+  fetch('<?= base_url('users/getDisconnectionStatus') ?>', {
+    credentials: 'same-origin',
+    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+  })
+  .then(r => {
+    const ct = r.headers.get('content-type') || '';
+    if (ct.indexOf('application/json') !== -1) return r.json();
+    return r.text().then(text => {
+      try { return JSON.parse(text); } catch (e) { console.warn('Non-JSON response from getDisconnectionStatus', text); return null; }
+    });
+  })
+  .then(data => {
+    console.log('Disconnection status response:', data);
+
+    // If server returned usable bills list, use it
+    if (data && Array.isArray(data.bills) && data.bills.length > 0) {
+      showModalWithBills(data.bills);
+      return;
+    }
+
+    // If server returned a count but no bills, or returned nothing, fall back to client-side check using latestBills
+    if (Array.isArray(latestBills) && latestBills.length > 0) {
+      const now = new Date();
+      const overdue = latestBills.filter(b => {
+        const due = new Date(b.due_date || b.dueDate || b.due || '');
+        return !isNaN(due) && due < now && (b.status || '').toLowerCase() === 'pending';
+      });
+      if (overdue.length > 0) {
+        console.log('Showing disconnection modal from client-side fallback:', overdue);
+        showModalWithBills(overdue);
+        return;
+      }
+    }
+
+    // Nothing to show
+    hideDisconnectionModal();
+  })
+  .catch(err => {
+    console.error('Disconnection status fetch error', err);
+    // fallback to client-side bills
+    if (Array.isArray(latestBills) && latestBills.length > 0) {
+      const now = new Date();
+      const overdue = latestBills.filter(b => {
+        const due = new Date(b.due_date || b.dueDate || b.due || '');
+        return !isNaN(due) && due < now && (b.status || '').toLowerCase() === 'pending';
+      });
+      if (overdue.length > 0) {
+        console.log('Showing disconnection modal from client-side fallback after fetch error:', overdue);
+        showModalWithBills(overdue);
+        return;
+      }
+    }
+    hideDisconnectionModal();
+  });
+}
+
+// call on load:
+document.addEventListener('DOMContentLoaded', fetchDisconnectionStatus);
+
+// optionally re-check after successful payment
+function onPaymentComplete() {
+  fetchDisconnectionStatus();
+}
   </script>
 
   <!-- Profile / Account Status Alerts with Enhanced Design -->
