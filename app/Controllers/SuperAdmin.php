@@ -4,8 +4,10 @@ namespace App\Controllers;
 
 use CodeIgniter\Controller;
 use App\Models\AdminModel;
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\Exception;
+use Brevo\Client\Configuration;
+use Brevo\Client\Api\TransactionalEmailsApi;
+use Brevo\Client\Model\SendSmtpEmail;
+use GuzzleHttp\Client as GuzzleClient;
 
 
 
@@ -123,60 +125,6 @@ class SuperAdmin extends Controller
             return $this->response->setJSON(['status'=>'success','message'=>'Super admin created']);
         }
         return $this->response->setJSON(['status'=>'error','message'=>'Failed to create super admin']);
-    }
-
-    // Propose deletion of a super admin (creates a pending action)
-    public function retireSuperAdmin()
-    {
-        $id = (int) ($this->request->getPost('id') ?? 0);
-        $providedCode = trim($this->request->getPost('admin_code') ?? '');
-        $current = session()->get('superadmin_id');
-        if (!$current) return $this->response->setJSON(['status'=>'error','message'=>'Not authenticated']);
-        if (!$id) return $this->response->setJSON(['status'=>'error','message'=>'Missing target id']);
-        if ($id === $current) return $this->response->setJSON(['status'=>'error','message'=>'You cannot retire your own account']);
-
-        // Require current superadmin to confirm with their admin_code
-        if ($providedCode === '') {
-            return $this->response->setJSON(['status' => 'error', 'message' => 'Admin code required for confirmation']);
-        }
-
-        $model = new \App\Models\SuperAdminModel();
-        $currentRow = $model->find($current);
-        if (!$currentRow || empty($currentRow['admin_code']) || $currentRow['admin_code'] !== $providedCode) {
-            return $this->response->setJSON(['status' => 'error', 'message' => 'Invalid admin code']);
-        }
-
-        $target = $model->find($id);
-        if (!$target) return $this->response->setJSON(['status'=>'error','message'=>'Target not found']);
-        if (!empty($target['is_primary'])) return $this->response->setJSON(['status'=>'error','message'=>'Cannot delete primary super admin']);
-
-        $actionModel = new \App\Models\SuperAdminActionModel();
-        $payload = ['target_id'=>$id];
-        $aid = $actionModel->createAction('delete', $payload, $current);
-        if ($aid) {
-            // Send confirmation to the acting superadmin (who proposed)
-            try {
-                $actorEmail = $currentRow['email'] ?? '';
-                if (!empty($actorEmail)) {
-                    $actorName = trim(($currentRow['first_name'] ?? '') . ' ' . ($currentRow['last_name'] ?? '')) ?: $actorEmail;
-                    $targetName = trim(($target['first_name'] ?? '') . ' ' . ($target['last_name'] ?? '')) ?: ($target['email'] ?? 'superadmin#'.$id);
-                    $time = date('Y-m-d H:i:s');
-                    $html = view('emails/action_confirmation', [
-                        'recipientName' => $actorName,
-                        'actionLabel'   => 'Proposed SuperAdmin Deletion',
-                        'targetName'    => $targetName,
-                        'targetEmail'   => $target['email'] ?? '',
-                        'time'          => $time,
-                        'actionId'      => $aid,
-                        'phase'         => 'proposed',
-                    ]);
-                    $this->sendEmail($actorEmail, $actorName, 'SuperAdmin Deletion Proposed', $html);
-                }
-            } catch (\Exception $_) { }
-
-            return $this->response->setJSON(['status'=>'pending','message'=>'Retire proposed, awaiting approval','action_id'=>$aid]);
-        }
-        return $this->response->setJSON(['status'=>'error','message'=>'Failed to propose retire']);
     }
 
     // Return pending actions
@@ -917,36 +865,38 @@ class SuperAdmin extends Controller
     }
 
     /**
-     * Send email using PHPMailer with SMTP settings from environment.
+     * Send email using Brevo (Sendinblue) Transactional Emails API.
      */
     private function sendEmail(string $to, string $toName, string $subject, string $htmlBody, string $altBody = ''): bool
     {
         try {
-            $mail = new PHPMailer(true);
-            // SMTP configuration
-            $mail->isSMTP();
-            $mail->Host = getenv('SMTP_HOST') ?: getenv('MAIL_HOST');
-            $mail->SMTPAuth = true;
-            $mail->Username = getenv('SMTP_USER') ?: getenv('MAIL_USERNAME');
-            $mail->Password = getenv('SMTP_PASS') ?: getenv('MAIL_PASSWORD');
-            $mail->SMTPSecure = getenv('SMTP_SECURE') ?: 'tls';
-            $mail->Port = (int) (getenv('SMTP_PORT') ?: getenv('MAIL_PORT') ?: 587);
+            // Use Brevo (Sendinblue) Transactional Emails API instead of SMTP
+            $apiKey = getenv('BREVO_API_KEY') ?: getenv('SENDINBLUE_API_KEY');
+            if (empty($apiKey)) {
+                if (function_exists('log_message')) log_message('error', 'BREVO_API_KEY not configured');
+                return false;
+            }
+
+            $config = \Brevo\Client\Configuration::getDefaultConfiguration()->setApiKey('api-key', $apiKey);
+            $client = new \GuzzleHttp\Client();
+            $apiInstance = new \Brevo\Client\Api\TransactionalEmailsApi($client, $config);
 
             $fromEmail = getenv('SMTP_FROM') ?: getenv('MAIL_FROM') ?: (getenv('SMTP_USER') ?: 'no-reply@localhost');
             $fromName = getenv('MAIL_FROM_NAME') ?: getenv('SMTP_FROM_NAME') ?: 'Support';
 
-            $mail->setFrom($fromEmail, $fromName);
-            $mail->addAddress($to, $toName ?: '');
-            $mail->isHTML(true);
-            $mail->Subject = $subject;
-            $mail->Body = $htmlBody;
-            $mail->AltBody = $altBody ?: strip_tags($htmlBody);
+            $email = new \Brevo\Client\Model\SendSmtpEmail([
+                'subject' => $subject,
+                'sender' => ['name' => $fromName, 'email' => $fromEmail],
+                'to' => [[ 'email' => $to, 'name' => $toName ?: '' ]],
+                'htmlContent' => $htmlBody,
+                'textContent' => $altBody ?: strip_tags($htmlBody),
+            ]);
 
-            return (bool) $mail->send();
-        } catch (Exception $e) {
-            // Log email error if logger available
+            $apiInstance->sendTransacEmail($email);
+            return true;
+        } catch (\Throwable $e) {
             if (function_exists('log_message')) {
-                log_message('error', 'Email send failed: ' . $e->getMessage());
+                log_message('error', 'Brevo email send failed: ' . $e->getMessage());
             }
             return false;
         }

@@ -132,6 +132,94 @@ class AdminAuth extends BaseController
         return view('admin/loginVerify');
     }
 
+    // Show admin forgot-password form (reuses users view but forces actor=admin)
+    public function forgotPasswordForm()
+    {
+        return view('users/forgot_password', ['actor' => 'admin']);
+    }
+
+    // Handle admin forgot-password POST (creates admin-scoped reset token)
+    public function sendResetLink()
+    {
+        $email = $this->request->getPost('email');
+        if (empty($email)) {
+            return redirect()->back()->with('error', 'Please provide an email address.');
+        }
+
+        // Verify admin exists
+        $admin = $this->adminModel->where('email', $email)->first();
+        if (!$admin) {
+            return redirect()->back()->with('message', 'If that email exists we sent a reset link.');
+        }
+
+        // Rate limiting (reuse same cache key logic)
+        try {
+            $cache = \Config\Services::cache();
+            $key = 'password_reset_req_admin_' . md5($email . $this->request->getIPAddress());
+            if ($cache->get($key)) {
+                return redirect()->back()->with('message', 'Please wait a minute before requesting another reset link.');
+            }
+            $cache->save($key, 1, 60);
+        } catch (\Throwable $e) {
+            log_message('error', 'Admin password reset rate-limit check failed: ' . $e->getMessage());
+        }
+
+        $prModel = new \App\Models\PasswordResetModel();
+
+        try {
+            $prModel->where('email', $email)->where('actor', 'admin')->delete();
+        } catch (\Throwable $e) {
+            log_message('error', 'PasswordReset cleanup failed: ' . $e->getMessage());
+        }
+
+        try {
+            $token = bin2hex(random_bytes(32));
+        } catch (\Throwable $e) {
+            $token = bin2hex(openssl_random_pseudo_bytes(32));
+        }
+
+        $tokenHash = hash('sha256', $token);
+        $expiresAt = date('Y-m-d H:i:s', strtotime('+1 hour'));
+
+        $prModel->insert([
+            'email' => $email,
+            'token' => $tokenHash,
+            'actor' => 'admin',
+            'expires_at' => $expiresAt,
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        // Send reset email (Brevo)
+        try {
+            require ROOTPATH . 'vendor/autoload.php';
+            $config = \Brevo\Client\Configuration::getDefaultConfiguration()
+                ->setApiKey('api-key', getenv('BREVO_API_KEY'));
+            $api = new \Brevo\Client\Api\TransactionalEmailsApi(new \GuzzleHttp\Client(), $config);
+
+            $fromEmail = getenv('SMTP_FROM') ?: (getenv('SMTP_USER') ?: 'no-reply@localhost');
+            $resetLink = base_url('/reset') . '?email=' . urlencode($email) . '&token=' . urlencode($token) . '&actor=admin';
+
+            if (defined('ENVIRONMENT') && ENVIRONMENT !== 'production') {
+                log_message('debug', 'Admin password reset link for ' . $email . ': ' . $resetLink);
+            }
+
+            $payload = new \Brevo\Client\Model\SendSmtpEmail([
+                'subject' => 'Reset your admin password',
+                'sender'  => ['name' => 'Water Billing System', 'email' => $fromEmail],
+                'to'      => [[ 'email' => $email ]],
+                'htmlContent' => "<p>You requested an admin password reset. Click the link below to set a new password (link expires in 1 hour):</p>
+                                  <p><a href=\"{$resetLink}\">Reset password</a></p>
+                                  <p>If you didn't request this, ignore this email.</p>"
+            ]);
+
+            $api->sendTransacEmail($payload);
+        } catch (\Throwable $e) {
+            log_message('error', 'Failed to send admin reset email: ' . $e->getMessage());
+        }
+
+        return redirect()->back()->with('message', 'If that email exists we sent a reset link.');
+    }
+
     public function verifyOtp()
     {
         $otp = $this->p('otp');

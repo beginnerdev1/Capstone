@@ -308,6 +308,8 @@ class Admin extends BaseController
             if (strlen($firstName) < 2) $errors['first_name'] = 'First name must be at least 2 characters';
             if (strlen($lastName) < 2)  $errors['last_name']  = 'Last name must be at least 2 characters';
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors['email'] = 'Invalid email address';
+            helper('email');
+            if (!is_real_email($email)) $errors['email'] = 'Please provide a valid, deliverable email address';
             if (strlen($password) < 6) $errors['password'] = 'Password must be at least 6 characters';
             if ($purok === '' || !preg_match('/^\d+$/', $purok)) $errors['purok'] = 'Purok is required';
             if ($phone === '') $errors['phone'] = 'Contact number is required';
@@ -533,73 +535,9 @@ class Admin extends BaseController
         ]);
     }
 
-    // Overdue Bills page (view)
-    public function overdueBills()
-    {
-        return view('admin/overdue_bills');
-    }
-
-    // Fetch overdue bills (AJAX)
-    public function getOverdueBills()
-    {
-        $search = trim((string)$this->request->getGet('search'));
-        $minDays = (int)$this->request->getGet('min_days');
-        $from = trim((string)$this->request->getGet('from'));
-        $to = trim((string)$this->request->getGet('to'));
-
-        $db = \Config\Database::connect();
-        $builder = $db->table('billings b')
-            ->select('b.id, b.bill_no, b.user_id, b.billing_month, b.due_date, b.amount_due, b.status, u.email, ui.first_name, ui.last_name')
-            ->join('users u', 'u.id = b.user_id', 'left')
-            ->join('user_information ui', 'ui.user_id = u.id', 'left')
-            ->where('DATE(b.due_date) <', date('Y-m-d'))
-            ->where('b.status <>', 'Paid');
-
-        if ($search !== '') {
-            $builder->groupStart()
-                ->like('b.bill_no', $search)
-                ->orLike('u.email', $search)
-                ->orLike('ui.first_name', $search)
-                ->orLike('ui.last_name', $search)
-                ->groupEnd();
-        }
-        if ($from !== '' && $to !== '') {
-            $builder->where('DATE(b.due_date) >=', $from)
-                    ->where('DATE(b.due_date) <=', $to);
-        }
-        if ($minDays > 0) {
-            $builder->where('DATEDIFF(CURDATE(), b.due_date) >=', $minDays);
-        }
-
-        // Pagination
-        $page = max(1, (int)($this->request->getGet('page') ?? 1));
-        $limit = max(10, (int)($this->request->getGet('limit') ?? 20));
-        $offset = ($page - 1) * $limit;
-
-        $total = (int)$builder->countAllResults(false);
-        $rows = $builder->orderBy('b.due_date', 'ASC')->limit($limit, $offset)->get()->getResultArray();
-
-        // add days_overdue for convenience
-        $today = strtotime(date('Y-m-d'));
-        foreach ($rows as &$r) {
-            $due = $r['due_date'] ?? null;
-            $dueTs = $due ? strtotime($due) : null;
-            $days = ($dueTs !== null) ? (int)floor(($today - $dueTs) / 86400) : 0;
-            $r['days_overdue'] = $days > 0 ? $days : 0;
-            // compute a display status without changing DB: if still pending but past due, treat as overdue for display
-            $status = strtolower(trim($r['status'] ?? ''));
-            if ($status === 'pending' && $dueTs !== null && $today > $dueTs) {
-                $r['display_status'] = 'overdue';
-            } else {
-                $r['display_status'] = $r['status'];
-            }
-        }
-
-        return $this->response->setJSON([
-            'data' => $rows,
-            'meta' => ['total' => $total, 'page' => $page, 'per_page' => $limit]
-        ]);
-    }
+    // Overdue bills feature removed: the related view and AJAX endpoints were intentionally removed
+    // to simplify the dashboard. Overdue payments remain available via the existing
+    // `overduePayments` endpoints and views.
 
     // Mark a bill as paid (AJAX)
     public function markBillPaid($id)
@@ -670,9 +608,10 @@ class Admin extends BaseController
 
     public function filterUsers()
     {
-        $search = $this->request->getVar('search');
-        $purok = $this->request->getVar('purok');
-        $status = $this->request->getVar('status');
+        try {
+            $search = $this->request->getVar('search');
+            $purok = $this->request->getVar('purok');
+            $status = $this->request->getVar('status');
         // Build base query including pending bill counts per user (aggregate join)
         $builder = $this->usersModel
             ->select('users.id, users.email, users.status, user_information.first_name, user_information.last_name, user_information.purok, SUM(CASE WHEN billings.status = "Pending" THEN 1 ELSE 0 END) as pending_bills')
@@ -697,7 +636,7 @@ class Admin extends BaseController
             $builder->where('users.status', strtolower($status));
         }
 
-        $users = $builder->findAll();
+            $users = $builder->findAll();
 
         $statusMap = [
             'pending' => 'Pending',
@@ -719,7 +658,11 @@ class Admin extends BaseController
             ];
         }
 
-        return $this->response->setJSON($result);
+            return $this->response->setJSON($result);
+        } catch (\Throwable $e) {
+            log_message('error', 'filterUsers error: ' . $e->getMessage());
+            return $this->response->setJSON([]);
+        }
     }
 
         // Activate user account
@@ -1087,7 +1030,15 @@ class Admin extends BaseController
                 log_message('error', 'Approval email failed for user ' . ($user['email'] ?? 'unknown') . ': ' . $e->getMessage());
             }
 
+            if ($this->request->isAJAX()) {
+                return $this->response->setHeader('X-CSRF-Token', csrf_hash())->setJSON(['success' => true, 'message' => 'User approved successfully.']);
+            }
+
             return redirect()->back()->with('success', 'User approved successfully.');
+        }
+
+        if ($this->request->isAJAX()) {
+            return $this->response->setHeader('X-CSRF-Token', csrf_hash())->setJSON(['success' => false, 'message' => 'Failed to approve user.']);
         }
 
         return redirect()->back()->with('error', 'Failed to approve user.');
@@ -1197,7 +1148,15 @@ class Admin extends BaseController
                 log_message('error', 'Rejection email failed for user ' . ($user['email'] ?? 'unknown') . ': ' . $e->getMessage());
             }
 
+            if ($this->request->isAJAX()) {
+                return $this->response->setHeader('X-CSRF-Token', csrf_hash())->setJSON(['success' => true, 'message' => 'User rejected successfully.']);
+            }
+
             return redirect()->back()->with('success', 'User rejected successfully.');
+        }
+
+        if ($this->request->isAJAX()) {
+            return $this->response->setHeader('X-CSRF-Token', csrf_hash())->setJSON(['success' => false, 'message' => 'Failed to reject user.']);
         }
 
         return redirect()->back()->with('error', 'Failed to reject user.');
@@ -2554,6 +2513,8 @@ class Admin extends BaseController
         exit;
     }
 
+    
+
     // ---------------- Billing Functions ----------------
 
 
@@ -2738,13 +2699,31 @@ class Admin extends BaseController
                     'user_id' => $user['id'],
                     'bill_no' => $billNo,
                     'amount_due' => $amount,
+                    // compute previous unpaid balance and add
+                    'balance' => 0,
                     'billing_month' => $syncDate, // Date when admin synchronized
                     'due_date' => $dueDate, // Due date is 7 days from synchronization
                     'status' => 'Pending',
                     'created_at' => date('Y-m-d H:i:s'),
                     'updated_at' => date('Y-m-d H:i:s')
                 ];
-                
+
+                // compute outstanding (sum of unpaid pending bills)
+                try {
+                    $oldRow = $this->billingModel
+                        ->select('COALESCE(SUM(amount_due),0) as outstanding')
+                        ->where('user_id', $user['id'])
+                        ->where('status', 'Pending')
+                        ->where('paid_date IS NULL')
+                        ->get()
+                        ->getRow();
+                    $oldOutstanding = (float) ($oldRow->outstanding ?? 0);
+                } catch (\Throwable $_) {
+                    $oldOutstanding = 0.0;
+                }
+
+                $billingData['balance'] = $oldOutstanding + (float)$amount;
+
                 if ($this->billingModel->insert($billingData)) {
                     $created++;
                     log_message('info', "Billing sync: Created billing for User {$user['id']} - Amount: ₱{$amount} - Sync Date: {$syncDate} - Due Date: {$dueDate}");
@@ -3104,13 +3083,31 @@ class Admin extends BaseController
                 'user_id' => $userId,
                 'bill_no' => $billNo,
                 'amount_due' => $amount,
+                // compute previous unpaid balance and add (old balance + new bill)
+                'balance' => 0,
                 'billing_month' => $month . '-01', // First day of the month
                 'due_date' => $dueDate,
                 'status' => 'Pending',
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s')
             ];
-            
+
+            // compute previous unpaid balance
+            try {
+                $oldRow = $this->billingModel
+                    ->select('COALESCE(SUM(amount_due),0) as outstanding')
+                    ->where('user_id', $userId)
+                    ->where('status', 'Pending')
+                    ->where('paid_date IS NULL')
+                    ->get()
+                    ->getRow();
+                $oldOutstanding = (float) ($oldRow->outstanding ?? 0);
+            } catch (\Throwable $_) {
+                $oldOutstanding = 0.0;
+            }
+
+            $billingData['balance'] = $oldOutstanding + (float)$amount;
+
             if ($this->billingModel->insert($billingData)) {
                 $userName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
                 if (empty($userName)) {
@@ -3436,13 +3433,15 @@ class Admin extends BaseController
         $billingModel = new \App\Models\BillingModel();
 
         // Build query for overdue bills
+        // Use due_date-based detection so bills whose due_date has passed (and are not Paid)
+        // will be considered overdue. This is more reliable than filtering by billing_month.
         $builder = $billingModel->db->table('billings b')
             ->select('b.*, u.email, ui.first_name, ui.last_name')
             ->join('users u', 'u.id = b.user_id', 'left')
             ->join('user_information ui', 'ui.user_id = u.id', 'left')
-            ->where('b.status', 'Pending')
-            ->where('b.paid_date IS NULL')
-            ->where('DATE_FORMAT(b.billing_month, "%Y-%m") <=', $month);
+            ->where('DATE(b.due_date) <', date('Y-m-d'))
+            ->where('b.status <>', 'Paid')
+            ->where('b.paid_date IS NULL');
 
         if ($search !== '') {
             $builder->groupStart()
@@ -3486,89 +3485,7 @@ class Admin extends BaseController
     }
 
 
-    // ---------------- Account Functions ----------------
-
-    // Edit user/admin profile
-    public function editProfile()
-    {
-        return view('admin/edit_profile');
-    }
-
-    public function viewUser($id)
-    {
-        $user = $this->usersModel
-            ->select('users.*, user_information.*')
-            ->join('user_information', 'user_information.user_id = users.id', 'left')
-            ->where('users.id', $id)
-            ->first();
-
-        if (!$user) {
-            return redirect()->to('/admin/registeredUsers')->with('error', 'User not found');
-        }
-
-        return view('admin/viewUser', [
-            'title' => 'View User Details',
-            'user'  => $user
-        ]);
-    }
-
-    public function toggleUserStatus($id)
-    {
-        $user = $this->usersModel->find($id);
-        if (!$user) return redirect()->back()->with('error', 'User not found.');
-
-        $newStatus = $user['active'] ? 0 : 1;
-        $this->usersModel->update($id, ['active' => $newStatus]);
-
-        return redirect()->back()->with('success', 'User status updated.');
-    }
-
-    public function manageAccounts()
-    {
-        $status = $this->g('status', ['Pending', 'Paid', 'Rejected', 'Over the Counter', 'All'], 'all');
-        $search = $this->g('search', null, '');
-
-        $users = $this->usersModel
-            ->select('users.id, users.email, users.status, users.is_verified, user_information.first_name, user_information.last_name, user_information.phone, user_information.barangay, user_information.purok')
-            ->join('user_information', 'user_information.user_id = users.id', 'left');
-        if (!empty($search)) {
-            $users->groupStart()
-                ->like('user_information.first_name', $search)
-                ->orLike('user_information.last_name', $search)
-                ->groupEnd();
-        }
-
-        $users = $users->findAll();
-
-        foreach ($users as &$user) {
-            $builder = $this->billingModel->where('user_id', $user['id']);
-
-            if (!empty($status) && strtolower($status) != 'all') {
-                if ($status == 'Paid') {
-                    $builder->groupStart()
-                        ->where('status', 'Paid')
-                        ->orWhere('status', 'Over the Counter')
-                        ->groupEnd();
-                } else {
-                    $builder->where('status', $status);
-                }
-            }
-
-            $user['unpaid_bills'] = $builder->findAll();
-        }
-
-        if (!empty($status) && strtolower($status) != 'all') {
-            $users = array_filter($users, fn($u) => !empty($u['unpaid_bills']));
-        }
-
-        return view('admin/manageAccounts', [
-            'users' => $users,
-            'search' => $search,
-            'selectedStatus' => $status,
-            'payment' => $this->paymentModel->first(),
-        ]);
-    }
-
+    // Activity logs now handled in SuperAdmin controller. Admin-side log endpoints removed.
     public function announcements()
     {
         return view('admin/announcements', ['title' => 'Announcements']);

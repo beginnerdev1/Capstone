@@ -708,7 +708,6 @@ html, body {
         <div class="py-2 collapse-inner">
           <h6 class="collapse-header">Custom Utilities:</h6>
             <a href="<?= base_url('admin/gcash-settings') ?>" class="collapse-item ajax-link">Gcash Settings</a>
-            <a href="<?= base_url('admin/overdueBills') ?>" class="collapse-item ajax-link">Overdue Bills</a>
             <a href="<?= base_url('admin/transactionRecords') ?>" class="collapse-item ajax-link">Transactions</a>
             <a href="<?= base_url('admin/billingManagement') ?>" class="collapse-item ajax-link">Billing Management</a>
             <a href="<?= base_url('admin/failedTransactions') ?>" class="collapse-item ajax-link">Failed Transactions</a>
@@ -724,12 +723,7 @@ html, body {
     <div class="sidebar-divider"></div>
 
 
-    <li class="nav-item">
-        <a href="<?= base_url('admin/logs') ?>" class="nav-link ajax-link">
-            <i class="fas fa-file-lines"></i>
-            <span>Activity Logs</span>
-        </a>
-    </li>
+    <!-- Activity Logs moved to SuperAdmin area -->
     <li class="nav-item">
         <form action="<?= base_url('admin/logout') ?>" method="post" style="margin:0;">
             <?= csrf_field() ?>

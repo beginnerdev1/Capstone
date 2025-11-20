@@ -74,6 +74,12 @@ class Auth extends BaseController
             return redirect()->back()->with('error', 'Email is already registered.')->withInput();
         }
 
+        // Validate email format and domain deliverability
+        helper('email');
+        if (!is_real_email((string)$email)) {
+            return redirect()->back()->with('error', 'Please provide a valid email address.')->withInput();
+        }
+
         // Passwords match
         if ($password !== $confirmPassword) {
             return redirect()->back()->with('error', 'Confirm password does not match.')->withInput();
@@ -265,7 +271,8 @@ class Auth extends BaseController
     // Show forgot-password form
     public function forgotPasswordForm()
     {
-        return view('users/forgot_password');
+        $actor = $this->request->getGet('actor') ?? 'user';
+        return view('users/forgot_password', ['actor' => $actor]);
     }
 
     // Show reset form (GET /reset?email=...&token=...)
@@ -273,6 +280,7 @@ class Auth extends BaseController
     {
         $email = $this->request->getGet('email');
         $token = $this->request->getGet('token');
+        $actor = $this->request->getGet('actor') ?? 'user';
 
         if (empty($email) || empty($token)) {
             return redirect()->to('/forgot-password')->with('error', 'Invalid reset link.');
@@ -283,6 +291,7 @@ class Auth extends BaseController
 
         $row = $prModel->where('email', $email)
                        ->where('token', $tokenHash)
+                       ->where('actor', $actor)
                        ->where('expires_at >', date('Y-m-d H:i:s'))
                        ->first();
 
@@ -290,19 +299,26 @@ class Auth extends BaseController
             return redirect()->to('/forgot-password')->with('error', 'Reset link is invalid or has expired.');
         }
 
-        return view('users/reset', ['email' => $email, 'token' => $token]);
+        return view('users/reset', ['email' => $email, 'token' => $token, 'actor' => $actor]);
     }
 
     // Handle forgot-password form submit: create token + send email
     public function sendResetLink()
     {
         $email = $this->request->getPost('email');
+        $actor = $this->request->getPost('actor') ?? 'user';
         if (empty($email)) {
             return redirect()->back()->with('error', 'Please provide an email address.');
         }
 
-        $usersModel = new UsersModel();
-        $user = $usersModel->where('email', $email)->first();
+        // Verify existence depending on actor
+        if ($actor === 'admin') {
+            $usersModel = new \App\Models\AdminModel();
+            $user = $usersModel->where('email', $email)->first();
+        } else {
+            $usersModel = new UsersModel();
+            $user = $usersModel->where('email', $email)->first();
+        }
 
         // Always return generic message to avoid email enumeration
         if (!$user) {
@@ -324,7 +340,11 @@ class Auth extends BaseController
         $prModel = new PasswordResetModel();
 
         try {
-            $prModel->where('email', $email)->delete();
+            try {
+                $prModel->where('email', $email)->where('actor', $actor)->delete();
+            } catch (\Throwable $e) {
+                log_message('error', 'PasswordReset cleanup failed: ' . $e->getMessage());
+            }
         } catch (\Throwable $e) {
             log_message('error', 'PasswordReset cleanup failed: ' . $e->getMessage());
         }
@@ -341,6 +361,7 @@ class Auth extends BaseController
         $prModel->insert([
             'email' => $email,
             'token' => $tokenHash,
+            'actor' => $actor,
             'expires_at' => $expiresAt,
             'created_at' => date('Y-m-d H:i:s'),
         ]);
@@ -353,7 +374,7 @@ class Auth extends BaseController
             $api = new \Brevo\Client\Api\TransactionalEmailsApi(new \GuzzleHttp\Client(), $config);
 
             $fromEmail = getenv('SMTP_FROM') ?: (getenv('SMTP_USER') ?: 'no-reply@localhost');
-            $resetLink = base_url('/reset') . '?email=' . urlencode($email) . '&token=' . urlencode($token);
+            $resetLink = base_url('/reset') . '?email=' . urlencode($email) . '&token=' . urlencode($token) . '&actor=' . urlencode($actor);
 
             // Log link in non-production to aid development (do not enable in production)
             if (defined('ENVIRONMENT') && ENVIRONMENT !== 'production') {
@@ -385,6 +406,8 @@ class Auth extends BaseController
         $password = $this->request->getPost('password');
         $confirm = $this->request->getPost('confirm_password') ?? '';
 
+        $actor = $this->request->getPost('actor') ?? 'user';
+
         if (empty($email) || empty($token) || empty($password) || empty($confirm)) {
             return redirect()->back()->with('error', 'All fields are required.');
         }
@@ -403,6 +426,7 @@ class Auth extends BaseController
 
         $row = $prModel->where('email', $email)
                        ->where('token', $tokenHash)
+                       ->where('actor', $actor)
                        ->where('expires_at >', date('Y-m-d H:i:s'))
                        ->first();
 
@@ -410,27 +434,49 @@ class Auth extends BaseController
             return redirect()->to('/forgot-password')->with('error', 'Reset token invalid or expired.');
         }
 
-        $usersModel = new UsersModel();
-        $user = $usersModel->where('email', $email)->first();
-        if (!$user) {
-            try { $prModel->where('email', $email)->delete(); } catch (\Throwable $e) { log_message('error', 'PasswordReset cleanup failed: ' . $e->getMessage()); }
-            return redirect()->to('/forgot-password')->with('error', 'User account not found.');
-        }
+        // Update the correct actor's account
+        if ($actor === 'admin') {
+            $adminModel = new \App\Models\AdminModel();
+            $record = $adminModel->where('email', $email)->first();
+            if (!$record) {
+                try { $prModel->where('email', $email)->where('actor', 'admin')->delete(); } catch (\Throwable $e) { log_message('error', 'PasswordReset cleanup failed: ' . $e->getMessage()); }
+                return redirect()->to('/forgot-password')->with('error', 'Admin account not found.');
+            }
 
-        try {
-            $usersModel->update($user['id'], [
-                'password' => password_hash($password, PASSWORD_DEFAULT),
-            ]);
-        } catch (\Throwable $e) {
-            return redirect()->back()->with('error', 'Failed to update password.');
-        }
+            try {
+                $adminModel->update($record['id'], [
+                    'password' => password_hash($password, PASSWORD_DEFAULT),
+                ]);
+            } catch (\Throwable $e) {
+                return redirect()->back()->with('error', 'Failed to update password.');
+            }
 
-        try {
-            $prModel->where('email', $email)->delete();
-        } catch (\Throwable $e) {
-            log_message('error', 'PasswordReset cleanup failed: ' . $e->getMessage());
-        }
+            try {
+                $prModel->where('email', $email)->where('actor', 'admin')->delete();
+            } catch (\Throwable $e) { log_message('error', 'PasswordReset cleanup failed: ' . $e->getMessage()); }
 
-        return redirect()->to('/login')->with('message', 'Your password has been reset. You may now log in.');
+            return redirect()->to('/admin/login')->with('message', 'Your password has been reset. You may now log in.');
+        } else {
+            $usersModel = new UsersModel();
+            $user = $usersModel->where('email', $email)->first();
+            if (!$user) {
+                try { $prModel->where('email', $email)->where('actor', 'user')->delete(); } catch (\Throwable $e) { log_message('error', 'PasswordReset cleanup failed: ' . $e->getMessage()); }
+                return redirect()->to('/forgot-password')->with('error', 'User account not found.');
+            }
+
+            try {
+                $usersModel->update($user['id'], [
+                    'password' => password_hash($password, PASSWORD_DEFAULT),
+                ]);
+            } catch (\Throwable $e) {
+                return redirect()->back()->with('error', 'Failed to update password.');
+            }
+
+            try {
+                $prModel->where('email', $email)->where('actor', 'user')->delete();
+            } catch (\Throwable $e) { log_message('error', 'PasswordReset cleanup failed: ' . $e->getMessage()); }
+
+            return redirect()->to('/login')->with('message', 'Your password has been reset. You may now log in.');
+        }
     }
 }

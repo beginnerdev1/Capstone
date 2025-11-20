@@ -96,6 +96,8 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
     // 🧩 AUTH
     $routes->get('login', 'AdminAuth::adminLogin', ['filter' => 'guest']);
     $routes->post('login', 'AdminAuth::login', ['filter' => 'guest']);
+    $routes->get('forgot-password', 'AdminAuth::forgotPasswordForm', ['filter' => 'guest']);
+    $routes->post('forgot-password', 'AdminAuth::sendResetLink', ['filter' => 'guest']);
     $routes->get('verify-otp', 'AdminAuth::showOtpForm', ['filter' => 'guest']);
     $routes->post('verify-otp', 'AdminAuth::verifyOtp', ['filter' => 'guest']);
     $routes->post('resend-otp', 'AdminAuth::resendOtp', ['filter' => 'guest']);
@@ -139,6 +141,7 @@ $routes->get('getPaymentsData', 'Admin::getPaymentsData');// Get Payments Data f
 $routes->post('confirmGCashPayment', 'Admin::confirmGCashPayment');// Confirm GCash Payment
 $routes->get('exportPayments', 'Admin::exportPayments');// Export Payments Data
 $routes->get('exportReports', 'Admin::exportReports');// Export Reports (CSV/Excel)
+    $routes->get('exportLogs', 'Admin::exportLogs'); // Export activity logs (admin-level)
 $routes->get('getUsersByPurok/(:any)', 'Admin::getUsersByPurok/$1'); // Get Users by Purok for Counter Payment
 $routes->get('getUsersByPurokForManualBilling/(:any)', 'Admin::getUsersByPurokForManualBilling/$1'); // Get Users by Purok for Manual Billing
 $routes->get('getPendingBillings/(:num)', 'Admin::getPendingBillings/$1');// Get Pending Billings for Counter Payment
@@ -169,9 +172,7 @@ $routes->get('getOverduePaymentsData', 'Admin::getOverduePaymentsData');// Get O
         $routes->get('401', 'Admin::page401');
         $routes->get('500', 'Admin::page500');
         $routes->get('profile', 'Admin::profile');
-        $routes->get('logs', 'Admin::logs');
-        $routes->get('getLogs', 'Admin::getLogs');
-        $routes->get('exportLogs', 'Admin::exportLogs');
+        // Activity logs moved to superadmin area; admin endpoints removed
         // Admin chat
         $routes->get('chat', 'Chat::index');
         $routes->get('chat/getAdmins', 'Chat::getAdmins');
@@ -200,8 +201,6 @@ $routes->get('getOverduePaymentsData', 'Admin::getOverduePaymentsData');// Get O
         // Suspended users & overdue bills (placed before billing catch-all to avoid route collision)
         $routes->get('suspendedUsers', 'Admin::suspendedUsers');
         $routes->get('getSuspendedUsers', 'Admin::getSuspendedUsers');
-        $routes->get('overdueBills', 'Admin::overdueBills');
-        $routes->get('getOverdueBills', 'Admin::getOverdueBills');
         $routes->post('markBillPaid/(:num)', 'Admin::markBillPaid/$1');
         $routes->get('(:segment)', 'Billing::show/$1');
         $routes->post('editBill/(:num)', 'Billing::editBill/$1');
@@ -233,13 +232,15 @@ $routes->group('superadmin', ['namespace' => 'App\Controllers'], function ($rout
         $routes->get('backup', 'SuperAdmin::backup');
         $routes->post('backup', 'SuperAdmin::backup');
         $routes->get('logs', 'SuperAdmin::logs');
+        // Reference pages for admin/debugging
+        $routes->get('logs-admin-ref', 'SuperAdmin::logsAdminRef');
+        $routes->get('logs-ref', 'SuperAdmin::logsFunctionsRef');
         $routes->get('getLogs', 'SuperAdmin::getLogs');
         $routes->get('exportLogs', 'SuperAdmin::exportLogs');
         $routes->get('getUsers', 'SuperAdmin::getUsers');
         $routes->get('getSuperAdmins', 'SuperAdmin::getSuperAdmins');
         $routes->get('create_superadmin', 'SuperAdmin::create_superadmin');
         $routes->post('createSuperAdmin', 'SuperAdmin::createSuperAdmin');
-        $routes->post('retireSuperAdmin', 'SuperAdmin::retireSuperAdmin');
         $routes->get('pendingActions', 'SuperAdmin::pendingActions');
         $routes->post('approveAction', 'SuperAdmin::approveAction');
         $routes->post('rejectAction', 'SuperAdmin::rejectAction');

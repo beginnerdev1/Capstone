@@ -115,6 +115,7 @@
 
           <form action="<?= base_url('forgot-password') ?>" method="post" class="pt-2">
             <?= csrf_field() ?>
+            <input type="hidden" name="actor" value="<?= esc($actor ?? 'user') ?>">
             <div class="mb-3">
               <input type="email" name="email" class="form-control" placeholder="Email address" required>
             </div>
@@ -125,7 +126,9 @@
           </form>
 
           <div class="mt-3">
-            <a href="<?= base_url('login') ?>" class="link-muted">Back to Login</a>
+            <?php $backLogin = (isset($actor) && $actor === 'admin') ? base_url('admin/login') : base_url('login'); ?>
+            <?php $backLabel = (isset($actor) && $actor === 'admin') ? 'Back to admin login' : 'Back to Login'; ?>
+            <a href="<?= $backLogin ?>" class="link-muted"><?= $backLabel ?></a>
           </div>
         </div>
       </div>

@@ -321,6 +321,7 @@
       <?= csrf_field() ?>
       <input type="hidden" name="email" value="<?= esc($email ?? '') ?>">
       <input type="hidden" name="token" value="<?= esc($token ?? '') ?>">
+      <input type="hidden" name="actor" value="<?= esc($actor ?? 'user') ?>">
 
       <div class="mb-3 position-relative">
         <input id="password" type="password" name="password" class="form-control" placeholder="New Password" required autocomplete="new-password" aria-describedby="passwordHelp">
@@ -343,7 +344,9 @@
       <button type="submit" class="btn-reset w-100">Reset Password</button>
 
       <div class="hint">After resetting, you can log in with your new password.</div>
-      <a href="<?= base_url('login') ?>" class="login-link">Back to login</a>
+      <?php $backLogin = (isset($actor) && $actor === 'admin') ? base_url('admin/login') : base_url('login'); ?>
+      <?php $backLabel = (isset($actor) && $actor === 'admin') ? 'Back to admin login' : 'Back to login'; ?>
+      <a href="<?= $backLogin ?>" class="login-link"><?= $backLabel ?></a>
     </form>
   </div>
 

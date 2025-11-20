@@ -13,6 +13,7 @@ class BillingModel extends Model
         'user_id',
         'bill_no',
         'amount_due',
+        'balance',
         'status',
         'billing_month',
         'due_date',

@@ -12,6 +12,7 @@ class PasswordResetModel extends Model
     protected $allowedFields = [
         'email',
         'token',
+        'actor',
         'expires_at',
         'created_at',
     ];

@@ -45,7 +45,7 @@
         <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold shadow-sm">Login</button>
 
         <div class="d-flex justify-content-between align-items-center mt-3">
-          <a href="<?= base_url('/forgot-password') ?>" class="text-decoration-none small text-muted">
+          <a href="<?= base_url('admin/forgot-password') ?>" class="text-decoration-none small text-muted">
             <i class="fa-solid fa-key me-1"></i> Forgot password?
           </a>
           <a href="<?= base_url('/') ?>" class="text-decoration-none small text-muted">Back to site</a>

@@ -50,14 +50,11 @@
         <div class="sidebar-heading">Management</div>
         <a href="<?= base_url('superadmin/users') ?>" class="nav-link ajax-link"><i class="fas fa-user-shield"></i><span>Admins</span></a>
         <a href="<?= base_url('superadmin/chat') ?>" class="nav-link ajax-link"><i class="fas fa-comments"></i><span>Chats</span></a>
-        <a href="<?= base_url('superadmin/create_superadmin') ?>" class="nav-link ajax-link"><i class="fas fa-user-plus"></i><span>Create Super Admin</span></a>
         <a href="<?= base_url('superadmin/settings') ?>" class="nav-link ajax-link"><i class="fas fa-gear"></i><span>Settings</span></a>
         <a href="<?= base_url('superadmin/logs') ?>" class="nav-link ajax-link"><i class="fas fa-file-lines"></i><span>Logs</span></a>
         <div class="sidebar-heading">Account</div>
         <a href="<?= base_url('superadmin/profile') ?>" class="nav-link ajax-link"><i class="fas fa-user"></i><span>Profile</span></a>
         <a href="<?= base_url('superadmin/logout') ?>" class="nav-link"><i class="fas fa-right-from-bracket"></i><span>Logout</span></a>
-        <div class="sidebar-heading">Extra</div>
-        <a href="<?= base_url('admin/chat') ?>" class="nav-link ajax-link"><i class="fas fa-comments"></i><span>Chats</span></a>
     </div>
     <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
 

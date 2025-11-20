@@ -296,9 +296,9 @@ html,body { height:100%; margin:0; font-family: var(--font-sans); background: li
 </div>
 
 <script>
-const csrfName = '<?= csrf_token() ?>';
-let csrfHash = '<?= csrf_hash() ?>';
-let currentUserId = null;
+var csrfName = '<?= csrf_token() ?>';
+var csrfHash = '<?= csrf_hash() ?>';
+window.currentUserId = window.currentUserId || null;
 
 function setCountLabel(count) {
     const el = document.getElementById('pendingCount');
@@ -415,8 +415,8 @@ function fetchPendingAccounts() {
 function attachViewEvents() {
     document.querySelectorAll('.view-user-btn').forEach(btn => {
         btn.onclick = function() {
-            currentUserId = this.dataset.userId;
-            fetch(`<?= base_url("admin/getUser") ?>/${currentUserId}`)
+            window.currentUserId = this.dataset.userId;
+            fetch(`<?= base_url("admin/getUser") ?>/${window.currentUserId}`)
                 .then(res => res.json())
                 .then(user => {
                     if (!user) return;
@@ -469,6 +469,9 @@ async function postAction(url) {
 
         const res = await fetch(url, {
             method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            },
             body: formData
         });
 
@@ -489,12 +492,12 @@ async function postAction(url) {
 }
 
 document.getElementById('approveBtn').onclick = async () => {
-    if (!currentUserId) return;
+    if (!window.currentUserId) return;
     const btn = document.getElementById('approveBtn');
     showButtonLoader(btn, 'Approving...');
     updatePendingStatus('Approving...');
 
-    const result = await postAction('<?= base_url("admin/approve/") ?>' + currentUserId);
+    const result = await postAction('<?= base_url("admin/approve/") ?>' + window.currentUserId);
 
     restoreButton(btn);
 
@@ -507,9 +510,9 @@ document.getElementById('approveBtn').onclick = async () => {
     }
 };
 document.getElementById('rejectBtn').onclick = () => {
-    if (!currentUserId) return;
+    if (!window.currentUserId) return;
     showButtonLoader(document.getElementById('rejectBtn'));
-    postAction('<?= base_url("admin/reject/") ?>' + currentUserId);
+    postAction('<?= base_url("admin/reject/") ?>' + window.currentUserId);
 };
 
 document.getElementById('userModal').addEventListener('click', e => {
