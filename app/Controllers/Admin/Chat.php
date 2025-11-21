@@ -71,8 +71,8 @@ class Chat extends BaseController
     public function postMessage()
     {
         $session = session();
-        // Allow superadmin to act as admin in chat UI
-        $adminId = $session->get('admin_id') ?? $session->get('superadmin_id') ?? null;
+        // Allow superadmin to act as admin in chat UI — prefer superadmin when present
+        $adminId = $session->get('superadmin_id') ?? $session->get('admin_id') ?? null;
 
         $text = $this->request->getPost('message');
         if (! $text) {
@@ -208,6 +208,122 @@ class Chat extends BaseController
         return $this->response->setJSON($convs);
     }
 
+    // Return messages for an admin <-> admin conversation
+    public function getMessagesForAdmin($recipientId = null)
+    {
+        $session = session();
+        // Prefer superadmin id when available so superadmins post as themselves
+        $adminId = $session->get('superadmin_id') ?? $session->get('admin_id') ?? null;
+        if (! $adminId) return $this->response->setStatusCode(401)->setJSON(['error' => 'Not authenticated']);
+
+        if (! $recipientId) return $this->response->setJSON([]);
+
+        $since = $this->request->getGet('since');
+
+        // Ensure the DB schema has `admin_recipient_id` to support admin<->admin conversations
+        $db = \Config\Database::connect();
+        if (! $db->fieldExists('admin_recipient_id', $this->chatModel->table)) {
+            return $this->response->setStatusCode(400)->setJSON(['error' => 'admin_recipient_id column missing; run migrations']);
+        }
+
+        $builder = $this->chatModel->groupStart()
+            ->where('admin_id', (int)$adminId)->where('admin_recipient_id', (int)$recipientId)
+            ->groupEnd()
+            ->orGroupStart()
+            ->where('admin_id', (int)$recipientId)->where('admin_recipient_id', (int)$adminId)
+            ->groupEnd()
+            ->orderBy('created_at', 'ASC');
+
+        if ($since) {
+            $ts = date('Y-m-d H:i:s', strtotime($since));
+            $builder->where('created_at >', $ts);
+        }
+
+        $messages = $builder->findAll() ?: [];
+        return $this->response->setJSON($messages);
+    }
+
+    // Non-destructive audit endpoint: return legacy broadcasts where admin_recipient_id IS NULL
+    public function getBroadcasts()
+    {
+        $session = session();
+        $adminId = $session->get('superadmin_id') ?? $session->get('admin_id') ?? null;
+        if (! $adminId) return $this->response->setStatusCode(401)->setJSON(['error' => 'Not authenticated']);
+
+        $since = $this->request->getGet('since');
+
+        $db = \Config\Database::connect();
+        // Ensure the `admin_recipient_id` column exists before querying for NULLs
+        try {
+            if (! $db->fieldExists('admin_recipient_id', $this->chatModel->table)) {
+                return $this->response->setStatusCode(400)->setJSON(['error' => 'admin_recipient_id column missing; run migrations']);
+            }
+        } catch (\Exception $e) {
+            return $this->response->setStatusCode(500)->setJSON(['error' => 'Unable to verify schema', 'exception' => $e->getMessage()]);
+        }
+
+        $builder = $this->chatModel->where('sender', 'admin_internal')->where('admin_recipient_id', null)->orderBy('created_at', 'DESC');
+        if ($since) {
+            $ts = date('Y-m-d H:i:s', strtotime($since));
+            $builder->where('created_at >', $ts);
+        }
+
+        $messages = $builder->findAll() ?: [];
+        return $this->response->setJSON($messages);
+    }
+
+    // Post an admin->admin internal message
+    public function postAdminMessage()
+    {
+        $session = session();
+        // Prefer superadmin id when available so superadmins fetch as themselves
+        $adminId = $session->get('superadmin_id') ?? $session->get('admin_id') ?? null;
+
+        if (! $adminId) {
+            return $this->response->setStatusCode(ResponseInterface::HTTP_UNAUTHORIZED)->setJSON(['error' => 'Admin required']);
+        }
+
+        $text = $this->request->getPost('message');
+        $recipient = $this->request->getPost('recipient_admin_id');
+        if (! $text || ! $recipient) {
+            return $this->response->setStatusCode(ResponseInterface::HTTP_BAD_REQUEST)->setJSON(['error' => 'Message and recipient required']);
+        }
+
+        $db = \Config\Database::connect();
+        $table = $this->chatModel->table;
+
+        $data = [
+            'external_id' => bin2hex(random_bytes(6)),
+            'admin_id' => $adminId,
+            'user_id' => null,
+            'sender' => 'admin_internal',
+            'message' => $text,
+            'is_read' => 1,
+            'created_at' => date('Y-m-d H:i:s'),
+        ];
+
+        // Only include admin_recipient_id and is_internal if the DB schema has them
+        try {
+            if ($db->fieldExists('admin_recipient_id', $table)) {
+                $data['admin_recipient_id'] = (int)$recipient;
+            }
+            if ($db->fieldExists('is_internal', $table)) {
+                $data['is_internal'] = 1;
+            }
+        } catch (\Exception $e) {
+            // ignore field check failures; proceed without optional fields
+        }
+
+        try {
+            $insertId = $this->chatModel->insert($data);
+            $data['id'] = $insertId;
+            return $this->response->setJSON($data);
+        } catch (\Exception $e) {
+            log_message('error', 'postAdminMessage insert failed: ' . $e->getMessage());
+            return $this->response->setStatusCode(ResponseInterface::HTTP_INTERNAL_SERVER_ERROR)->setJSON(['error' => 'Failed to save message']);
+        }
+    }
+
     // Return messages for a specific user conversation
     public function getMessagesFor($userId = null)
     {
@@ -284,7 +400,8 @@ class Chat extends BaseController
     public function fixParticipantFields()
     {
         $session = session();
-        $adminId = $session->get('admin_id') ?? $session->get('superadmin_id') ?? null;
+        // Prefer superadmin when available for utilities invoked by superadmins
+        $adminId = $session->get('superadmin_id') ?? $session->get('admin_id') ?? null;
         if (! $adminId) {
             return $this->response->setStatusCode(ResponseInterface::HTTP_UNAUTHORIZED)->setJSON(['error' => 'Admin required']);
         }
@@ -316,7 +433,8 @@ class Chat extends BaseController
     public function backfillUserNames()
     {
         $session = session();
-        $adminId = $session->get('admin_id') ?? $session->get('superadmin_id') ?? null;
+        // Prefer superadmin when available for utilities invoked by superadmins
+        $adminId = $session->get('superadmin_id') ?? $session->get('admin_id') ?? null;
         if (! $adminId) {
             return $this->response->setStatusCode(ResponseInterface::HTTP_UNAUTHORIZED)->setJSON(['error' => 'Admin required']);
         }

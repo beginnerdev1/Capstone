@@ -1,10 +1,9 @@
 <style>
-	/* Small responsive tweaks for admin chat */
+	/* Reuse superadmin chat styles, keep admin toggle */
 	.chat-side { border-right:1px solid rgba(0,0,0,0.04); }
 	#chat-messages { min-height:320px; max-height:60vh; overflow:auto; padding:14px; }
 	.chat-bubble{ padding:10px 14px; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.04); }
 	@media (max-width:767px){
-		/* hide side column; toggle with button */
 		#side-panel { position:fixed; left:0; top:0; bottom:0; width:86%; max-width:360px; background:#fff; z-index:1055; box-shadow:0 10px 40px rgba(2,6,23,0.1); transform:translateX(-110%); transition:transform .22s ease; }
 		#side-panel.show { transform:translateX(0); }
 		#side-panel .close-side { position:absolute; right:8px; top:8px; }
@@ -17,30 +16,34 @@
 
 <div class="container-fluid mt-4">
 	<div class="row">
-		<!-- Side panel: conversations + admins -->
+		<!-- Side panel -->
 		<div id="side-panel" class="col-md-3 chat-side desktop-only">
 			<div class="card">
 				<div class="card-header d-flex justify-content-between align-items-center">
-					<div>Conversations</div>
+					<div id="side-title">Conversations</div>
 				</div>
 				<div style="max-height:520px; overflow:auto;">
-					<ul id="conversation-list" class="list-group list-group-flush"></ul>
+					<ul id="side-list" class="list-group list-group-flush"></ul>
 				</div>
-			</div>
-			<div class="mt-3">
-				<h6>Admins</h6>
-				<div id="admin-contacts"></div>
 			</div>
 		</div>
 
 		<!-- Main panel -->
 		<div class="col-md-9" id="main-panel">
 			<div class="d-flex mb-2 d-md-none">
-				<button id="toggle-conversations" class="btn btn-outline-secondary btn-sm me-2">Conversations</button>
+				<button id="toggle-conversations" class="btn btn-outline-secondary btn-sm me-2">Open</button>
 			</div>
 
 			<div class="card">
-				<div class="card-header">Live Chat (Admins)</div>
+				<div class="card-header d-flex justify-content-between align-items-center">
+					<div id="chat-mode-label">Live Chat</div>
+					<div>
+						<div class="btn-group btn-group-sm" role="group" aria-label="Chat mode">
+							<button id="mode-users" type="button" class="btn btn-outline-secondary active">Users</button>
+							<button id="mode-admins" type="button" class="btn btn-outline-secondary">Admins</button>
+						</div>
+					</div>
+				</div>
 				<div id="chat-messages"></div>
 				<div class="card-body">
 					<form id="chat-form">
@@ -55,17 +58,13 @@
 	</div>
 </div>
 
-<!-- small side-panel when on mobile -->
+<!-- mobile side panel -->
 <div id="side-panel-mobile" style="display:none;">
 	<div id="side-panel" aria-hidden="true">
 		<button class="btn btn-sm btn-light close-side">Close</button>
 		<div class="card mt-4">
-			<div class="card-header">Conversations</div>
-			<div style="max-height:64vh; overflow:auto;"><ul id="conversation-list-mobile" class="list-group list-group-flush"></ul></div>
-		</div>
-		<div class="mt-3">
-			<h6>Admins</h6>
-			<div id="admin-contacts-mobile"></div>
+			<div class="card-header" id="side-title-mobile">Conversations</div>
+			<div style="max-height:64vh; overflow:auto;"><ul id="side-list-mobile" class="list-group list-group-flush"></ul></div>
 		</div>
 	</div>
 </div>
@@ -74,182 +73,114 @@
 <script src="<?= base_url('assets/js/safe-html.js') ?>"></script>
 <script>
 $(function(){
-	var adminMap = {}, selectedUserId = null;
-	// CSRF for AJAX posts
+	var adminMap = {}, selectedUserId = null, selectedAdminId = null;
 	const csrfName = '<?= csrf_token() ?>';
 	let csrfHash = '<?= csrf_hash() ?>';
+	const chatBase = '<?= base_url('admin/chat') ?>';
 
-	// Determine chat route base: use superadmin routes when served under /superadmin
-	const isSuper = (window.location.pathname.indexOf('/superadmin') !== -1);
-	const chatBase = isSuper
-		? '<?= base_url('superadmin/chat') ?>'
-		: '<?= base_url('admin/chat') ?>';
+	// UI mode: 'user' or 'admin'
+	var viewMode = 'user';
+
+	function renderSideList(items, type){
+		// type = 'users' or 'admins'
+		var $list = $('#side-list');
+		var $listMobile = $('#side-list-mobile');
+		$list.empty(); $listMobile.empty();
+		if (!items || !items.length) {
+			$list.append($('<li class="list-group-item text-muted">No items</li>'));
+			$listMobile.append($('<li class="list-group-item text-muted">No items</li>'));
+			return;
+		}
+		items.forEach(function(it){
+			if (type === 'users') {
+				var li = $('<li class="list-group-item d-flex justify-content-between align-items-start" style="cursor:pointer"></li>');
+				var label = it.display || 'User';
+				li.text(label + (it.last_at ? ' — ' + it.last_at : ''));
+				if (it.unread) li.append($('<span class="badge bg-danger rounded-pill ms-2"></span>').text(it.unread));
+				li.attr('data-user', it.user_id);
+				li.on('click', function(){ $('#side-list .active, #side-list-mobile .active').removeClass('active'); li.addClass('active'); selectedAdminId = null; selectedUserId = it.user_id; lastTimestamp = null; $('#chat-messages').empty(); loadConversationMessages(it.user_id, false); startPolling(); $('#side-panel').removeClass('show'); });
+				$list.append(li.clone(true));
+				$listMobile.append(li.clone(true));
+			} else {
+				var li = $('<li class="list-group-item d-flex justify-content-between align-items-start" style="cursor:pointer"></li>');
+				li.text(it.name || 'Admin');
+				li.attr('data-admin', it.id);
+				li.on('click', function(){ $('#side-list .active, #side-list-mobile .active').removeClass('active'); li.addClass('active'); selectedUserId = null; selectedAdminId = it.id; lastTimestamp = null; $('#chat-messages').empty(); loadAdminMessages(false); startPolling(); $('#side-panel').removeClass('show'); });
+				$list.append(li.clone(true));
+				$listMobile.append(li.clone(true));
+			}
+		});
+	}
 
 	function loadAdmins(){
 		$.get(chatBase + '/getAdmins', function(data){
-			$('#admin-contacts, #admin-contacts-mobile').empty();
 			adminMap = {};
-			data.forEach(function(a){
-				adminMap[a.id] = a.name || a.email || 'Admin';
-				var contact = $('<div class="p-2 border mb-2"><strong></strong><br></div>');
-				contact.find('strong').text(a.name || a.email || 'Admin');
-				if (a.email) contact.append($('<div>').html('<a href="mailto:'+a.email+'">'+a.email+'</a>'));
-				if (a.phone) contact.append($('<div>').html('<a href="tel:'+a.phone+'">'+a.phone+'</a>'));
-				$('#admin-contacts, #admin-contacts-mobile').append(contact.clone());
-			});
-		});
+			data.forEach(function(a){ adminMap[a.id] = a.name || 'Admin'; });
+			if (viewMode === 'admin') renderSideList(data, 'admins');
+		}).fail(function(){ renderSideList([], 'admins'); });
 	}
 
-	function formatDateToMDY(d){
-		if(!d) return '';
-		var dt = new Date(d);
-		if (isNaN(dt)) {
-			dt = new Date(d.replace(' ', 'T'));
-			if (isNaN(dt)) return d;
-		}
-		var mm = String(dt.getMonth()+1).padStart(2,'0');
-		var dd = String(dt.getDate()).padStart(2,'0');
-		var yyyy = dt.getFullYear();
-		return mm + '/' + dd + '/' + yyyy;
-	}
+	// (removed admin-conversation loader to restore previous admin behavior)
 
 	function loadConversations(){
-		// For superadmin view we do NOT load user conversations — only show admins
-		if (isSuper) return;
-
-		$.get(chatBase + '/getConversations', function(data){
-			$('#conversation-list, #conversation-list-mobile').empty();
-			data.forEach(function(c){
-				var li = $('<li class="list-group-item d-flex justify-content-between align-items-start"></li>');
-				var displayLabel = (c.display && String(c.display).trim()) ? String(c.display).trim() : 'User';
-				var title = $('<div></div>').text(displayLabel + (c.last_at ? ' — ' + formatDateToMDY(c.last_at) : ''));
-				var badge = $('<span class="badge bg-danger rounded-pill ms-2"></span>').text(c.unread||0);
-				if (!c.unread) badge.hide();
-				li.append(title).append(badge);
-				li.attr('data-user', c.user_id);
-				li.css('cursor','pointer');
-				li.on('click', function(){
-						$('#conversation-list .active, #conversation-list-mobile .active').removeClass('active');
-						li.addClass('active');
-						selectedUserId = c.user_id;
-						lastTimestamp = null; // reset for full load
-						loadConversationMessages(selectedUserId, false);
-						startMessagePolling();
-						// hide mobile side panel if open
-						$('#side-panel').removeClass('show');
-					});
-				$('#conversation-list, #conversation-list-mobile').append(li.clone(true));
-			});
-		});
+		$.get(chatBase + '/getConversations', function(data){ if (viewMode === 'user') renderSideList(data, 'users'); }).fail(function(){ renderSideList([], 'users'); });
 	}
 
 	var lastTimestamp = null;
-	var messagePollId = null;
-	var messagePollInterval = 3000; // 3s when active
+	var pollId = null;
+	var pollInterval = 5000;
+	var seenMessageIds = new Set();
 
-	function appendMessagesToList(messages){
+	function appendMessages(messages){
+		if (!messages || !messages.length) return;
 		messages.forEach(function(m){
-			var container = document.createElement('div');
-			container.className = 'd-flex mb-2';
+			if (m.sender !== 'user' && m.sender !== 'admin' && m.sender !== 'admin_internal') return;
 
-			var isAdmin = (m.sender === 'admin');
-			var authorName = 'System';
-			if (isAdmin) {
-				authorName = 'Admin';
-			} else if (m.sender === 'user') {
-				authorName = (m.author && String(m.author).trim()) ? String(m.author).trim() : ((m.user_name && String(m.user_name).trim()) ? String(m.user_name).trim() : 'User');
-			}
+			var mid = m.id || m.external_id || null;
+			if (mid && seenMessageIds.has(mid)) return;
 
+			var container = document.createElement('div'); container.className = 'd-flex mb-2';
+			var author = 'System';
+			if (m.sender === 'admin' || m.sender === 'admin_internal') author = adminMap[m.admin_id] || 'Admin';
+			if (m.sender === 'user') author = m.author || m.user_name || 'User';
 			var safe = (window.DOMPurify && typeof DOMPurify.sanitize === 'function') ? DOMPurify.sanitize(m.message||'') : (m.message||'');
-			var bubble = document.createElement('div');
-			bubble.className = 'chat-bubble p-2 text-white';
-			bubble.style.maxWidth = '75%';
-			bubble.style.borderRadius = '12px';
-
-			if (isAdmin) {
+			var bubble = document.createElement('div'); bubble.className = 'chat-bubble p-2 text-white'; bubble.style.maxWidth = '75%';
+			if (m.sender === 'admin_internal' || m.is_internal == 1) {
+				bubble.classList.add('bg-dark');
+				bubble.innerHTML = '<div class="small text-white-50">' + author + ' <span class="badge bg-warning text-dark ms-2">Internal</span> <span class="ms-2 small">' + (m.created_at||'') + '</span></div><div>' + safe + '</div>';
 				container.classList.add('justify-content-start');
-				bubble.classList.add('bg-secondary');
-				bubble.innerHTML = '<div class="small text-white-50">' + authorName + ' <span class="ms-2 small">' + (m.created_at||'') + '</span></div><div>' + safe + '</div>';
+			} else if (m.sender === 'admin') {
+				bubble.classList.add('bg-secondary'); bubble.innerHTML = '<div class="small text-white-50">' + author + ' <span class="ms-2 small">' + (m.created_at||'') + '</span></div><div>' + safe + '</div>'; container.classList.add('justify-content-start');
 			} else {
-				container.classList.add('justify-content-end');
-				bubble.classList.add('bg-primary');
-				bubble.innerHTML = '<div class="small text-white-50 text-end">' + authorName + ' <span class="ms-2 small">' + (m.created_at||'') + '</span></div><div>' + safe + '</div>';
+				bubble.classList.add('bg-primary'); bubble.innerHTML = '<div class="small text-white-50 text-end">' + author + ' <span class="ms-2 small">' + (m.created_at||'') + '</span></div><div>' + safe + '</div>'; container.classList.add('justify-content-end');
 			}
-
-			container.appendChild(bubble);
-			$('#chat-messages').append(container);
+			container.appendChild(bubble); $('#chat-messages').append(container);
+			if (mid) seenMessageIds.add(mid);
 			if (m.created_at) lastTimestamp = m.created_at;
 		});
 		var cm = $('#chat-messages')[0]; if (cm) cm.scrollTop = cm.scrollHeight;
 	}
 
-	function loadConversationMessages(userId, incremental){
-		if (!userId) return;
-		var url = chatBase + '/getMessages/' + encodeURIComponent(userId);
-		if (incremental && lastTimestamp) {
-			url += '?since=' + encodeURIComponent(lastTimestamp);
-		}
-		$.get(url, function(data){
-			if (!incremental) $('#chat-messages').empty();
-			appendMessagesToList(data || []);
+	function loadAdminMessages(incremental){ if (!selectedAdminId) return; var url = chatBase + '/getMessagesForAdmin/' + encodeURIComponent(selectedAdminId); if (incremental && lastTimestamp) url += '?since=' + encodeURIComponent(lastTimestamp); $.get(url, function(data){ if (!incremental) { $('#chat-messages').empty(); seenMessageIds.clear(); } appendMessages(data || []); }); }
 
-			// mark read after loading (only if there were messages)
-			if (!incremental || (data && data.length)) {
-				var markPayload = {};
-				markPayload[csrfName] = csrfHash;
-				$.post(chatBase + '/markRead/' + encodeURIComponent(userId), markPayload).always(function(){
-					loadConversations();
-				});
-			}
-		});
-	}
+	function loadConversationMessages(userId, incremental){ if (!userId) return; var url = chatBase + '/getMessages/' + encodeURIComponent(userId); if (incremental && lastTimestamp) url += '?since=' + encodeURIComponent(lastTimestamp); $.get(url, function(data){ if (!incremental) { $('#chat-messages').empty(); seenMessageIds.clear(); } appendMessages(data || []); if (!incremental || (data && data.length)) { var markPayload = {}; markPayload[csrfName] = csrfHash; $.post(chatBase + '/markRead/' + encodeURIComponent(userId), markPayload).always(function(){ loadConversations(); }); } }); }
 
-	function startMessagePolling(){
-		stopMessagePolling();
-		messagePollId = setInterval(function(){
-			if (!selectedUserId) return;
-			if (document.hidden) return; // don't poll while tab hidden
-			loadConversationMessages(selectedUserId, true);
-		}, messagePollInterval);
-	}
+	function startPolling(){ stopPolling(); pollId = setInterval(function(){ if (document.hidden) return; if (viewMode === 'user' && selectedUserId) loadConversationMessages(selectedUserId, true); if (viewMode === 'admin' && selectedAdminId) loadAdminMessages(true); }, pollInterval); }
+	function stopPolling(){ if (pollId) { clearInterval(pollId); pollId = null; } }
 
-	function stopMessagePolling(){
-		if (messagePollId) { clearInterval(messagePollId); messagePollId = null; }
-	}
+	$('#chat-form').on('submit', function(e){ e.preventDefault(); var msg = $('#chat-input').val().trim(); if(!msg) return; if (viewMode === 'user') { if (!selectedUserId) { alert('Select a conversation to reply to.'); return; } var payload = { message: msg, user_id: selectedUserId }; payload[csrfName] = csrfHash; $.post(chatBase + '/postMessage', payload, function(){ $('#chat-input').val(''); loadConversationMessages(selectedUserId, false); }).fail(function(xhr){ console.error('postMessage failed', xhr.responseText); alert('Failed to send message'); }); return; } else { if (!selectedAdminId) { alert('Select an admin to message.'); return; } var payload = { message: msg, recipient_admin_id: selectedAdminId }; payload[csrfName] = csrfHash; $.post(chatBase + '/postAdminMessage', payload, function(){ $('#chat-input').val(''); lastTimestamp = null; loadAdminMessages(false); }).fail(function(xhr){ console.error('postAdminMessage failed', xhr.responseText); alert('Failed to send admin message'); }); return; } });
 
-	$('#chat-form').on('submit', function(e){
-		e.preventDefault();
-		var msg = $('#chat-input').val().trim();
-		if(!msg) return;
-		if (!selectedUserId) { alert('Select a conversation (user) to reply to.'); return; }
-		var payload = { message: msg, user_id: selectedUserId };
-		payload[csrfName] = csrfHash;
-		$.post(chatBase + '/postMessage', payload, function(res){
-			$('#chat-input').val('');
-			loadConversationMessages(selectedUserId);
-		});
-	});
+	// toggle handlers
+	$('#mode-users').on('click', function(){ viewMode = 'user'; $('#mode-users').addClass('active'); $('#mode-admins').removeClass('active'); $('#side-title').text('Conversations'); $('#side-title-mobile').text('Conversations'); loadConversations(); stopPolling(); startPolling(); });
+	$('#mode-admins').on('click', function(){ viewMode = 'admin'; $('#mode-admins').addClass('active'); $('#mode-users').removeClass('active'); $('#side-title').text('Admins'); $('#side-title-mobile').text('Admins'); loadAdmins(); stopPolling(); startPolling(); });
 
-	// mobile side panel toggle
 	$('#toggle-conversations').on('click', function(){ $('#side-panel').addClass('show'); });
 	$(document).on('click', '#side-panel .close-side', function(){ $('#side-panel').removeClass('show'); });
 
-	// initial load
-	loadAdmins();
-	if (!isSuper) {
-		loadConversations();
-		// poll conversations every 8s to keep unread badges up-to-date
-		setInterval(loadConversations, 8000);
-	} else {
-		// If superadmin, hide user conversation UI and message form — show admins only
-		$('#side-panel, #side-panel-mobile, #conversation-list, #conversation-list-mobile').hide();
-		$('#chat-messages, #chat-form').hide();
-		$('.card-header').first().text('Admins');
-	}
+	// initial
+	loadAdmins(); loadConversations(); startPolling(); setInterval(function(){ if (viewMode === 'user') loadConversations(); }, 8000);
 
-	// stop message polling when navigating away via ajax links
-	$(document).on('click', '.ajax-link', function(){ stopMessagePolling(); });
-
+	$(document).on('click', '.ajax-link', function(){ stopPolling(); });
 });
 </script>
 

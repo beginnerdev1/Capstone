@@ -34,10 +34,12 @@ class Chat extends BaseController
         }
 
         $since = $this->request->getGet('since');
+        // Exclude internal admin-only messages (sender = 'admin_internal') from user view
         $builder = $this->chatModel->groupStart()
             ->where('user_id', null)
             ->orWhere('user_id', (int)$userId)
             ->groupEnd()
+            ->where('sender !=', 'admin_internal')
             ->orderBy('created_at', 'ASC');
 
         if ($since) {
