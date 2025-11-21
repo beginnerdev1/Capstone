@@ -3516,7 +3516,10 @@ class Admin extends BaseController
         return redirect()->back()->with('error', 'QR upload failed!');
     }
 
-    public function profile()
+// ===================== PROFILE MANAGEMENT =====================
+
+    // Show admin profile
+    public function editProfile()
     {
         $adminId = session()->get('admin_id');
         if (!$adminId) return redirect()->to(base_url('admin/login'))->with('error', 'You must be logged in.');
@@ -3524,9 +3527,9 @@ class Admin extends BaseController
         $admin = $this->adminModel->find($adminId);
         if (!$admin) return redirect()->to(base_url('admin/login'))->with('error', 'Admin not found.');
 
-        return view('admin/profile', ['admin' => $admin]);
+        return view('admin/edit_profile', ['admin' => $admin]);
     }
-
+    // Update admin profile
     public function updateProfile()
     {
         helper(['form', 'url']);
