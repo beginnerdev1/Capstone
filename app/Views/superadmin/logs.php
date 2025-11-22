@@ -140,9 +140,62 @@
 
         // attach details handler
         $('.view-details').off('click').on('click', function(){
-          const r = JSON.parse($(this).closest('tr').attr('data-log'));
+          const rawLog = $(this).closest('tr').attr('data-log') || '{}';
+          let r;
+          try{
+            r = JSON.parse(rawLog);
+          }catch(e){
+            try{
+              const repaired = String(rawLog).replace(/\n/g,' ').replace(/\r/g,' ').replace(/\t/g,' ').replace(/\\"/g,'"');
+              r = JSON.parse(repaired);
+            }catch(e2){
+              r = { details: rawLog, _parse_error: true };
+            }
+          }
           const key = r.actor_type + '#' + r.actor_id;
-          const actorDisplay = (window._actorMap && window._actorMap[key]) ? window._actorMap[key] : key;
+          // Prefer a server-provided friendly actor label, then a mapping, then fallback to extracted name
+          let actorDisplay = r.actor_display || ((window._actorMap && window._actorMap[key]) ? window._actorMap[key] : null);
+          if (!actorDisplay || actorDisplay === 'undefined#undefined'){
+            // Try extracting a human-readable name from the details payload (covers deleted users)
+            try{
+              let detailObj = null;
+              if (typeof r.details === 'string'){
+                try{
+                  detailObj = JSON.parse(r.details);
+                }catch(pe){
+                  // Try a relaxed repair for common escape issues
+                  let s = String(r.details || '');
+                  s = s.replace(/\\\\/g, '\\');
+                  s = s.replace(/\\:/g, ':');
+                  s = s.replace(/\\\"/g, '"');
+                  s = s.replace(/\\\'/g, "'");
+                  s = s.replace(/\\\//g, '/');
+                  try{ detailObj = JSON.parse(s); }catch(pe2){
+                    // Fallback: parse simple key:value pairs from the cleaned string
+                    const kv = {};
+                    const cleaned = s.replace(/\\+/g,'').replace(/\s+/g,' ');
+                    cleaned.split(/,\s*/).forEach(function(part){
+                      const m = String(part).match(/([^:\s]+)\s*[:=]\s*(.*)/);
+                      if (m){ kv[m[1].trim().replace(/[^a-z0-9_]/gi,'')] = m[2].trim().replace(/^"|"$/g,''); }
+                    });
+                    detailObj = kv;
+                  }
+                }
+              } else {
+                detailObj = r.details || {};
+              }
+              const name = (detailObj && (detailObj.user_name || detailObj.user)) || ((detailObj && (detailObj.first_name || '') ) + ' ' + (detailObj && (detailObj.last_name || '') )).trim();
+              if (name) actorDisplay = name;
+            }catch(e){
+              // Last resort: sanitize the raw details string and look for common 'user name' patterns
+              try{
+                const raw = String(r.details || '').replace(/\\/g,' ');
+                const m = raw.match(/user\s*name\s*[:=]\s*([^,\n\r]+)/i) || raw.match(/user_name\s*[:=]\s*([^,\n\r]+)/i) || raw.match(/first\s*name\s*[:=]\s*([^,\n\r]+)/i);
+                if (m && m[1]) actorDisplay = m[1].replace(/"/g,'').trim();
+              }catch(e2){ /* ignore */ }
+            }
+          }
+          if (!actorDisplay) actorDisplay = key || 'Deleted User';
           // Try to format JSON details into a readable key/value layout for non-technical users
           let detailsHtml = '';
           try{
@@ -155,6 +208,20 @@
               return v === null || v === undefined ? '' : v;
             }
 
+            function formatValForDisplay(val){
+              if (val === null || val === undefined) return '';
+              if (typeof val === 'string'){
+                // remove surrounding braces/quotes and make underscores human-friendly
+                let s = val.replace(/^\s*[\{\[\]"]+|[\}\]\"]+\s*$/g,'');
+                s = s.replace(/\"/g,'');
+                s = s.replace(/_/g,' ');
+                s = s.replace(/\s+/g,' ');
+                return s;
+              }
+              if (typeof val === 'object') return JSON.stringify(val);
+              return String(val);
+            }
+
             if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)){
               // render as definition list of key: value
               let parts = '';
@@ -162,7 +229,8 @@
                 if (!Object.prototype.hasOwnProperty.call(parsed, key)) continue;
                 const raw = parsed[key];
                 const val = maskKey(key, raw);
-                parts += `<dt class="col-sm-4">${$('<div/>').text(prettyKey(key)).html()}</dt><dd class="col-sm-8">${$('<div/>').text(String(val)).html()}</dd>`;
+                const display = formatValForDisplay(val);
+                parts += `<dt class="col-sm-4">${$('<div/>').text(prettyKey(key)).html()}</dt><dd class="col-sm-8">${$('<div/>').text(display).html()}</dd>`;
               }
               detailsHtml = `<dl class="row">${parts}</dl>`;
             } else if (Array.isArray(parsed)){
@@ -171,17 +239,21 @@
                 const allKeys = Array.from(parsed.reduce((s,o)=>{ Object.keys(o||{}).forEach(k=>s.add(k)); return s; }, new Set()));
                 const thead = '<tr>' + allKeys.map(k=>`<th>${$('<div/>').text(prettyKey(k)).html()}</th>`).join('') + '</tr>';
                 const rowsHtml = parsed.map(rowObj=>{
-                  return '<tr>' + allKeys.map(k=>`<td>${$('<div/>').text(String(maskKey(k, rowObj[k]===undefined?'':rowObj[k]))).html()}</td>`).join('') + '</tr>';
+                  return '<tr>' + allKeys.map(k=>`<td>${$('<div/>').text(String(formatValForDisplay(maskKey(k, rowObj[k]===undefined?'':rowObj[k])))).html()}</td>`).join('') + '</tr>';
                 }).join('');
                 detailsHtml = `<div class="table-responsive"><table class="table table-sm table-bordered mb-0"><thead>${thead}</thead><tbody>${rowsHtml}</tbody></table></div>`;
               } else {
-                detailsHtml = '<div>' + $('<div/>').text(parsed.join(', ')).html() + '</div>';
+                const vals = parsed.map(v => (typeof v === 'string') ? formatValForDisplay(v) : String(v));
+                detailsHtml = '<div>' + $('<div/>').text(vals.join(', ')).html() + '</div>';
               }
             } else {
-              detailsHtml = '<div>' + $('<div/>').text(String(parsed)).html() + '</div>';
+              detailsHtml = '<div>' + $('<div/>').text(formatValForDisplay(parsed)).html() + '</div>';
             }
           }catch(e){
-            detailsHtml = '<pre style="white-space:pre-wrap">' + $('<div/>').text(r.details || '').html() + '</pre>';
+            // Fallback: sanitize the raw details string for readability (remove braces/quotes, replace underscores)
+            const raw = r.details || '';
+            const sanitized = String(raw).replace(/[\{\}\[\]"]/g,'').replace(/_/g,' ').replace(/\s+/g,' ').trim();
+            detailsHtml = '<div>' + $('<div/>').text(sanitized).html() + '</div>';
           }
           const html = `
             <dl class="row">

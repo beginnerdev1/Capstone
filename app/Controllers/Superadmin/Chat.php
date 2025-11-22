@@ -3,6 +3,8 @@
 namespace App\Controllers\Superadmin;
 
 use App\Controllers\Admin\Chat as AdminChat;
+use App\Models\AdminChatModel;
+use App\Models\AdminModel;
 
 /**
  * Superadmin chat wrapper — reuses Admin\Chat behavior while running
@@ -15,6 +17,32 @@ class Chat extends AdminChat
     public function index()
     {
         return view('superadmin/chat');
+    }
+    // Return list of admins (id, name, email, phone if available) so superadmins can chat to admins
+    public function getAdmins()
+    {
+        $model = new AdminModel();
+        $rows = $model->select('id, first_name, last_name, email')
+            ->orderBy('first_name')->findAll();
+
+        $hasPhone = false;
+        try {
+            $hasPhone = (bool) ($model->db->fieldExists('phone', $model->table));
+        } catch (\Throwable $_) {
+            $hasPhone = false;
+        }
+
+        $list = [];
+        foreach ($rows as $a) {
+            $list[] = [
+                'id' => $a['id'],
+                'name' => trim(($a['first_name'] ?? '') . ' ' . ($a['last_name'] ?? '')) ?: ($a['email'] ?? 'Admin'),
+                'email' => $a['email'] ?? '',
+                'phone' => $hasPhone && isset($a['phone']) ? $a['phone'] : '',
+            ];
+        }
+
+        return $this->response->setJSON($list);
     }
     // Override getMessages to return only admin/internal messages (no user messages)
     public function getMessages()
@@ -48,8 +76,19 @@ class Chat extends AdminChat
         $db = \Config\Database::connect();
         $table = $this->chatModel->table;
 
+        // Accept client-supplied external_id to make posts idempotent
+        $external = $this->request->getPost('external_id') ?: bin2hex(random_bytes(6));
+        try {
+            $existing = $this->chatModel->where('external_id', $external)->first();
+            if ($existing) {
+                return $this->response->setJSON($existing);
+            }
+        } catch (\Throwable $_) {
+            // continue
+        }
+
         $data = [
-            'external_id' => bin2hex(random_bytes(6)),
+            'external_id' => $external,
             'admin_id' => $adminId,
             'user_id' => null, // internal channel
             'sender' => 'admin_internal',
@@ -93,8 +132,35 @@ class Chat extends AdminChat
 
         // Ensure the DB schema has `admin_recipient_id` to support admin<->admin conversations
         $db = \Config\Database::connect();
-        if (! $db->fieldExists('admin_recipient_id', $this->chatModel->table)) {
-            return $this->response->setStatusCode(400)->setJSON(['error' => 'admin_recipient_id column missing; run migrations']);
+        // If feature flag enabled, read from `admin_chats` table
+        $chatConfig = config('Chat');
+        if (! empty($chatConfig->useAdminChats) && isset($this->adminChatModel)) {
+            $rows = $this->adminChatModel->getConversationBetween($adminId, $recipientId, $since) ?: [];
+            // Map admin_chats shape to legacy chat_messages shape expected by the views
+            $mapped = array_map(function($r){
+                return [
+                    'id' => $r['id'] ?? null,
+                    'external_id' => $r['external_id'] ?? null,
+                    'admin_id' => $r['sender_admin_id'] ?? null,
+                    'admin_recipient_id' => $r['recipient_admin_id'] ?? null,
+                    'sender' => 'admin_internal',
+                    'is_internal' => !empty($r['is_broadcast']) ? 1 : 0,
+                    'message' => $r['message'] ?? '',
+                    'created_at' => $r['created_at'] ?? null,
+                    'read_at' => $r['read_at'] ?? null,
+                ];
+            }, $rows);
+
+            return $this->response->setJSON($mapped);
+        }
+
+        // Fallback to legacy chat_messages based implementation
+        try {
+            if (! $db->fieldExists('admin_recipient_id', $this->chatModel->table)) {
+                return $this->response->setStatusCode(400)->setJSON(['error' => 'admin_recipient_id column missing; run migrations']);
+            }
+        } catch (\Exception $e) {
+            return $this->response->setStatusCode(500)->setJSON(['error' => 'Unable to verify schema', 'exception' => $e->getMessage()]);
         }
 
         // messages where (admin_id = adminId AND admin_recipient_id = recipientId)
@@ -136,8 +202,18 @@ class Chat extends AdminChat
         $db = \Config\Database::connect();
         $table = $this->chatModel->table;
 
+        $external = $this->request->getPost('external_id') ?: bin2hex(random_bytes(6));
+        try {
+            $existing = $this->chatModel->where('external_id', $external)->first();
+            if ($existing) {
+                return $this->response->setJSON($existing);
+            }
+        } catch (\Throwable $_) {
+            // continue
+        }
+
         $data = [
-            'external_id' => bin2hex(random_bytes(6)),
+            'external_id' => $external,
             'admin_id' => $adminId,
             'user_id' => null,
             'sender' => 'admin_internal',
@@ -160,6 +236,26 @@ class Chat extends AdminChat
         try {
             $insertId = $this->chatModel->insert($data);
             $data['id'] = $insertId;
+            // Also write to admin_chats table for cutover
+            try {
+                // ensure adminChatModel exists on parent
+                if (! isset($this->adminChatModel)) {
+                    $this->adminChatModel = new AdminChatModel();
+                }
+                $adminData = [
+                    'external_id' => $data['external_id'] ?? null,
+                    'sender_admin_id' => (int)$adminId,
+                    'recipient_admin_id' => (int)$recipient,
+                    'message' => $text,
+                    'is_read' => 1,
+                    'is_broadcast' => 0,
+                    'created_at' => $data['created_at'],
+                ];
+                $this->adminChatModel->insert($adminData);
+            } catch (\Throwable $e) {
+                log_message('warning', 'superadmin adminChatModel insert failed: ' . $e->getMessage());
+            }
+
             return $this->response->setJSON($data);
         } catch (\Exception $e) {
             log_message('error', 'superadmin postAdminMessage failed: ' . $e->getMessage());

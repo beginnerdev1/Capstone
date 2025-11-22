@@ -3,6 +3,15 @@
 	.chat-side { border-right:1px solid rgba(0,0,0,0.04); }
 	#chat-messages { min-height:320px; max-height:60vh; overflow:auto; padding:14px; }
 	.chat-bubble{ padding:10px 14px; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.04); }
+
+	/* Soften the 'internal' bubble color (avoid pure black).
+	   Use a pale blue background with dark blue text for readability. */
+	.chat-bubble.bg-dark {
+		background-color: #e6f4ff !important;
+		color: #073763 !important;
+	}
+	.chat-bubble.bg-dark .small,
+	.chat-bubble.bg-dark .text-white-50 { color: rgba(7,55,99,0.7) !important; }
 	@media (max-width:767px){
 		#side-panel { position:fixed; left:0; top:0; bottom:0; width:86%; max-width:360px; background:#fff; z-index:1055; box-shadow:0 10px 40px rgba(2,6,23,0.1); transform:translateX(-110%); transition:transform .22s ease; }
 		#side-panel.show { transform:translateX(0); }
@@ -115,53 +124,63 @@ $(function(){
 	// Keep track of displayed message ids to avoid duplicate appends
 	var seenMessageIds = new Set();
 
+	// Prevent duplicate sends: client-side sending guard and external id generator
+	var sending = false;
+	function makeExternalId(){
+		if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+		return 'c' + Math.random().toString(36).slice(2,12);
+	}
+
 	function appendMessagesToList(messages){
 		if (!messages || !messages.length) return;
 		messages.forEach(function(m){
 
-			// Only show admin-sent messages (admin-only chat)
-			if (m.sender !== 'admin' && m.sender !== 'admin_internal') return;
+				// Accept both legacy `chat_messages` shape and new `admin_chats` shape.
+				// Determine sender id (legacy `admin_id` or new `sender_admin_id`).
+				var senderId = m.admin_id || m.sender_admin_id || null;
+				var senderType = m.sender || null;
+				var isInternal = (m.sender === 'admin_internal') || (m.is_internal == 1) || (m.is_broadcast == 1);
 
-			// Use the numeric DB id or external_id as a stable key
-			var mid = m.id || m.external_id || null;
-			if (mid && seenMessageIds.has(mid)) {
-				// already rendered
-				return;
-			}
+				// Only show admin-sent messages (admin-only chat)
+				if (senderType && senderType !== 'admin' && senderType !== 'admin_internal') return;
 
-			var container = document.createElement('div');
-			container.className = 'd-flex mb-2';
+				// Use the numeric DB id or external_id as a stable key
+				var mid = m.id || m.external_id || null;
+				if (mid && seenMessageIds.has(mid)) return;
 
-			var authorName = 'Admin';
-			if (m.admin_id && adminMap[m.admin_id]) authorName = adminMap[m.admin_id];
+				var container = document.createElement('div');
+				container.className = 'd-flex mb-2';
 
-			var safe = (window.DOMPurify && typeof DOMPurify.sanitize === 'function') ? DOMPurify.sanitize(m.message||'') : (m.message||'');
-			var bubble = document.createElement('div');
-			bubble.className = 'chat-bubble p-2 text-white';
-			bubble.style.maxWidth = '75%';
-			bubble.style.borderRadius = '12px';
+				var authorName = 'Admin';
+				if (senderId && adminMap[senderId]) authorName = adminMap[senderId];
 
-			// Align based on sender: messages from current admin are right-aligned
-			if (currentAdminId && parseInt(m.admin_id) === parseInt(currentAdminId)) {
-				container.classList.add('justify-content-end');
-			} else {
-				container.classList.add('justify-content-start');
-			}
+				var safe = (window.DOMPurify && typeof DOMPurify.sanitize === 'function') ? DOMPurify.sanitize(m.message||'') : (m.message||'');
+				var bubble = document.createElement('div');
+				bubble.className = 'chat-bubble p-2 text-white';
+				bubble.style.maxWidth = '75%';
+				bubble.style.borderRadius = '12px';
 
-			if (m.sender === 'admin_internal' || m.is_internal == 1) {
-				bubble.classList.add('bg-dark');
-				bubble.innerHTML = '<div class="small text-white-50">' + authorName + ' <span class="badge bg-warning text-dark ms-2">Internal</span> <span class="ms-2 small">' + (m.created_at||'') + '</span></div><div>' + safe + '</div>';
-			} else {
-				bubble.classList.add('bg-secondary');
-				bubble.innerHTML = '<div class="small text-white-50">' + authorName + ' <span class="ms-2 small">' + (m.created_at||'') + '</span></div><div>' + safe + '</div>';
-			}
+				// Align based on sender: messages from current admin are right-aligned
+				if (currentAdminId && parseInt(senderId) === parseInt(currentAdminId)) {
+					container.classList.add('justify-content-end');
+				} else {
+					container.classList.add('justify-content-start');
+				}
 
-			container.appendChild(bubble);
-			$('#chat-messages').append(container);
+				if (isInternal) {
+					bubble.classList.add('bg-dark');
+					bubble.innerHTML = '<div class="small text-white-50">' + authorName + ' <span class="badge bg-warning text-dark ms-2">Internal</span> <span class="ms-2 small">' + (m.created_at||'') + '</span></div><div>' + safe + '</div>';
+				} else {
+					bubble.classList.add('bg-secondary');
+					bubble.innerHTML = '<div class="small text-white-50">' + authorName + ' <span class="ms-2 small">' + (m.created_at||'') + '</span></div><div>' + safe + '</div>';
+				}
 
-			if (mid) seenMessageIds.add(mid);
-			if (m.created_at) lastTimestamp = m.created_at;
-		});
+				container.appendChild(bubble);
+				$('#chat-messages').append(container);
+
+				if (mid) seenMessageIds.add(mid);
+				if (m.created_at) lastTimestamp = m.created_at;
+			});
 		var cm = $('#chat-messages')[0]; if (cm) cm.scrollTop = cm.scrollHeight;
 	}
 
@@ -187,10 +206,13 @@ $(function(){
 
 	$('#chat-form').on('submit', function(e){
 		e.preventDefault();
+		if (sending) return;
 		var msg = $('#chat-input').val().trim();
 		if(!msg) return;
 		if (!selectedAdminId) { alert('Select an admin to message.'); return; }
-		var payload = { message: msg, recipient_admin_id: selectedAdminId };
+		sending = true; $('#chat-form button[type=submit]').prop('disabled', true);
+		var ext = makeExternalId();
+		var payload = { message: msg, recipient_admin_id: selectedAdminId, external_id: ext };
 		payload[csrfName] = csrfHash;
 		$.post(chatBase + '/postAdminMessage', payload, function(res){
 			$('#chat-input').val('');
@@ -199,7 +221,7 @@ $(function(){
 		}).fail(function(xhr){
 			console.error('postAdminMessage failed', xhr.responseText);
 			alert('Failed to send message');
-		});
+		}).always(function(){ sending = false; $('#chat-form button[type=submit]').prop('disabled', false); });
 	});
 
 	// mobile side panel toggle
