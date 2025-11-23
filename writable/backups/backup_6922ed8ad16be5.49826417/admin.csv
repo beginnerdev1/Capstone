@@ -1,0 +1,2 @@
+id,first_name,middle_name,last_name,profile_picture,username,email,password,position,is_verified,otp_code,otp_expire,created_at,updated_at,must_change_password
+2,Jane,B.,Smith,,manager,manager@example.com,$2y$10$m4s/a2H0OA/jCm/dPQ3oJeWKxp64Zc0qHT9ljoVpC.awQJjiAdIDi,"Billing Officer",1,,,"2025-11-23 18:55:19","2025-11-23 18:55:19",0

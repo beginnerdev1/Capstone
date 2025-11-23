@@ -231,6 +231,9 @@ $routes->group('superadmin', ['namespace' => 'App\Controllers'], function ($rout
         $routes->get('dashboard', 'SuperAdmin::index');
         $routes->get('dashboard-content', 'SuperAdmin::content');
         $routes->get('content', 'SuperAdmin::content');
+        $routes->get('dashboardMetrics', 'SuperAdmin::dashboardMetrics');
+        $routes->get('systemInfo', 'SuperAdmin::systemInfo');
+        $routes->get('downloadBackup', 'SuperAdmin::downloadBackup');
         $routes->get('users', 'SuperAdmin::users');
         $routes->get('settings', 'SuperAdmin::settings');
         $routes->get('backup', 'SuperAdmin::backup');

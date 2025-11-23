@@ -46,15 +46,15 @@
           <div class="row g-3">
             <div class="col-md-4">
               <label class="form-label">First Name</label>
-              <input type="text" name="first_name" class="form-control" required>
+              <input type="text" name="first_name" class="form-control" required pattern="[A-Za-z\s'\-]+" maxlength="100" autocomplete="given-name" oninput="this.value=this.value.replace(/[^A-Za-z\s'\-]/g,'')">
             </div>
             <div class="col-md-4">
               <label class="form-label">Middle Name</label>
-              <input type="text" name="middle_name" class="form-control" required>
+              <input type="text" name="middle_name" class="form-control" required pattern="[A-Za-z\s'\-]*" maxlength="100" autocomplete="additional-name" oninput="this.value=this.value.replace(/[^A-Za-z\s'\-]/g,'')">
             </div>
             <div class="col-md-4">
               <label class="form-label">Last Name</label>
-              <input type="text" name="last_name" class="form-control" required>
+              <input type="text" name="last_name" class="form-control" required pattern="[A-Za-z\s'\-]+" maxlength="100" autocomplete="family-name" oninput="this.value=this.value.replace(/[^A-Za-z\s'\-]/g,'')">
             </div>
             <div class="col-md-6">
               <label class="form-label">Email</label>
@@ -170,6 +170,8 @@
     const id = $(this).data('id');
     $('#retireAdminId').val(id);
     $('#retireConfirmText').text('Are you sure you want to retire this admin? This action archives the account and frees the position.');
+    // Clear any previously-entered admin code to avoid accidental reuse
+    $('#retireAdminCode').val('');
     new bootstrap.Modal(document.getElementById('retireModal')).show();
   });
 
@@ -212,7 +214,7 @@
         <input type="hidden" id="retireAdminId" value="">
         <div class="mb-3">
           <label class="form-label">Confirm Super Admin Code</label>
-          <input type="text" id="retireAdminCode" class="form-control" placeholder="Enter your super admin code to confirm" required>
+          <input type="text" id="retireAdminCode" class="form-control" placeholder="Enter your super admin code to confirm" required autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="text">
           <div class="form-text">Enter your super admin admin_code to confirm this action.</div>
         </div>
         <div id="retireAlerts"></div>

@@ -3,6 +3,24 @@
     <h4 class="mb-0">Dashboard</h4>
   </div>
   <div class="row g-3">
+    <div class="col-12">
+      <div class="d-flex gap-3 mb-3">
+        <div class="card border-0 shadow-sm flex-fill">
+          <div class="card-body">
+            <div class="fw-semibold text-secondary mb-1">Admins</div>
+            <div class="h3 mb-0" id="adminCount">Loading...</div>
+            <div class="small text-muted">Total admin accounts</div>
+          </div>
+        </div>
+        <div class="card border-0 shadow-sm flex-fill">
+          <div class="card-body">
+            <div class="fw-semibold text-secondary mb-1">Active Now</div>
+            <div class="h3 mb-0" id="activeAdminCount">Loading...</div>
+            <div class="small text-muted">Admins active within last 10 minutes</div>
+          </div>
+        </div>
+      </div>
+    </div>
     <div class="col-md-4">
       <div class="card border-0 shadow-sm">
         <div class="card-body">
@@ -50,22 +68,6 @@
         </div>
       </div>
     </div>
-
-    <div class="col-md-6">
-      <div class="card border-0 shadow-sm">
-        <div class="card-body">
-          <div class="fw-semibold mb-2">Quick Links & Actions</div>
-          <div class="d-grid gap-2">
-            <a href="<?= site_url('superadmin/create_superadmin') ?>" class="btn btn-outline-primary">Create Super Admin</a>
-            <a href="<?= site_url('superadmin/logs') ?>" class="btn btn-outline-secondary">View Logs</a>
-            <a href="<?= site_url('superadmin/pendingActions') ?>" class="btn btn-outline-warning">Pending Actions</a>
-            <a href="<?= site_url('superadmin/profile') ?>" class="btn btn-outline-success">My Profile</a>
-            <a href="<?= site_url('superadmin/settings') ?>" class="btn btn-outline-info">Settings</a>
-          </div>
-          <div class="mt-3 text-muted small">Use these quick links for common Super Admin tasks.</div>
-        </div>
-      </div>
-    </div>
   </div>
 
   <script>
@@ -90,6 +92,18 @@
       });
     }
     loadRecentActivity();
+  })();
+  (function(){
+    // Load dashboard metrics (admin counts)
+    $.getJSON('<?= site_url('superadmin/dashboardMetrics') ?>').done(function(res){
+      if (!res || res.status !== 'success' || !res.data) return;
+      var d = res.data || {};
+      $('#adminCount').text(d.admin_count ?? '0');
+      $('#activeAdminCount').text(d.active_admin_count ?? '0');
+    }).fail(function(){
+      $('#adminCount').text('—');
+      $('#activeAdminCount').text('—');
+    });
   })();
   </script>
 </div>

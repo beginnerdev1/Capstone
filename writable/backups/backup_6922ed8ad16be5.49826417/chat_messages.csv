@@ -1,0 +1,2 @@
+id,external_id,user_id,admin_id,sender,is_internal,message,is_read,read_at,created_at,user_name,admin_recipient_id
+1,1b63c2bd-b442-4b72-91c8-b53fa469bfba,,1,admin_internal,1,hey,1,,"2025-11-23 19:03:33",,2

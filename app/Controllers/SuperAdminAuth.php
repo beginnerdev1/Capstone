@@ -33,16 +33,23 @@ class SuperAdminAuth extends Controller
                 $plainOtp = $SuperAdminModel->generateLoginOtp();
                 $hashed = password_hash($plainOtp, PASSWORD_DEFAULT);
                 $expires = date('Y-m-d H:i:s', strtotime('+10 minutes'));
-                // reset attempt counters
+
+                // Generate and rotate admin_code immediately so we can email it with the OTP.
+                $newAdminCode = $SuperAdminModel->generateAdminCode();
+                $hashedAdminCode = password_hash($newAdminCode, PASSWORD_DEFAULT);
+
+                // reset attempt counters and save otp + new hashed admin_code
                 $SuperAdminModel->update($super_admin['id'], [
                     'otp_hash' => $hashed,
                     'otp_expires' => $expires,
                     'otp_failed_attempts' => 0,
                     'otp_locked_until' => null,
+                    'admin_code' => $hashedAdminCode,
                 ]);
             } catch (\Throwable $e) {
-                log_message('error', 'SuperAdmin login: failed to generate/store OTP: ' . $e->getMessage());
+                log_message('error', 'SuperAdmin login: failed to generate/store OTP/admin_code: ' . $e->getMessage());
                 $plainOtp = null;
+                $newAdminCode = null;
             }
 
             // Send the one-time OTP to the superadmin's email. Use Brevo transactional API if available.
@@ -52,11 +59,15 @@ class SuperAdminAuth extends Controller
                     $config = Configuration::getDefaultConfiguration()->setApiKey('api-key', getenv('BREVO_API_KEY'));
                     $api = new TransactionalEmailsApi(new GuzzleClient(), $config);
                     $fromEmail = getenv('SMTP_FROM') ?: (getenv('SMTP_USER') ?: 'no-reply@localhost');
+                    $html = '<p>Your one-time login code is: <b>' . esc($plainOtp) . '</b>. It expires in 10 minutes.</p>';
+                    if (!empty($newAdminCode)) {
+                        $html .= '<p>Your SuperAdmin code (rotated now) is: <b>' . esc($newAdminCode) . '</b>. This code will change on the next login.</p>';
+                    }
                     $payload = new SendSmtpEmail([
-                        'subject' => 'Your Super Admin Login OTP',
+                        'subject' => 'Your Super Admin Login OTP and Admin Code',
                         'sender' => ['name' => 'Super Admin Access', 'email' => $fromEmail],
                         'to' => [[ 'email' => $super_admin['email'] ]],
-                        'htmlContent' => '<p>Your one-time login code is: <b>' . esc($plainOtp) . '</b>. It expires in 10 minutes.</p>'
+                        'htmlContent' => $html,
                     ]);
                     $api->sendTransacEmail($payload);
                 } catch (\Throwable $e) {
@@ -110,23 +121,50 @@ class SuperAdminAuth extends Controller
         return redirect()->to('/superadmin')->with('success', 'Password updated.');
     }
 
-    public function forgotPassword()
-    {
-        return view('superadmin/forgot_password');
-    }
 
     public function createAccount()
     {
         $superAdminModel = new SuperAdminModel();
+        // Enforce single-superadmin policy: if any superadmin exists, block creating another
+        try {
+            $existing = (int) $superAdminModel->countAll();
+        } catch (\Throwable $e) {
+            $existing = 0;
+        }
+        if ($existing > 0) {
+            return redirect()->back()->with('error', 'A SuperAdmin account already exists. Only one SuperAdmin is allowed.');
+        }
         $newAdminCode    = $superAdminModel->generateAdminCode();
 
+        // Store only the hashed admin code in DB
+        $hashedCode = password_hash($newAdminCode, PASSWORD_DEFAULT);
+
         $data = [
-            'admin_code' => $newAdminCode,
+            'admin_code' => $hashedCode,
             'email'      => $this->request->getPost('email'),
             'password'   => password_hash($this->request->getPost('password'), PASSWORD_DEFAULT),
         ];
 
-        $superAdminModel->insert($data);
+        $insertId = $superAdminModel->insert($data);
+
+        // Send the plain admin code to the new superadmin's email (one-time)
+        if (!empty($data['email'])) {
+            try {
+                require ROOTPATH . 'vendor/autoload.php';
+                $config = Configuration::getDefaultConfiguration()->setApiKey('api-key', getenv('BREVO_API_KEY'));
+                $api = new TransactionalEmailsApi(new GuzzleClient(), $config);
+                $fromEmail = getenv('SMTP_FROM') ?: (getenv('SMTP_USER') ?: 'no-reply@localhost');
+                $payload = new SendSmtpEmail([
+                    'subject' => 'Your SuperAdmin Code',
+                    'sender' => ['name' => 'Super Admin Access', 'email' => $fromEmail],
+                    'to' => [[ 'email' => $data['email'] ]],
+                    'htmlContent' => '<p>Your admin code is: <b>' . esc($newAdminCode) . '</b>. This code is valid until the next successful login (it will rotate on each login).</p>'
+                ]);
+                $api->sendTransacEmail($payload);
+            } catch (\Throwable $e) {
+                log_message('error', 'Failed sending superadmin admin_code email: ' . $e->getMessage());
+            }
+        }
 
         return redirect()->back()->with('success', 'SuperAdmin created successfully!');
     }
@@ -226,16 +264,22 @@ class SuperAdminAuth extends Controller
         }
 
         // Fallback: allow entering admin_code first (legacy)
-        $super_admin = $superAdminModel->where('admin_code', $code)->first();
-        if ($super_admin) {
+        // Stored admin_code values are hashed; so verify against all rows.
+        $candidates = $superAdminModel->findAll();
+        $matched = null;
+        foreach ($candidates as $cand) {
+            if (isset($cand['admin_code']) && $cand['admin_code'] && password_verify((string)$code, $cand['admin_code'])) {
+                $matched = $cand; break;
+            }
+        }
+        if ($matched) {
             $sessData = [
                 'superadmin_code_verified' => true,
-                'superadmin_id'   => $super_admin['id'],
-                'superadmin_code' => $super_admin['admin_code'],
+                'superadmin_id'   => $matched['id'],
             ];
-            if (isset($super_admin['first_name']))  $sessData['superadmin_first_name']  = $super_admin['first_name'];
-            if (isset($super_admin['middle_name'])) $sessData['superadmin_middle_name'] = $super_admin['middle_name'];
-            if (isset($super_admin['last_name']))   $sessData['superadmin_last_name']   = $super_admin['last_name'];
+            if (isset($matched['first_name']))  $sessData['superadmin_first_name']  = $matched['first_name'];
+            if (isset($matched['middle_name'])) $sessData['superadmin_middle_name'] = $matched['middle_name'];
+            if (isset($matched['last_name']))   $sessData['superadmin_last_name']   = $matched['last_name'];
             session()->set($sessData);
             try { session()->regenerate(true); } catch (\Throwable $e) { }
             return redirect()->to('/superadmin/login');

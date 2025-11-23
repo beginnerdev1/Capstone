@@ -17,7 +17,7 @@ class CreateSuperAdminTable extends Migration
             ],
             'admin_code' => [
                 'type'       => 'VARCHAR',
-                'constraint' => 20,
+                'constraint' => 255,
                 'unique'     => true,
             ],
             'email' => [
