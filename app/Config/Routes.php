@@ -9,6 +9,8 @@ use CodeIgniter\Router\RouteCollection;
 // =====================================================
 // 🧑 USER AUTH ROUTES (For regular users)
 // =====================================================
+$routes->get('/', 'Auth::login');
+
 $routes->get('/login', 'Auth::login', ['filter' => 'guest']);
 $routes->post('/login', 'Auth::attemptLogin', ['filter' => 'guest']);
 
