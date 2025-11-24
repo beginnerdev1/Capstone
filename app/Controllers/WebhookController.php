@@ -13,11 +13,9 @@ class WebhookController extends BaseController
         $signatureHeader = $this->request->getHeaderLine('Paymongo-Signature');
         $payload = $this->request->getBody();
 
-        // 🔍 Debug logs
         log_message('debug', 'Webhook received: ' . $payload);
         log_message('debug', 'Paymongo-Signature header: ' . $signatureHeader);
 
-        // 🧩 Verify signature
         if (!$signatureHeader) {
             return $this->response->setStatusCode(ResponseInterface::HTTP_FORBIDDEN)
                                   ->setBody('Missing signature');
@@ -35,7 +33,6 @@ class WebhookController extends BaseController
                                   ->setBody('Invalid signature');
         }
 
-        // 🧠 Decode payload
         $data = json_decode($payload, true);
         if (!isset($data['data']['attributes']['data']['attributes'])) {
             return $this->response->setStatusCode(ResponseInterface::HTTP_BAD_REQUEST)
@@ -45,15 +42,17 @@ class WebhookController extends BaseController
         $attributes = $data['data']['attributes']['data']['attributes'];
         $paymentIntentId = $attributes['payment_intent_id'] ?? null;
         $status = $attributes['status'] ?? null;
+        $amountPaid = ($attributes['amount'] ?? 0) / 100; // PayMongo sends amount in centavos
 
         if ($paymentIntentId && $status) {
             $paymentModel = new PaymentsModel();
-            
-            // Check current payment status first
+            $billingModel = new \App\Models\BillingModel();
+
             $currentPayment = $paymentModel->where('payment_intent_id', $paymentIntentId)->first();
-            
+
             if ($currentPayment && $currentPayment['status'] !== $status) {
-                // Only update if status actually changed
+
+                // Update payment status
                 $updateData = [
                     'status'     => $status,
                     'updated_at' => date('Y-m-d H:i:s')
@@ -62,19 +61,49 @@ class WebhookController extends BaseController
                 if ($status === 'paid') {
                     $updateData['paid_at'] = date('Y-m-d H:i:s');
                 }
-                
+
                 $paymentModel->where('payment_intent_id', $paymentIntentId)
                              ->set($updateData)
                              ->update();
-                
-                // Also update billing records if payment is paid
+
+                // 🔥 APPLY PAYMENT TO BILLING IF PAID
                 if ($status === 'paid' && !empty($currentPayment['billing_id'])) {
-                    $billingModel = new \App\Models\BillingModel();
+
                     $billIds = explode(',', $currentPayment['billing_id']);
-                    
+                    $remainingPayment = $amountPaid;
+
                     foreach ($billIds as $billId) {
-                        $billingModel->update(trim($billId), [
-                            'status' => 'Paid',
+                        $billId = trim($billId);
+                        $bill = $billingModel->find($billId);
+
+                        if (!$bill || $remainingPayment <= 0) {
+                            continue;
+                        }
+
+                        $carryover = (float)($bill['carryover'] ?? 0);
+                        $balance   = (float)($bill['balance'] ?? 0);
+
+                        // Deduct from carryover first
+                        if ($carryover > 0) {
+                            $deduct = min($remainingPayment, $carryover);
+                            $carryover -= $deduct;
+                            $remainingPayment -= $deduct;
+                        }
+
+                        // Deduct from balance next
+                        if ($remainingPayment > 0 && $balance > 0) {
+                            $deduct = min($remainingPayment, $balance);
+                            $balance -= $deduct;
+                            $remainingPayment -= $deduct;
+                        }
+
+                        // Mark bill as Paid only if zero
+                        $newStatus = ($carryover <= 0 && $balance <= 0) ? 'Paid' : 'Partial';
+
+                        $billingModel->update($billId, [
+                            'carryover' => $carryover,
+                            'balance'   => $balance,
+                            'status'    => $newStatus,
                             'paid_date' => date('Y-m-d H:i:s')
                         ]);
                     }
@@ -82,7 +111,7 @@ class WebhookController extends BaseController
 
                 log_message('info', "Payment updated via webhook: {$paymentIntentId} → {$status}");
             } else {
-                log_message('debug', "Payment status unchanged: {$paymentIntentId} already " . ($currentPayment['status'] ?? 'not found'));
+                log_message('debug', "Payment unchanged or not found: {$paymentIntentId}");
             }
         }
 
