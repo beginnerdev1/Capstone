@@ -2014,13 +2014,13 @@ public function confirmGCashPayment()
             ->get()->getRow()->c ?? 0);
 
         $pendingCount = (int)($this->billingModel
-            ->where('status', 'Pending')
+            ->where('billings.status', 'Pending')
             ->where('DATE(updated_at) >=', $startDate)
             ->where('DATE(updated_at) <=', $endDate)
             ->countAllResults());
 
         $latePayments = (int)$this->billingModel
-            ->where('status', 'Pending')
+            ->where('billings.status', 'Pending')
             ->where('due_date <', date('Y-m-d'))
             ->where('DATE(due_date) >=', $startDate)
             ->where('DATE(due_date) <=', $endDate)
@@ -2032,7 +2032,7 @@ public function confirmGCashPayment()
         // Aggregate by month within the date window
         $rows = $this->billingModel
             ->select("YEAR(updated_at) as y, MONTH(updated_at) as m, SUM(amount_due) as amt, COUNT(DISTINCT user_id) as pc")
-            ->where('status', 'Paid')
+            ->where('billings.status', 'Paid')
             ->where('DATE(updated_at) >=', $startDate)
             ->where('DATE(updated_at) <=', $endDate)
             ->groupBy('YEAR(updated_at), MONTH(updated_at)')
@@ -2048,7 +2048,7 @@ public function confirmGCashPayment()
 
         // Ensure collection summary values exist for printable/export views
         $currentMonthCollected = (float)($this->billingModel
-            ->where('status', 'Paid')
+            ->where('billings.status', 'Paid')
             ->where('DATE(updated_at) >=', $startDate)
             ->where('DATE(updated_at) <=', $endDate)
             ->selectSum('amount_due')
@@ -2057,7 +2057,7 @@ public function confirmGCashPayment()
             ->amount_due ?? 0);
 
         $pendingAmount = (float)($this->billingModel
-            ->where('status', 'Pending')
+            ->where('billings.status', 'Pending')
             ->where('DATE(updated_at) >=', $startDate)
             ->where('DATE(updated_at) <=', $endDate)
             ->selectSum('amount_due')
@@ -2705,7 +2705,7 @@ public function confirmGCashPayment()
                     $oldRow = $this->billingModel
                         ->select('COALESCE(SUM(COALESCE(balance,0)),0) as outstanding')
                         ->where('user_id', $user['id'])
-                        ->where('status', 'Pending')
+                        ->where('billings.status', 'Pending')
                         ->where('paid_date IS NULL')
                         ->get()
                         ->getRow();
@@ -3175,7 +3175,7 @@ public function createManualBilling()
         
         // Collection within selected date range
         $currentMonthCollected = $this->billingModel
-            ->where('status', 'Paid')
+            ->where('billings.status', 'Paid')
             ->where('DATE(updated_at) >=', $startDate)
             ->where('DATE(updated_at) <=', $endDate)
             ->selectSum('amount_due')
@@ -3186,7 +3186,7 @@ public function createManualBilling()
         // Paid households in range (distinct users), based on updated_at
         $paidHouseholds = (int)($this->billingModel
             ->select('COUNT(DISTINCT user_id) as c')
-            ->where('status', 'Paid')
+            ->where('billings.status', 'Paid')
             ->where('DATE(updated_at) >=', $startDate)
             ->where('DATE(updated_at) <=', $endDate)
             ->get()
@@ -3204,7 +3204,7 @@ public function createManualBilling()
         // Partial payments: distinct users with billing status 'Partial' in range
         $partialCount = (int)($this->billingModel
             ->select('COUNT(DISTINCT user_id) as c')
-            ->where('status', 'Partial')
+            ->where('billings.status', 'Partial')
             ->where('DATE(updated_at) >=', $startDate)
             ->where('DATE(updated_at) <=', $endDate)
             ->get()
@@ -3212,7 +3212,7 @@ public function createManualBilling()
         
         // Pending amount and count (range)
         $pendingAmount = (float)($this->billingModel
-            ->where('status', 'Pending')
+            ->where('billings.status', 'Pending')
             ->where('DATE(updated_at) >=', $startDate)
             ->where('DATE(updated_at) <=', $endDate)
             ->selectSum('amount_due')
@@ -3221,14 +3221,14 @@ public function createManualBilling()
             ->amount_due ?? 0);
 
         $pendingCount = (int)($this->billingModel
-            ->where('status', 'Pending')
+            ->where('billings.status', 'Pending')
             ->where('DATE(updated_at) >=', $startDate)
             ->where('DATE(updated_at) <=', $endDate)
             ->countAllResults());
         
         // Late payments (overdue)
         $latePayments = $this->billingModel
-            ->where('status', 'Pending')
+            ->where('billings.status', 'Pending')
             ->where('due_date <', date('Y-m-d'))
             ->where('DATE(due_date) >=', $startDate)
             ->where('DATE(due_date) <=', $endDate)
@@ -3243,7 +3243,7 @@ public function createManualBilling()
         // Monthly collection rates and amounts for chart (within range)
         $monthlyData = $this->billingModel
             ->select("YEAR(updated_at) as y, MONTH(updated_at) as month_num, COUNT(DISTINCT user_id) as paid_count, SUM(amount_due) as total_amount")
-            ->where('status', 'Paid')
+            ->where('billings.status', 'Paid')
             ->where('DATE(updated_at) >=', $startDate)
             ->where('DATE(updated_at) <=', $endDate)
             ->groupBy('YEAR(updated_at), MONTH(updated_at)')
@@ -3268,7 +3268,7 @@ public function createManualBilling()
             $twelveMonthsAgo = date('Y-m-01', strtotime('-11 months'));
             $monthlyData = $this->billingModel
                 ->select("DATE_FORMAT(updated_at, '%Y-%m') as ym, MONTH(updated_at) as month_num, COUNT(DISTINCT user_id) as paid_count, SUM(amount_due) as total_amount")
-                ->where('status', 'Paid')
+                ->where('billings.status', 'Paid')
                 ->where('DATE(updated_at) >=', $twelveMonthsAgo)
                 ->groupBy('YEAR(updated_at), MONTH(updated_at)')
                 ->orderBy('YEAR(updated_at)', 'ASC')
@@ -3298,7 +3298,7 @@ public function createManualBilling()
                     ->where('DATE(COALESCE(paid_at, created_at)) >=', $startDate)
                     ->where('DATE(COALESCE(paid_at, created_at)) <=', $endDate)
                     ->groupBy('MONTH(COALESCE(paid_at, created_at))')
-                    ->orderBy('MONTH(COALESCE(paid_at, created_at)) ASC', '', false)
+                    ->orderBy('MONTH(COALESCE(paid_at, created_at))', 'ASC', false)
                     ->get()
                     ->getResultArray();
 
@@ -3326,7 +3326,7 @@ public function createManualBilling()
                         ->where('DATE(COALESCE(paid_at, created_at)) >=', $startDate)
                         ->where('DATE(COALESCE(paid_at, created_at)) <=', $endDate)
                         ->groupBy('MONTH(COALESCE(paid_at, created_at))')
-                        ->orderBy('MONTH(COALESCE(paid_at, created_at)) ASC', '', false)
+                        ->orderBy('MONTH(COALESCE(paid_at, created_at))', 'ASC', false)
                         ->get()
                         ->getResultArray();
 
