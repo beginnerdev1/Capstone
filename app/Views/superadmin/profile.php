@@ -26,11 +26,25 @@
         </div>
         <div class="mb-3">
           <label class="form-label">New Password (leave blank to keep)</label>
-          <input type="password" name="password" class="form-control">
+          <div class="input-group">
+            <input id="passwordInput" type="password" name="password" class="form-control">
+            <button class="btn btn-outline-secondary" type="button" id="togglePassword" aria-pressed="false" title="Show password"><i class="fas fa-eye"></i></button>
+          </div>
         </div>
         <div class="mb-3">
           <label class="form-label">Confirm New Password</label>
-          <input type="password" name="confirm_password" class="form-control">
+          <div class="input-group">
+            <input id="confirmPasswordInput" type="password" name="confirm_password" class="form-control">
+            <button class="btn btn-outline-secondary" type="button" id="toggleConfirmPassword" aria-pressed="false" title="Show password"><i class="fas fa-eye"></i></button>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Super Admin Code (required to change password)</label>
+          <div class="input-group">
+            <input id="adminCodeInput" type="password" name="admin_code" class="form-control" placeholder="Enter your super admin code" autocomplete="off" autocapitalize="off" spellcheck="false">
+            <button class="btn btn-outline-secondary" type="button" id="toggleAdminCode" aria-pressed="false" title="Show code"><i class="fas fa-eye"></i></button>
+          </div>
+          <div class="form-text">Enter your super admin code when changing your password. Leave empty if not changing password.</div>
         </div>
         <div id="profileAlerts"></div>
         <div class="d-flex justify-content-end">
@@ -48,8 +62,13 @@ $(document).on('click', '#saveProfileBtn', function(e){
   $('#profileAlerts').empty();
   const pwd = fd.get('password');
   const cpw = fd.get('confirm_password');
+  const adminCode = fd.get('admin_code');
   if(pwd && pwd.length > 0 && pwd.length < 8){ $('#profileAlerts').html('<div class="alert alert-danger">Password must be at least 8 characters.</div>'); return; }
   if(pwd !== cpw){ $('#profileAlerts').html('<div class="alert alert-danger">Passwords do not match.</div>'); return; }
+  // If password is being changed, require admin_code for confirmation
+  if(pwd && pwd.length > 0 && (!adminCode || adminCode.trim().length === 0)){
+    $('#profileAlerts').html('<div class="alert alert-danger">Changing password requires your super admin code for confirmation.</div>'); return;
+  }
   $.ajax({
     url: '<?= site_url('superadmin/updateProfile') ?>',
     method: 'POST',
@@ -65,5 +84,55 @@ $(document).on('click', '#saveProfileBtn', function(e){
     },
     error: function(){ $('#profileAlerts').html('<div class="alert alert-danger">Request failed</div>'); }
   });
+});
+
+// Toggle visibility of the admin_code input
+$(document).on('click', '#toggleAdminCode', function(){
+  const $btn = $(this);
+  const $input = $('#adminCodeInput');
+  if (!$input.length) return;
+  const inputEl = $input.get(0);
+  if (inputEl.type === 'password') {
+    inputEl.type = 'text';
+    $btn.find('i').removeClass('fa-eye').addClass('fa-eye-slash');
+    $btn.attr('aria-pressed','true').attr('title','Hide code');
+  } else {
+    inputEl.type = 'password';
+    $btn.find('i').removeClass('fa-eye-slash').addClass('fa-eye');
+    $btn.attr('aria-pressed','false').attr('title','Show code');
+  }
+});
+
+// Toggle visibility for password fields
+$(document).on('click', '#togglePassword', function(){
+  const $btn = $(this);
+  const $input = $('#passwordInput');
+  if (!$input.length) return;
+  const el = $input.get(0);
+  if (el.type === 'password') {
+    el.type = 'text';
+    $btn.find('i').removeClass('fa-eye').addClass('fa-eye-slash');
+    $btn.attr('aria-pressed','true').attr('title','Hide password');
+  } else {
+    el.type = 'password';
+    $btn.find('i').removeClass('fa-eye-slash').addClass('fa-eye');
+    $btn.attr('aria-pressed','false').attr('title','Show password');
+  }
+});
+
+$(document).on('click', '#toggleConfirmPassword', function(){
+  const $btn = $(this);
+  const $input = $('#confirmPasswordInput');
+  if (!$input.length) return;
+  const el = $input.get(0);
+  if (el.type === 'password') {
+    el.type = 'text';
+    $btn.find('i').removeClass('fa-eye').addClass('fa-eye-slash');
+    $btn.attr('aria-pressed','true').attr('title','Hide password');
+  } else {
+    el.type = 'password';
+    $btn.find('i').removeClass('fa-eye-slash').addClass('fa-eye');
+    $btn.attr('aria-pressed','false').attr('title','Show password');
+  }
 });
 </script>

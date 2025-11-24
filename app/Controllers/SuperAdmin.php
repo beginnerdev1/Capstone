@@ -1081,6 +1081,60 @@ class SuperAdmin extends Controller
         if ($password !== '') {
             if ($password !== $confirm) return $this->response->setJSON(['status'=>'error','message'=>'Passwords do not match']);
             if (strlen($password) < 8) return $this->response->setJSON(['status'=>'error','message'=>'Password too short']);
+
+            // Require superadmin admin_code confirmation when changing password
+            $providedCode = trim((string) ($this->request->getPost('admin_code') ?? ''));
+            if ($providedCode === '') {
+                return $this->response->setJSON(['status' => 'error', 'message' => 'Admin code required to change password']);
+            }
+
+            // Verify provided admin_code against stored value for current superadmin
+            $currentRow = $model->find($id);
+            $stored = (string) ($currentRow['admin_code'] ?? '');
+            if ($stored === '') {
+                return $this->response->setJSON(['status' => 'error', 'message' => 'No admin code configured for this account']);
+            }
+
+            // Normalize and verify: support pasted hash, hashed codes (password_verify), or legacy plaintext
+            $rawProvided = (string) $providedCode;
+            $trimmed = trim($rawProvided);
+            $trimmed = str_replace(["\r", "\n", "\t"], '', $trimmed);
+            $providedAlnum = preg_replace('/[^A-Za-z0-9]/', '', $trimmed);
+
+            $isValid = false;
+            $rawEqual = ($rawProvided !== '' && $rawProvided === $stored);
+            if ($rawEqual) $isValid = true;
+
+            $pwVerified = false;
+            if (! $isValid && $providedAlnum !== '') {
+                try {
+                    if (password_verify($providedAlnum, $stored)) {
+                        $pwVerified = true;
+                        $isValid = true;
+                    }
+                } catch (\Throwable $_) { }
+            }
+
+            $plainEqual = (! $isValid && $providedAlnum !== '' && $stored === $providedAlnum);
+            if ($plainEqual) $isValid = true;
+
+            if (! $isValid) {
+                $debug = [
+                    'superadmin_id' => $id,
+                    'rawProvided_len' => strlen($rawProvided),
+                    'providedAlnum_len' => strlen($providedAlnum),
+                    'stored_len' => strlen($stored),
+                    'rawEqual' => $rawEqual ? 1 : 0,
+                    'pwVerified' => $pwVerified ? 1 : 0,
+                    'plainEqual' => $plainEqual ? 1 : 0,
+                ];
+                if (function_exists('log_message')) log_message('error', 'updateProfile: admin_code verification failed: ' . json_encode($debug));
+                if (defined('ENVIRONMENT') && ENVIRONMENT !== 'production') {
+                    return $this->response->setJSON(['status' => 'error', 'message' => 'Invalid admin code', 'debug' => $debug]);
+                }
+                return $this->response->setJSON(['status' => 'error', 'message' => 'Invalid admin code']);
+            }
+
             if (in_array('password', $columns)) $data['password'] = password_hash($password, PASSWORD_DEFAULT);
         }
 
@@ -1283,6 +1337,28 @@ class SuperAdmin extends Controller
 
             $fromEmail = getenv('SMTP_FROM') ?: getenv('MAIL_FROM') ?: (getenv('SMTP_USER') ?: 'no-reply@localhost');
             $fromName = getenv('MAIL_FROM_NAME') ?: getenv('SMTP_FROM_NAME') ?: 'Support';
+
+            // Wrap provided HTML body in a consistent email layout for SuperAdmin-sent emails.
+            // Keep styles email-client friendly (mostly inline and simple) while re-using
+            // the visual language from billing_management (primary color, header card).
+            $primary = '#3b82f6';
+            $primaryDark = '#2563eb';
+            $wrapper = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+                . '<style>
+                    body { font-family: "Helvetica Neue",Helvetica,Arial,sans-serif; background:#f5f7fb; margin:0; padding:20px; }
+                    .email-card { max-width:700px; margin:0 auto; background:#ffffff; border-radius:8px; overflow:hidden; box-shadow:0 6px 18px rgba(0,0,0,0.08); }
+                    .email-header { background: linear-gradient(135deg, ' . $primary . ' 0%,' . $primaryDark . ' 100%); color: #fff; padding:20px 24px; }
+                    .email-title { font-size:20px; font-weight:700; margin:0; }
+                    .email-body { padding:20px 24px; color:#111827; font-size:15px; line-height:1.5; }
+                    .email-footer { padding:16px 24px; font-size:13px; color:#6b7280; background:#fbfdff; }
+                    .btn { display:inline-block; padding:10px 16px; border-radius:6px; color:#fff; text-decoration:none; font-weight:600; }
+                </style>'
+                . '</head><body>'
+                . '<div class="email-card">'
+                . '<div class="email-header"><div class="email-title">' . htmlspecialchars($subject, ENT_QUOTES, 'UTF-8') . '</div></div>'
+                . '<div class="email-body">' . $htmlBody . '</div>'
+                . '<div class="email-footer">This message was sent by the Super Admin of the application. If you believe you received this in error, please contact support.</div>'
+                . '</div></body></html>';
 
             $email = new \Brevo\Client\Model\SendSmtpEmail([
                 'subject' => $subject,

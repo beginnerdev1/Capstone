@@ -1058,8 +1058,17 @@ function updatePaymentChart(paid, pending, partial = 0) {
                             weight: '600'
                         },
                         filter: function(item, chart) {
-                            // Hide labels if value is 0
+                          // Defensive: ensure chart/data structure exists before accessing
+                          try {
+                            if (!chart || !chart.data || !Array.isArray(chart.data.datasets) || !chart.data.datasets[0] || !Array.isArray(chart.data.datasets[0].data)) {
+                              // Cannot determine value; show label to be safe
+                              return true;
+                            }
                             return chart.data.datasets[0].data[item.index] !== 0;
+                          } catch (e) {
+                            // On any unexpected error, don't crash — show the label
+                            return true;
+                          }
                         }
                     }
                 },
@@ -1071,11 +1080,12 @@ function updatePaymentChart(paid, pending, partial = 0) {
                     displayColors: true,
                     callbacks: {
                         label: function(context) {
-                            const label = context.label || '';
-                            const value = context.parsed || 0;
-                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
-                            return `${label}: ${value} (${percentage}%)`;
+                          const label = context.label || '';
+                          const value = context.parsed || 0;
+                          const ds = context.dataset && context.dataset.data ? context.dataset.data : [];
+                          const total = Array.isArray(ds) ? ds.reduce((a, b) => a + (Number(b) || 0), 0) : 0;
+                          const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                          return `${label}: ${value} (${percentage}%)`;
                         }
                     }
                 }

@@ -403,6 +403,66 @@ class Admin extends BaseController
                 ]);
             }
 
+            // Send credentials email to the new user (best-effort, non-blocking)
+            try {
+                $apiKey = getenv('BREVO_API_KEY') ?: null;
+                if ($apiKey) {
+                    $config = \Brevo\Client\Configuration::getDefaultConfiguration()->setApiKey('api-key', $apiKey);
+                    $apiInstance = new \Brevo\Client\Api\TransactionalEmailsApi(new \GuzzleHttp\Client(), $config);
+
+                    $siteUrl = rtrim(base_url(), '/');
+                    $loginUrl = $siteUrl . '/login';
+                    $fromEmail = getenv('SMTP_FROM') ?: getenv('MAIL_FROM') ?: (getenv('SMTP_USER') ?: 'no-reply@localhost');
+                    $fromName  = getenv('MAIL_FROM_NAME') ?: getenv('SMTP_FROM_NAME') ?: 'Support';
+
+                    $displayName = trim($firstName . ' ' . $lastName) ?: $email;
+                    $displayNameEsc = htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8');
+                    $loginUrlEsc = htmlspecialchars($loginUrl, ENT_QUOTES, 'UTF-8');
+                    $fromNameEsc = htmlspecialchars($fromName, ENT_QUOTES, 'UTF-8');
+
+                    $subject = 'Your account has been created';
+                    $pwdEsc = htmlspecialchars($password, ENT_QUOTES, 'UTF-8');
+                    $emailEsc = htmlspecialchars($email, ENT_QUOTES, 'UTF-8');
+
+                    $html = "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">";
+                    $html .= '<style>body{font-family:Arial,Helvetica,sans-serif;background:#f5f7fa;margin:0;padding:20px} .card{max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,0.06)}.header{background:linear-gradient(135deg,#2563eb 0%,#1e40af 100%);color:#fff;padding:18px}.body{padding:20px;color:#111827}.btn{display:inline-block;padding:10px 16px;background:#2563eb;color:#fff;border-radius:6px;text-decoration:none;font-weight:600}</style>';
+                    $html .= '<body><div class="card"><div class="header"><h3 style="margin:0;font-size:18px">Welcome to ' . htmlspecialchars($_SERVER['SERVER_NAME'] ?? 'Our Service', ENT_QUOTES, 'UTF-8') . '</h3></div><div class="body">';
+                    $html .= '<p style="margin:0 0 12px;">Hello ' . $displayNameEsc . ',</p>';
+                    $html .= '<p style="margin:0 0 12px;line-height:1.5;">An account has been created for you. Use the credentials below to sign in. Please change your password after first login.</p>';
+                    $html .= '<p style="margin:0 0 8px;"><strong>Email:</strong> ' . $emailEsc . '</p>';
+                    $html .= '<p style="margin:0 0 8px;"><strong>Password:</strong> <code style="background:#f3f4f6;padding:4px 6px;border-radius:4px">' . $pwdEsc . '</code></p>';
+                    // Strong inline styles on the CTA to ensure visibility across email clients
+                    $ctaStyle = 'display:inline-block;padding:10px 16px;border-radius:6px;background:#2563eb;color:#ffffff!important;text-decoration:none;font-weight:600';
+                    $html .= '<p style="margin:14px 0;"><a href="' . $loginUrlEsc . '" style="' . $ctaStyle . '">Sign in to your account</a></p>';
+                    $html .= '<p style="margin:0;color:#6b7280;font-size:12px;">If you did not request this account, please contact support.</p>';
+                    $html .= '</div><div style="padding:12px 20px;background:#fbfdff;color:#6b7280;font-size:12px">' . $fromNameEsc . ' — Automated notification</div></div></body></html>';
+
+                    $plain = "Hello {$displayName}\n\nAn account has been created for you.\nEmail: {$email}\nPassword: {$password}\n\nSign in at: {$loginUrl}\n\nPlease change your password after first login.";
+
+                    $mailObj = new \Brevo\Client\Model\SendSmtpEmail([
+                        'subject' => $subject,
+                        'sender' => ['name' => $fromName, 'email' => $fromEmail],
+                        'to' => [[ 'email' => $email, 'name' => $displayName ]],
+                        'htmlContent' => $html,
+                        'textContent' => $plain,
+                    ]);
+
+                    try {
+                        $apiInstance->sendTransacEmail($mailObj);
+                        // Log success so we can diagnose delivery attempts in local logs
+                        if (function_exists('log_message')) {
+                            log_message('info', 'addUser: send email invoked for ' . $email);
+                        }
+                    } catch (\Throwable $ie) {
+                        log_message('error', 'addUser: send email failed to ' . $email . ': ' . $ie->getMessage());
+                    }
+                } else {
+                    log_message('warning', 'BREVO_API_KEY not configured — skipping new-user email for ' . $email);
+                }
+            } catch (\Throwable $e) {
+                log_message('error', 'addUser: email send wrapper failed: ' . $e->getMessage());
+            }
+
             return $this->response->setJSON([
                 'success' => true,
                 'message' => 'User added successfully.',
@@ -3796,7 +3856,7 @@ public function createManualBilling()
             'success' => true,
             'message' => 'Password changed successfully',
             // Direct SPA-driven clients to load the dashboard content fragment
-            'redirect' => base_url('admin/index')
+            'redirect' => base_url('admin/')
         ]);
     }
 
