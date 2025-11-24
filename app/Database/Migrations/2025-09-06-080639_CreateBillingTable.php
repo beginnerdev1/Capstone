@@ -45,7 +45,7 @@ class CreateBillingTable extends Migration
             ],
             'status' => [
                 'type'       => 'ENUM',
-                'constraint' => ['Pending', 'Paid', 'Partial'],
+                'constraint' => ['Pending', 'Paid', 'Partial','Unpaid'],
                 'default'    => 'Pending',
             ],
             'billing_month' => [

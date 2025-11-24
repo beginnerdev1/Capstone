@@ -1393,181 +1393,146 @@ class Admin extends BaseController
     }
 
     // Confirm GCash Payment (AJAX) - Transaction Payments
-    public function confirmGCashPayment()
-    {
-        $data = $this->request->getJSON(true);
-        $paymentId = $data['payment_id'] ?? null;
-        $adminRef = $data['admin_reference'] ?? null;
+public function confirmGCashPayment()
+{
+    $data = $this->request->getJSON(true);
+    $paymentId = $data['payment_id'] ?? null;
+    $adminRef = $data['admin_reference'] ?? null;
 
-        if (!$paymentId) {
-            return $this->response->setJSON(['success' => false, 'message' => 'Payment ID is required']);
-        }
-
-        try {
-            // Mark payment as paid
-            $updated = $this->paymentsModel->confirmGCashPayment($paymentId, $adminRef);
-            $billingUpdated = false;
-            $billingId = null;
-
-            if ($updated) {
-                // Fetch updated payment
-                $payment = $this->paymentsModel->find($paymentId);
-                $userId = $payment['user_id'] ?? null;
-                $toEmail = $payment['email'] ?? null;
-                $billingId = $payment['billing_id'] ?? null;
-
-                // Fallback: get email from users table if not stored on payment
-                if (!$toEmail && $userId) {
-                    $u = $this->usersModel->find($userId);
-                    $toEmail = $u['email'] ?? null;
-                }
-
-                // Update billing status if billing_id exists
-                if ($billingId) {
-                    try {
-                        $billingUpdated = (bool)$this->billingModel->updateBillingStatus($billingId, 'Paid');
-                        if ($billingUpdated) {
-                            log_message('info', "Billing ID {$billingId} marked as Paid for payment {$paymentId}.");
-                        } else {
-                            log_message('warning', "Failed to update billing ID {$billingId} for payment {$paymentId} (update returned false).");
-                        }
-                    } catch (\Throwable $e) {
-                        log_message('error', "Exception while updating billing {$billingId} for payment {$paymentId}: " . $e->getMessage());
-                    }
-                } else {
-                    log_message('info', "No billing_id associated with payment {$paymentId}; skipping billing update.");
-                }
-
-                // Send confirmation email (non-blocking) via Brevo if we have recipient and API key
-                if ($toEmail) {
-                    try {
-                        try {
-                            $info = $this->userInfoModel->getByUserId($userId) ?? [];
-                        } catch (\Throwable $_) {
-                            $info = [];
-                        }
-                        $displayName = trim(($info['first_name'] ?? '') . ' ' . ($info['last_name'] ?? '')) ?: $toEmail;
-
-                        // Prepare email values (escaped)
-                        $siteUrl = rtrim(base_url(), '/');
-                        $accountUrl = $siteUrl . '/account';
-                        $supportUrl = $siteUrl . '/contact';
-                        $fromEmail = getenv('SMTP_FROM') ?: getenv('MAIL_FROM') ?: (getenv('SMTP_USER') ?: 'no-reply@localhost');
-                        $fromName  = getenv('MAIL_FROM_NAME') ?: getenv('SMTP_FROM_NAME') ?: 'Support';
-                        $displayNameEsc = htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8');
-                        $accountUrlEsc = htmlspecialchars($accountUrl, ENT_QUOTES, 'UTF-8');
-                        $supportUrlEsc = htmlspecialchars($supportUrl, ENT_QUOTES, 'UTF-8');
-                        $fromNameEsc = htmlspecialchars($fromName, ENT_QUOTES, 'UTF-8');
-
-                        $amount = isset($payment['amount']) ? number_format((float)$payment['amount'], 2) : '-';
-                        $paidAt = $payment['paid_at'] ?? date('Y-m-d H:i:s');
-                        $refText = $adminRef ? htmlspecialchars($adminRef, ENT_QUOTES, 'UTF-8') : ($payment['admin_reference'] ?? 'N/A');
-
-                        $apiKey = getenv('BREVO_API_KEY') ?: null;
-                        if ($apiKey) {
-                            $config = \Brevo\Client\Configuration::getDefaultConfiguration()
-                                ->setApiKey('api-key', $apiKey);
-                            $apiInstance = new \Brevo\Client\Api\TransactionalEmailsApi(new \GuzzleHttp\Client(), $config);
-
-                            $subject = 'Payment confirmed';
-
-                            $html = <<<HTML
-                            <!doctype html>
-                            <html>
-                            <head>
-                            <meta charset="utf-8">
-                            <meta name="viewport" content="width=device-width,initial-scale=1">
-                            <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
-                            </head>
-                            <body style="margin:0;padding:0;background:#f5f7fa;font-family:Poppins,Arial,sans-serif;">
-                            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-                            <tr>
-                            <td align="center" style="padding:24px 12px;">
-                                <table width="600" cellpadding="0" cellspacing="0" role="presentation" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 4px 18px rgba(16,24,40,0.08);">
-                                <tr>
-                                    <td style="padding:28px 32px 16px;">
-                                    <h2 style="margin:0 0 8px;font-weight:600;color:#111827;font-size:20px;">Payment Confirmed</h2>
-                                    <p style="margin:0;color:#6b7280;">Hello {$displayNameEsc},</p>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td style="padding:0 32px 24px;color:#374151;">
-                                    <p style="margin:0 0 12px;line-height:1.5;">Thank you — we have confirmed your GCash payment. Details are shown below:</p>
-                                    <p style="margin:6px 0;"><strong>Amount:</strong> ₱{$amount}</p>
-                                    <p style="margin:6px 0;"><strong>Admin Reference:</strong> {$refText}</p>
-                                    <p style="margin:6px 0;"><strong>Confirmed At:</strong> {$paidAt}</p>
-                                    <p style="margin:12px 0 20px;line-height:1.5;">You can view your payment history and receipts in your account.</p>
-
-                                    <p style="margin:0;color:#9ca3af;font-size:12px;">If you have questions, contact our support team: {$supportUrlEsc}</p>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td style="padding:16px 32px 28px;background:#f9fafb;color:#6b7280;font-size:12px;">
-                                    <div style="margin-bottom:6px;">Best regards,</div>
-                                    <div style="font-weight:600;color:#111827;">{$fromNameEsc}</div>
-                                    <div style="margin-top:8px;font-size:11px;color:#9ca3af;">This is an automated message. Please do not reply directly to this email.</div>
-                                    </td>
-                                </tr>
-                                </table>
-
-                                <div style="max-width:600px;margin-top:12px;color:#9ca3af;font-size:12px;text-align:center;">
-                                &copy; {$siteUrl} HTML_YEAR
-                                </div>
-                            </td>
-                            </tr>
-                            </table>
-                            </body>
-                            </html>
-                            HTML;
-                            $html = str_replace('HTML_YEAR', date('Y'), $html);
-
-                            $plain = "Hello {$displayName},\n\nYour GCash payment has been confirmed.\n\nAmount: ₱{$amount}\nAdmin Reference: {$refText}\nConfirmed At: {$paidAt}\n\nView your account: {$accountUrl}\n\nThis is an automated message.";
-
-                            $email = new \Brevo\Client\Model\SendSmtpEmail([
-                                'subject' => $subject,
-                                'sender' => ['name' => $fromName, 'email' => $fromEmail],
-                                'to' => [['email' => $toEmail, 'name' => $displayName]],
-                                'htmlContent' => $html,
-                                'textContent' => $plain
-                            ]);
-
-                            try {
-                                $result = $apiInstance->sendTransacEmail($email);
-                                log_message('info', 'Brevo sendTransacEmail success for payment ' . $paymentId . ' to ' . $toEmail);
-                            } catch (\Brevo\Client\ApiException $e) {
-                                $respBody = null;
-                                try { $respBody = $e->getResponseBody(); } catch (\Throwable $_) { $respBody = null; }
-                                log_message('error', 'Brevo ApiException for payment ' . $paymentId . ': ' . $e->getMessage() . ' ResponseBody: ' . json_encode($respBody));
-                            } catch (\Throwable $e) {
-                                log_message('error', 'Brevo sendTransacEmail failed for payment ' . $paymentId . ': ' . $e->getMessage());
-                            }
-                        } else {
-                            log_message('warning', 'BREVO_API_KEY not configured — skipping GCash confirmation email for payment ' . $paymentId . ' (user ' . ($toEmail ?? 'unknown') . ')');
-                        }
-                    } catch (\Throwable $e) {
-                        log_message('error', 'Confirm GCash email failed for payment ' . $paymentId . ': ' . $e->getMessage());
-                    }
-                } else {
-                    log_message('warning', 'No recipient email found for confirmed GCash payment ID ' . $paymentId);
-                }
-            } else {
-                log_message('warning', 'PaymentsModel::confirmGCashPayment returned falsy for payment ' . $paymentId);
-            }
-
-            $message = $updated ? 'Payment confirmed successfully' : 'Failed to confirm payment';
-            if ($updated && $billingId !== null) {
-                $message .= $billingUpdated ? ' and billing marked as Paid' : ' but billing update failed';
-            }
-
-            return $this->response->setJSON([
-                'success' => (bool)$updated,
-                'message' => $message
-            ]);
-        } catch (\Throwable $e) {
-            log_message('error', 'confirmGCashPayment exception for payment ' . $paymentId . ': ' . $e->getMessage());
-            return $this->response->setJSON(['success' => false, 'message' => 'Exception: ' . $e->getMessage()]);
-        }
+    if (!$paymentId) {
+        return $this->response->setJSON(['success' => false, 'message' => 'Payment ID is required']);
     }
+
+    try {
+        // Confirm payment
+        $updated = $this->paymentsModel->confirmGCashPayment($paymentId, $adminRef);
+        $billingUpdated = false;
+        $billingId = null;
+
+        if ($updated) {
+            $payment = $this->paymentsModel->find($paymentId);
+            $userId = $payment['user_id'] ?? null;
+            $toEmail = $payment['email'] ?? null;
+            $billingId = $payment['billing_id'] ?? null;
+
+            if (!$toEmail && $userId) {
+                $u = $this->usersModel->find($userId);
+                $toEmail = $u['email'] ?? null;
+            }
+
+            $paymentStatus = 'Paid';
+
+            if ($billingId) {
+                try {
+                    $bill = $this->billingModel->find($billingId);
+
+                    if ($bill) {
+                        $amountPaid = floatval($payment['amount']);
+                        $carryover = floatval($bill['carryover'] ?? 0);
+                        $balance = floatval($bill['balance']);
+                        $amountDue = floatval($bill['amount_due']);
+
+                        if ($carryover > 0) {
+                            $deductFromCarry = min($amountPaid, $carryover);
+                            $carryover -= $deductFromCarry;
+                            $amountPaid -= $deductFromCarry;
+                        }
+
+                        if ($amountPaid > 0 && $balance > 0) {
+                            $deductFromBalance = min($amountPaid, $balance);
+                            $balance -= $deductFromBalance;
+                            $amountPaid -= $deductFromBalance;
+                        }
+
+                        $paymentStatus = ($balance <= 0 && $carryover <= 0) ? 'Paid' : 'Partial';
+
+                        $billingUpdated = $this->billingModel->update($billingId, [
+                            'carryover' => $carryover,
+                            'balance' => $balance,
+                            'status' => $paymentStatus
+                        ]);
+
+                        // Update payment status in payments table
+                        $this->paymentsModel->update($paymentId, ['status' => strtolower($paymentStatus), 'paid_at' => date('Y-m-d H:i:s')]);
+
+                        log_message('info', "Billing updated. ID {$billingId}, Status {$paymentStatus}, Carryover {$carryover}, Balance {$balance}");
+                    }
+                } catch (\Throwable $e) {
+                    log_message('error', "Billing update exception: " . $e->getMessage());
+                }
+            }
+
+            if ($toEmail) {
+                try {
+                    $info = $this->userInfoModel->getByUserId($userId) ?? [];
+                    $displayName = trim(($info['first_name'] ?? '') . ' ' . ($info['last_name'] ?? '')) ?: $toEmail;
+
+                    $siteUrl = rtrim(base_url(), '/');
+                    $accountUrl = $siteUrl . '/account';
+                    $supportUrl = $siteUrl . '/contact';
+                    $fromEmail = getenv('SMTP_FROM') ?: getenv('MAIL_FROM') ?: 'no-reply@localhost';
+                    $fromName = getenv('MAIL_FROM_NAME') ?: 'Support';
+
+                    $displayNameEsc = htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8');
+                    $amount = number_format((float)$payment['amount'], 2);
+                    $paidAt = $payment['paid_at'] ?? date('Y-m-d H:i:s');
+                    $refText = $adminRef ?: ($payment['admin_reference'] ?? 'N/A');
+
+                    $apiKey = getenv('BREVO_API_KEY') ?: null;
+                    if ($apiKey) {
+                        $config = \Brevo\Client\Configuration::getDefaultConfiguration()->setApiKey('api-key', $apiKey);
+                        $apiInstance = new \Brevo\Client\Api\TransactionalEmailsApi(new \GuzzleHttp\Client(), $config);
+
+                        $subject = 'Payment confirmed';
+                        $html = <<<HTML
+                        <!doctype html>
+                        <html>
+                        <head><meta charset="utf-8"></head>
+                        <body>
+                        <p>Hello {$displayNameEsc},</p>
+                        <p>Your GCash payment has been confirmed.</p>
+                        <p>Amount: ₱{$amount}</p>
+                        <p>Status: {$paymentStatus}</p>
+                        <p>Admin Reference: {$refText}</p>
+                        <p>Confirmed At: {$paidAt}</p>
+                        <p>Thank you.</p>
+                        </body>
+                        </html>
+                        HTML;
+
+                        $plain = "Hello {$displayName},\n\nYour GCash payment has been confirmed.\nAmount: ₱{$amount}\nStatus: {$paymentStatus}\nAdmin Reference: {$refText}\nConfirmed At: {$paidAt}\n\nThis is an automated message.";
+
+                        $email = new \Brevo\Client\Model\SendSmtpEmail([
+                            'subject' => $subject,
+                            'sender' => ['name' => $fromName, 'email' => $fromEmail],
+                            'to' => [['email' => $toEmail, 'name' => $displayName]],
+                            'htmlContent' => $html,
+                            'textContent' => $plain
+                        ]);
+
+                        try {
+                            $apiInstance->sendTransacEmail($email);
+                            log_message('info', 'GCash confirmation email sent for payment ' . $paymentId);
+                        } catch (\Throwable $e) {
+                            log_message('error', 'Email sending error: ' . $e->getMessage());
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    log_message('error', 'Email error: ' . $e->getMessage());
+                }
+            }
+        }
+
+        $message = $updated ? 'Payment confirmed successfully' : 'Failed to confirm payment';
+        return $this->response->setJSON(['success' => (bool)$updated, 'message' => $message]);
+
+    } catch (\Throwable $e) {
+        log_message('error', 'confirmGCashPayment exception: ' . $e->getMessage());
+        return $this->response->setJSON(['success' => false, 'message' => 'Exception: ' . $e->getMessage()]);
+    }
+}
+
+
         
     // Reject GCash Payment (AJAX) - Transaction Payments
     public function rejectGCashPayment()
@@ -3023,7 +2988,7 @@ class Admin extends BaseController
         }
     }
 
-    // Create Manual Billing (AJAX)
+// Create Manual Billing (AJAX)
 public function createManualBilling()
 {
     $json   = $this->request->getJSON(true) ?? $this->request->getPost();
@@ -3053,45 +3018,56 @@ public function createManualBilling()
         return $this->response->setJSON(['success' => false, 'message' => 'Billing already exists for this user and month']);
     }
 
-    // Compute outstanding from previous bills (older months only) for display (case-insensitive paid check)
     $db = \Config\Database::connect();
-    $prevRow = $db->table('billings')
-        ->select("COALESCE(SUM(COALESCE(balance, amount_due)),0) AS outstanding", false)
+
+    // --- Get the latest previous billing ---
+    $prevBill = $db->table('billings')
         ->where('user_id', $userId)
         ->where('billing_month <', $billingMonthFirstDay)
-        ->where("LOWER(status) != 'paid'")
+        ->orderBy('billing_month', 'DESC')
         ->get()
         ->getRowArray();
 
-    $carryover = isset($prevRow['outstanding']) ? (float)$prevRow['outstanding'] : 0.0;
+    $carryover = 0.0;
+    if ($prevBill) {
+        $balance = floatval($prevBill['balance']);
+        $amountDue = floatval($prevBill['amount_due']);
 
-    // Build unique bill_no with retries (safe against race conditions)
-    $datePrefix = 'MANUAL-' . date('Ymd'); // e.g. MANUAL-20251123
+        // Update previous bill status if needed
+        $status = ($balance <= 0) ? 'Paid' : (($balance < $amountDue) ? 'Partial' : 'Unpaid');
+        $this->billingModel->update($prevBill['id'], [
+            'status' => $status,
+            'updated_at' => date('Y-m-d H:i:s')
+        ]);
+
+        // Set carryover for new billing
+        $carryover = $balance;
+    }
+
+    // Build unique bill_no
+    $datePrefix = 'MANUAL-' . date('Ymd');
     $maxAttempts = 50;
     $billNo = null;
 
     for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
         $suffix = str_pad($attempt, 4, '0', STR_PAD_LEFT);
         $candidate = $datePrefix . '-' . $suffix;
-        $found = $this->billingModel->where('bill_no', $candidate)->first();
-        if (!$found) {
+        if (!$this->billingModel->where('bill_no', $candidate)->first()) {
             $billNo = $candidate;
             break;
         }
     }
-
     if ($billNo === null) {
         $billNo = $datePrefix . '-' . uniqid();
     }
 
     // Prepare new billing row
-    // NOTE: explicitly set `balance` = `amount_due` and persist carryover (non-null)
     $newBilling = [
         'user_id'       => $userId,
         'bill_no'       => $billNo,
-        'amount_due'    => number_format((float)$amount, 2, '.', ''),
-        'carryover'     => number_format($carryover, 2, '.', ''), // non-null to match schema
-        'balance'       => number_format((float)$amount, 2, '.', ''), // explicit remaining current-month balance
+        'amount_due'    => number_format($amount, 2, '.', ''),
+        'carryover'     => number_format($carryover, 2, '.', ''),
+        'balance'       => number_format($amount, 2, '.', ''),
         'status'        => 'Pending',
         'billing_month' => $billingMonthFirstDay,
         'due_date'      => date('Y-m-d', strtotime($billingMonthFirstDay . ' +7 days')),
@@ -3099,64 +3075,34 @@ public function createManualBilling()
         'updated_at'    => date('Y-m-d H:i:s'),
     ];
 
-    // Attempt insert; on duplicate-key exceptions try a few times with new bill_no
-    $insertAttempts = 0;
-    $maxInsertAttempts = 8;
-    while ($insertAttempts < $maxInsertAttempts) {
-        try {
-            $inserted = $this->billingModel->insert($newBilling);
-            if ($inserted) {
-                // Return computed carryover and total_due so UI can show full amount owed
-                $totalDue = $carryover + (float)$newBilling['balance'];
-                return $this->response->setJSON([
-                    'success'    => true,
-                    'message'    => 'Manual billing created',
-                    'bill_no'    => $billNo,
-                    'billing'    => [
-                        'user_id'       => $userId,
-                        'bill_no'       => $billNo,
-                        'amount_due'    => number_format((float)$amount, 2, '.', ''),
-                        'balance'       => number_format((float)$newBilling['balance'], 2, '.', ''),
-                        'carryover'     => number_format($carryover, 2, '.', ''),
-                        'total_due'     => number_format($totalDue, 2, '.', ''),
-                        'billing_month' => $billingMonthFirstDay,
-                        'due_date'      => $newBilling['due_date'],
-                        'status'        => $newBilling['status'],
-                    ]
-                ]);
-            }
-            // Unexpected falsy return — break to avoid infinite loop
-            break;
-        } catch (\Throwable $e) {
-            $msg = $e->getMessage();
-            // Detect duplicate key (MySQL 1062 or 'Duplicate entry' text)
-            if (stripos($msg, 'Duplicate entry') !== false || stripos($msg, '1062') !== false) {
-                $insertAttempts++;
-                // try a randomized suffix next (quick, low-collision)
-                $newSuffix = str_pad(rand(1000, 9999), 4, '0', STR_PAD_LEFT);
-                $newCandidate = $datePrefix . '-' . $newSuffix;
-                if (!$this->billingModel->where('bill_no', $newCandidate)->first()) {
-                    $newBilling['bill_no'] = $newCandidate;
-                    $billNo = $newCandidate;
-                    continue;
-                } else {
-                    // fallback to uniqid
-                    $newBilling['bill_no'] = $datePrefix . '-' . uniqid();
-                    $billNo = $newBilling['bill_no'];
-                    continue;
-                }
-            }
-
-            // Other errors: log and return failure
-            log_message('error', 'createManualBilling insert error: ' . $e->getMessage());
-            return $this->response->setJSON(['success' => false, 'message' => 'Failed to create manual billing: ' . $e->getMessage()]);
+    try {
+        $inserted = $this->billingModel->insert($newBilling);
+        if ($inserted) {
+            $totalDue = $carryover + floatval($newBilling['balance']);
+            return $this->response->setJSON([
+                'success'    => true,
+                'message'    => 'Manual billing created',
+                'bill_no'    => $billNo,
+                'billing'    => [
+                    'user_id'       => $userId,
+                    'bill_no'       => $billNo,
+                    'amount_due'    => number_format($amount, 2, '.', ''),
+                    'balance'       => number_format($newBilling['balance'], 2, '.', ''),
+                    'carryover'     => number_format($carryover, 2, '.', ''),
+                    'total_due'     => number_format($totalDue, 2, '.', ''),
+                    'billing_month' => $billingMonthFirstDay,
+                    'due_date'      => $newBilling['due_date'],
+                    'status'        => $newBilling['status'],
+                ]
+            ]);
         }
+    } catch (\Throwable $e) {
+        log_message('error', 'createManualBilling insert error: ' . $e->getMessage());
+        return $this->response->setJSON(['success' => false, 'message' => 'Failed to create manual billing: ' . $e->getMessage()]);
     }
 
-    // All retries exhausted
-    return $this->response->setJSON(['success' => false, 'message' => 'Failed to create manual billing after multiple attempts']);
+    return $this->response->setJSON(['success' => false, 'message' => 'Failed to create manual billing']);
 }
-
 
     // Billing Reports
     public function reports()

@@ -946,6 +946,8 @@ public function paymentFailed()
 
 
     //upload Proof
+
+//upload Proof
 public function uploadProof()
 {
     $paymentModel = new PaymentsModel();
@@ -960,28 +962,25 @@ public function uploadProof()
     ]);
 
     if (!$validation->withRequest($this->request)->run()) {
-        log_message('error', 'uploadProof validation failed: ' . $validation->listErrors());
         return redirect()->back()->with('error', $validation->listErrors());
     }
 
-    $reference = trim($this->request->getPost('referenceNumber'));
+    $reference  = trim($this->request->getPost('referenceNumber'));
     $billingId  = $this->request->getPost('billing_id') ? (int) $this->request->getPost('billing_id') : null;
     $userId     = session()->get('user_id');
 
-    // Duplicate guard
+    // Duplicate reference guard
     if ($paymentModel->where('reference_number', $reference)->first()) {
-        log_message('warning', "uploadProof duplicate reference: {$reference} (user {$userId})");
         return redirect()->back()->with('error', 'This reference number is already in use.');
     }
 
-    // If billing_id provided, validate ownership/status
+    // Validate the selected bill belongs to user
     if ($billingId) {
         $bill = $billingModel->where('id', $billingId)
                              ->where('user_id', $userId)
                              ->first();
 
         if (!$bill) {
-            log_message('error', "uploadProof invalid billing_id: {$billingId} for user {$userId}");
             return redirect()->back()->with('error', 'Invalid bill selected.');
         }
     }
@@ -990,11 +989,10 @@ public function uploadProof()
     $amountPaid = floatval($this->request->getPost('amount'));
 
     if (!$file || !$file->isValid() || $file->hasMoved()) {
-        log_message('error', 'uploadProof file invalid or missing for user: ' . $userId);
         return redirect()->back()->with('error', 'File upload failed or file is invalid.');
     }
 
-    // Safe filename and move
+    // Save uploaded file
     $safeReference = preg_replace('/[^A-Za-z0-9_\-]/', '_', $reference);
     $timestamp     = date('Ymd_His');
     $extension     = $file->getClientExtension() ?: $file->getExtension();
@@ -1002,60 +1000,43 @@ public function uploadProof()
     $targetPath    = FCPATH . 'uploads/receipts';
 
     if (!is_dir($targetPath)) {
-        if (!mkdir($targetPath, 0755, true) && !is_dir($targetPath)) {
-            log_message('error', "uploadProof failed to create directory: {$targetPath}");
-            return redirect()->back()->with('error', 'Server error: upload directory not writable.');
-        }
+        mkdir($targetPath, 0755, true);
     }
 
-    try {
-        $file->move($targetPath, $newName);
-    } catch (\Exception $e) {
-        log_message('error', 'uploadProof file move exception: ' . $e->getMessage());
-        return redirect()->back()->with('error', 'File upload failed.');
-    }
+    $file->move($targetPath, $newName);
 
     $receiptPath = 'uploads/receipts/' . $newName;
 
-    // Prepare payment record
+    // Create payment record
     $paymentData = [
         'billing_id'        => $billingId,
         'payment_intent_id' => uniqid('manual_'),
-        'payment_method_id' => null,
         'method'            => 'manual',
         'reference_number'  => $reference,
-        'admin_reference'   => null,
         'receipt_image'     => $receiptPath,
         'amount'            => $amountPaid,
         'currency'          => 'PHP',
-        'status'            => 'pending',
+        'status'            => 'pending', // admin must confirm
         'user_id'           => $userId,
         'paid_at'           => null,
         'created_at'        => date('Y-m-d H:i:s'),
     ];
 
     $insertedId = $paymentModel->insert($paymentData);
+
     if (!$insertedId) {
-        log_message('error', 'uploadProof payment insert failed: ' . json_encode($paymentData));
         return redirect()->back()->with('error', 'Failed to save payment record.');
     }
 
-    // If a billing_id was provided, update only that bill status to 'Pending'
+    // Only mark the bill as pending, no calculations yet
     if ($billingId) {
-        try {
-            $billingModel->update($billingId, ['status' => 'Pending']);
-        } catch (\Exception $e) {
-            log_message('error', "uploadProof failed to update billing {$billingId}: " . $e->getMessage());
-            // Not fatal for the payment upload — continue and inform user
-            return redirect()->to(base_url('users'))->with('success', 'Payment proof uploaded, but failed to update bill status. Contact admin.');
-        }
+        $billingModel->update($billingId, ['status' => 'Pending']);
     }
 
-    log_message('info', "uploadProof success for user {$userId}, payment_id: {$insertedId}, billing_id: " . ($billingId ?? 'NULL'));
-
-    // Redirect explicitly to the users page
-    return redirect()->to(base_url('users'))->with('success', 'Payment proof submitted successfully!');
+    return redirect()->to(base_url('users'))
+                     ->with('success', 'Payment proof submitted. Waiting for admin confirmation.');
 }
+
 
     //check reference
 public function checkReference()

@@ -243,19 +243,39 @@
       $('#billing_id').val(billId);
 
       $.getJSON('<?= site_url('users/getBillDetails') ?>', { bill_id: billId }, function(data) {
-        // Display bill details
+        // Safely parse numeric parts and compute net due = carryover + current - payments
+        const carryover = parseFloat(data.carryover || 0) || 0;
+        const current = parseFloat(data.amount_due || 0) || 0;
+        const payments = parseFloat(data.paymentsMade || data.payments || 0) || 0;
+        const netDue = Math.max(0, (carryover + current - payments));
+
+        // Display bill details with breakdown and computed net due
         $('#billDetails').html(
           `<span class="bill-details-icon"><i class="bi bi-file-earmark-text"></i></span>
            <div class="bill-details-info">
              <div><strong>Bill #:</strong> ${data.bill_no}</div>
              <div><strong>Billing Month:</strong> ${data.billing_month}</div>
              <div><strong>Due Date:</strong> ${data.due_date}</div>
-             <div class="bill-amount"><i class="bi bi-cash-stack me-1"></i>₱${parseFloat(data.amount_due).toFixed(2)}</div>
+             <div style="margin-top:.5rem; font-size:.95rem; color:#6b7280">
+               <div>Carryover: ₱${carryover.toFixed(2)}</div>
+               <div>Current Charges: ₱${current.toFixed(2)}</div>
+               <div>Payments Made: -₱${payments.toFixed(2)}</div>
+             </div>
+             <div class="bill-amount" style="margin-top:.5rem"><i class="bi bi-cash-stack me-1"></i>₱${netDue.toFixed(2)}</div>
            </div>`
         ).css('display', 'flex');
-        // Set amount field
-        if (amount) $('#amount').val(amount);
-        else $('#amount').val(data.amount_due);
+
+        // Prefill amount input: prefer explicit `amount` query param (user selection); otherwise use server-calculated netDue
+        if (amount) {
+          // ensure numeric
+          const amt = parseFloat(amount) || 0;
+          $('#amount').val(amt.toFixed(2));
+          // show fee-waived note when arriving from manual flow
+          $('#feeWaivedNote').removeClass('d-none');
+        } else {
+          $('#amount').val(netDue.toFixed(2));
+          $('#feeWaivedNote').addClass('d-none');
+        }
       });
     }
 

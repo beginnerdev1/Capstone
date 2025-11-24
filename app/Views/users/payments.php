@@ -1643,18 +1643,29 @@
       const res = await fetch('<?= base_url('users/getPaymentBillsAjax') ?>', { credentials: 'same-origin' });
       const data = await res.json();
       if (!data || data.status !== 'success') throw new Error('Failed to load bills');
-
       billsData = data.bills || [];
       const container = document.getElementById('billListContainer');
-      if (!billsData || billsData.length === 0) {
+
+      // Filter to only pending or partial bills (normalize several variants)
+      const pendingList = (billsData || []).filter(b => {
+        const s = (b.status || '').toString().toLowerCase().trim();
+        return s === 'pending' || s === 'partial' || s === 'partially_paid' || s === 'partial payment' || s === 'partially paid';
+      });
+
+      // If no pending/partial bills, show the no-pending UI
+      if (!pendingList || pendingList.length === 0) {
         container.innerHTML = `<div class="text-center py-4"><i class="fas fa-check-circle fa-3x text-success mb-3"></i><h5>No Pending Bills</h5><p class="text-muted">All bills are up to date!</p></div>`;
         document.querySelectorAll('.disabled-content').forEach(el => el.classList.add('disabled-content'));
+        // Clear billsData since nothing pending
+        billsData = [];
         updateTotals();
         return;
       }
 
-      // Render latest
-      const bill = billsData[0];
+      // Use only the first pending/partial bill (the "only pending bill")
+      const bill = pendingList[0];
+      // Keep billsData limited to pendingList so other logic (if any) refers to pending bills
+      billsData = pendingList;
       const netDueVal = parseFloat(bill.netDue || ((parseFloat(bill.carryover||0) + parseFloat(bill.amount_due||0)) - parseFloat(bill.paymentsMade||0))) || 0;
       const netDue = netDueVal.toFixed(2);
 
