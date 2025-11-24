@@ -1202,14 +1202,45 @@ public function cleanupPayments()
 //Fetch GCash settings
 public function getGcashSettings()
 {
-    $model = new \App\Models\GcashSettingsModel();
-    $settings = $model->find(1) ?: $model->orderBy('id', 'DESC')->first();
-    $qrUrl = $settings['qr_code_path'] ? base_url($settings['qr_code_path']) : null;
-    return $this->response->setJSON([
-        'success' => true,
-        'gcash_number' => $settings['gcash_number'] ?? null,
-        'qr_code_url' => $qrUrl
-    ]);
+    // If the GcashSettingsModel or the settings table does not exist yet,
+    // return a safe response instead of throwing a fatal error.
+    if (!class_exists('\App\Models\GcashSettingsModel')) {
+        log_message('warning', 'GcashSettingsModel not found when calling getGcashSettings');
+        return $this->response->setJSON([
+            'success' => false,
+            'message' => 'GCash settings not configured',
+            'gcash_number' => null,
+            'qr_code_url' => null
+        ]);
+    }
+
+    try {
+        $model = new \App\Models\GcashSettingsModel();
+        $settings = $model->find(1) ?: $model->orderBy('id', 'DESC')->first();
+        if (! $settings) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'No GCash settings found',
+                'gcash_number' => null,
+                'qr_code_url' => null
+            ]);
+        }
+
+        $qrUrl = !empty($settings['qr_code_path']) ? base_url($settings['qr_code_path']) : null;
+        return $this->response->setJSON([
+            'success' => true,
+            'gcash_number' => $settings['gcash_number'] ?? null,
+            'qr_code_url' => $qrUrl
+        ]);
+    } catch (\Exception $e) {
+        log_message('error', 'getGcashSettings exception: ' . $e->getMessage());
+        return $this->response->setJSON([
+            'success' => false,
+            'message' => 'Error fetching GCash settings',
+            'gcash_number' => null,
+            'qr_code_url' => null
+        ])->setStatusCode(500);
+    }
 }
 
 // Check disconnection status

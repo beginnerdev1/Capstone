@@ -2486,8 +2486,36 @@ public function confirmGCashPayment()
 
         // Payment Status (selected range)
         fputcsv($out, ['Section', 'Payment Status (Selected Range)']);
-        fputcsv($out, ['Paid Households', 'Pending', 'Late']);
-        fputcsv($out, [$paidHouseholds, $pendingCount, $latePayments]);
+        fputcsv($out, ['Paid Households', 'Partial', 'Pending', 'Late']);
+        fputcsv($out, [$paidHouseholds, $partialCount, $pendingCount, $latePayments]);
+        fputcsv($out, []);
+
+        // Partial Payments Details (list billings with status Partial)
+        $partialRows = $this->billingModel
+            ->select('billings.id, billings.bill_no, billings.user_id, billings.amount_due, billings.balance, billings.carryover, billings.status, billings.updated_at, users.email, CONCAT(user_information.first_name, " ", user_information.last_name) as name')
+            ->join('users', 'users.id = billings.user_id', 'left')
+            ->join('user_information', 'user_information.user_id = billings.user_id', 'left')
+            ->where('status', 'Partial')
+            ->where('DATE(updated_at) >=', $startDate)
+            ->where('DATE(updated_at) <=', $endDate)
+            ->orderBy('updated_at', 'DESC')
+            ->get()->getResultArray();
+
+        fputcsv($out, ['Section', 'Partial Payments Details']);
+        fputcsv($out, ['Bill No', 'User ID', 'Name', 'Email', 'Amount Due', 'Balance', 'Carryover', 'Status', 'Updated At']);
+        foreach ($partialRows as $r) {
+            fputcsv($out, [
+                $r['bill_no'] ?? $r['id'],
+                $r['user_id'] ?? '',
+                $r['name'] ?? '',
+                $r['email'] ?? '',
+                number_format($r['amount_due'] ?? 0, 2, '.', ''),
+                number_format($r['balance'] ?? 0, 2, '.', ''),
+                number_format($r['carryover'] ?? 0, 2, '.', ''),
+                $r['status'] ?? '',
+                $r['updated_at'] ?? ''
+            ]);
+        }
         fputcsv($out, []);
 
         // Rate Distribution (households)
@@ -3233,6 +3261,24 @@ public function createManualBilling()
             ->where('DATE(updated_at) <=', $endDate)
             ->get()
             ->getRow()->c ?? 0);
+
+        // Partial payments count (distinct users with status 'Partial')
+        $partialCount = (int)($this->billingModel
+            ->select('COUNT(DISTINCT user_id) as c')
+            ->where('status', 'Partial')
+            ->where('DATE(updated_at) >=', $startDate)
+            ->where('DATE(updated_at) <=', $endDate)
+            ->get()
+            ->getRow()->c ?? 0);
+
+        // Partial payments: distinct users with billing status 'Partial' in range
+        $partialCount = (int)($this->billingModel
+            ->select('COUNT(DISTINCT user_id) as c')
+            ->where('status', 'Partial')
+            ->where('DATE(updated_at) >=', $startDate)
+            ->where('DATE(updated_at) <=', $endDate)
+            ->get()
+            ->getRow()->c ?? 0);
         
         // Pending amount and count (range)
         $pendingAmount = (float)($this->billingModel
@@ -3309,7 +3355,98 @@ public function createManualBilling()
                 $collectionAmounts[$idx] = (float)$row['total_amount'];
             }
         }
-        
+
+        // If still no paid billings were recorded in the range, fall back to payments table
+        // (Some flows mark payments as 'paid' before updating billing to Paid — use payments to surface collection activity)
+        if (array_sum($collectionRates) === 0) {
+            $paymentsMonthly = [];
+            try {
+                // Use COALESCE(paid_at, created_at) and accept several paid-status casings
+                $paymentsMonthly = $this->paymentsModel
+                    ->select("MONTH(COALESCE(paid_at, created_at)) as month_num, COUNT(DISTINCT user_id) as paid_count")
+                    ->where("(LOWER(status) = 'paid' OR status = 'Paid' OR paid_at IS NOT NULL)")
+                    ->where('DATE(COALESCE(paid_at, created_at)) >=', $startDate)
+                    ->where('DATE(COALESCE(paid_at, created_at)) <=', $endDate)
+                    ->groupBy('MONTH(COALESCE(paid_at, created_at))')
+                    ->orderBy('MONTH(COALESCE(paid_at, created_at))', 'ASC')
+                    ->get()
+                    ->getResultArray();
+
+                foreach ($paymentsMonthly as $row) {
+                    $idx = (int)$row['month_num'] - 1;
+                    if ($idx < 0 || $idx > 11) continue;
+                    $pc = (int)$row['paid_count'];
+                    $collectionRates[$idx] = $totalHouseholds > 0 ? round(($pc / $totalHouseholds) * 100, 1) : 0;
+                }
+            } catch (\Exception $e) {
+                // Log and continue — keep collectionRates as zeros if payments query fails
+                log_message('error', 'reports(): fallback payments query failed - ' . $e->getMessage());
+            }
+            // Debug: log what we found
+            log_message('debug', 'reports(): totalHouseholds=' . intval($totalHouseholds) . ', start=' . $startDate . ', end=' . $endDate);
+            log_message('debug', 'reports(): paymentsMonthly=' . json_encode($paymentsMonthly));
+            log_message('debug', 'reports(): collectionRates after fallback=' . json_encode($collectionRates));
+
+            // If still zero, try computing collection rate by amount collected vs expected monthly
+            if (array_sum($collectionRates) === 0) {
+                try {
+                    $paymentsAmountMonthly = $this->paymentsModel
+                        ->select("MONTH(COALESCE(paid_at, created_at)) as month_num, SUM(amount) as total_amount")
+                        ->where("(LOWER(status) = 'paid' OR status = 'Paid' OR paid_at IS NOT NULL OR LOWER(status) = 'partial')")
+                        ->where('DATE(COALESCE(paid_at, created_at)) >=', $startDate)
+                        ->where('DATE(COALESCE(paid_at, created_at)) <=', $endDate)
+                        ->groupBy('MONTH(COALESCE(paid_at, created_at))')
+                        ->orderBy('MONTH(COALESCE(paid_at, created_at))', 'ASC')
+                        ->get()
+                        ->getResultArray();
+
+                    if (!empty($paymentsAmountMonthly)) {
+                        foreach ($paymentsAmountMonthly as $row) {
+                            $idx = (int)$row['month_num'] - 1;
+                            if ($idx < 0 || $idx > 11) continue;
+                            $amt = (float)$row['total_amount'];
+                            $pct = ($monthlyExpected > 0) ? round((($amt) / $monthlyExpected) * 100, 1) : 0;
+                            $collectionRates[$idx] = min(100, $pct);
+                        }
+                        log_message('debug', 'reports(): collectionRates computed from payment amounts=' . json_encode($collectionRates));
+                    }
+                } catch (\Exception $e) {
+                    log_message('error', 'reports(): payments amount fallback failed - ' . $e->getMessage());
+                }
+            }
+        }
+
+        // Compute monthly partial rates (percent of households that are partially paid)
+        $partialRates = array_fill(0, 12, 0);
+        $partialMonthlyData = $this->billingModel
+            ->select("DATE_FORMAT(billings.updated_at, '%Y-%m') as ym, MONTH(billings.updated_at) as month_num, COUNT(DISTINCT billings.user_id) as partial_count")
+            ->where('billings.status', 'Partial')
+            ->where('DATE(billings.updated_at) >=', $startDate)
+            ->where('DATE(billings.updated_at) <=', $endDate)
+            ->groupBy('YEAR(billings.updated_at), MONTH(billings.updated_at)')
+            ->orderBy('YEAR(billings.updated_at)', 'ASC')
+            ->orderBy('MONTH(billings.updated_at)', 'ASC')
+            ->get()
+            ->getResultArray();
+
+        foreach ($partialMonthlyData as $r) {
+            $mn = (int)$r['month_num'];
+            $count = (int)$r['partial_count'];
+            $idx = max(0, ($mn - 1) % 12);
+            $partialRates[$idx] = $totalHouseholds > 0 ? round(($count / $totalHouseholds) * 100, 1) : 0;
+        }
+
+        // Fetch partial bills (for display in reports)
+        $partialBills = $this->billingModel
+            ->select('billings.*, users.email, CONCAT(user_information.first_name, " ", user_information.last_name) as name')
+            ->join('users', 'users.id = billings.user_id', 'left')
+            ->join('user_information', 'user_information.user_id = billings.user_id', 'left')
+            ->where('billings.status', 'Partial')
+            ->where('DATE(billings.updated_at) >=', $startDate)
+            ->where('DATE(billings.updated_at) <=', $endDate)
+            ->orderBy('billings.updated_at', 'DESC')
+            ->get()->getResultArray();
+
         $viewData = [
             'normalCount' => $normalCount,
             'seniorCount' => $seniorCount,
@@ -3321,13 +3458,16 @@ public function createManualBilling()
             'monthlyExpected' => $monthlyExpected,
             'currentMonthCollected' => $currentMonthCollected,
             'paidHouseholds' => $paidHouseholds,
+            'partialCount' => $partialCount,
             'pendingAmount' => $pendingAmount,
             'pendingCount' => $pendingCount,
             'latePayments' => $latePayments,
             'collectionRate' => $collectionRate,
             'collectionRates' => $collectionRates,
+            'partialRates' => $partialRates,
             'collectionAmounts' => $collectionAmounts,
             'statusScope' => $statusScope,
+            'partialBills' => $partialBills,
             // Expose filters to the views
             'filterStart' => $startDate,
             'filterEnd' => $endDate,
@@ -3338,6 +3478,22 @@ public function createManualBilling()
             return view('admin/reports-content', $viewData);
         }
         return view('admin/reports', $viewData);
+    }
+
+    // Admin check page: list all partial/non-paid billings
+    public function partialBillings()
+    {
+        $partialBills = $this->billingModel
+            ->select('billings.*, users.email, CONCAT(user_information.first_name, " ", user_information.last_name) as name')
+            ->join('users', 'users.id = billings.user_id', 'left')
+            ->join('user_information', 'user_information.user_id = billings.user_id', 'left')
+            ->where('status !=', 'Paid')
+            ->orderBy('updated_at', 'DESC')
+            ->get()->getResultArray();
+
+        return view('admin/partial-billings', [
+            'partialBills' => $partialBills
+        ]);
     }
 
      // ---------------- Failed Transactions ----------------

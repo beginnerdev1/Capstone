@@ -507,6 +507,10 @@
           <span class="stat-label">Paid Households</span>
           <span class="stat-value"><?= $paidHouseholds ?? 0 ?> of <?= $totalHouseholds ?? 0 ?></span>
         </div>
+          <div class="report-stat">
+            <span class="stat-label">Partial Payments</span>
+            <span class="stat-value"><?= $partialCount ?? 0 ?> partially paid</span>
+          </div>
         <div class="report-stat">
           <span class="stat-label">Pending Collection</span>
           <span class="stat-value">₱<?= number_format($pendingAmount ?? 0, 2) ?></span>
@@ -520,6 +524,46 @@
         <button class="btn btn-sm btn-outline-primary btn-view" data-report="collection">
           <i class="fas fa-eye"></i> View
         </button>
+      </div>
+    </div>
+
+    <!-- Partial Payments Preview -->
+    <div class="report-card">
+      <div class="report-card-header">
+        <div class="report-icon">🟦</div>
+        <div>
+          <h3 class="report-title">Partial Payments</h3>
+          <p class="report-subtitle">Recently Partially Paid Bills</p>
+        </div>
+      </div>
+      <div class="report-body">
+        <div style="max-height:220px; overflow:auto;">
+          <table class="table table-sm table-striped mb-0">
+            <thead>
+              <tr>
+                <th>Bill No</th>
+                <th>User</th>
+                <th>Balance</th>
+                <th>Updated</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php if (!empty($partialBills)): foreach (array_slice($partialBills, 0, 8) as $b): ?>
+              <tr>
+                <td><?= esc($b['bill_no'] ?? $b['id']) ?></td>
+                <td><?= esc($b['name'] ?? 'Unknown') ?></td>
+                <td>₱<?= number_format($b['balance'] ?? 0, 2) ?></td>
+                <td><?= esc($b['updated_at'] ?? '') ?></td>
+              </tr>
+              <?php endforeach; else: ?>
+              <tr><td colspan="4" class="text-center muted">No partial payments in this range.</td></tr>
+              <?php endif; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="report-footer">
+        <a href="<?= site_url('admin/partialBillings') ?>" class="btn btn-sm btn-outline-primary">View All</a>
       </div>
     </div>
 
@@ -646,8 +690,10 @@
 <?= json_encode([
   'collectionRates' => $collectionRates ?? array_fill(0, 12, 0),
   'collectionAmounts' => $collectionAmounts ?? array_fill(0, 12, 0),
+  'partialRates' => $partialRates ?? array_fill(0, 12, 0),
   'paidHouseholds' => (int)($paidHouseholds ?? 0),
   'pendingCount' => (int)($pendingCount ?? 0),
+  'partialCount' => (int)($partialCount ?? 0),
   'latePayments' => (int)($latePayments ?? 0),
   'normalCount' => (int)($normalCount ?? 0),
   'seniorCount' => (int)($seniorCount ?? 0),
@@ -725,7 +771,7 @@
             // Initialize Collection Chart
             const collectionCanvas = document.getElementById('collectionChart');
             if (collectionCanvas && data.collectionRates) {
-                initCollectionChart(collectionCanvas, data);
+                  initCollectionChart(collectionCanvas, data);
             }
             
             // Initialize Payment Status Chart
@@ -753,7 +799,13 @@
     
     function initCollectionChart(canvas, data) {
         const ctx = canvas.getContext('2d');
-        new Chart(ctx, {
+      // Destroy previous chart instance if present (handles AJAX reloads)
+      window.reportsCharts = window.reportsCharts || {};
+      if (window.reportsCharts.collectionChart) {
+        try { window.reportsCharts.collectionChart.destroy(); } catch (e) { /* ignore */ }
+      }
+
+      window.reportsCharts.collectionChart = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
@@ -765,7 +817,7 @@
                     borderWidth: 3,
                     fill: true,
                     tension: 0.4
-                }, {
+          }, {
                     label: 'Amount Collected (₱)',
                     data: data.collectionAmounts || [],
                     borderColor: '#1cc88a',
@@ -774,7 +826,19 @@
                     fill: true,
                     tension: 0.4,
                     yAxisID: 'y1'
-                }]
+          }, {
+            label: 'Partial Rate (%)',
+            data: data.partialRates || [],
+            borderColor: '#36b9cc',
+            backgroundColor: 'rgba(54, 185, 204, 0.12)',
+            borderWidth: 3,
+            pointRadius: 4,
+            pointBackgroundColor: '#36b9cc',
+            pointHoverRadius: 6,
+            fill: false,
+            tension: 0.25,
+            spanGaps: true
+          }]
             },
             options: {
                 responsive: true,
@@ -788,9 +852,10 @@
                 scales: {
                     y: {
                         type: 'linear',
-                        display: true,
+                    display: true,
                         position: 'left',
-                        beginAtZero: true
+                    beginAtZero: true,
+                    max: 100
                     },
                     y1: {
                         type: 'linear',
@@ -808,32 +873,67 @@
     
     function initPaymentStatusChart(canvas, data) {
         const ctx = canvas.getContext('2d');
-        new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: ['Paid', 'Pending', 'Late'],
-                datasets: [{
-                    data: [data.paidHouseholds || 0, data.pendingCount || 0, data.latePayments || 0],
-                    backgroundColor: ['#1cc88a', '#f6c23e', '#e74a3b'],
-                    borderWidth: 0
-                }]
+      // Coerce counts to numbers and ensure partial is included
+      const counts = [
+        Number(data.paidHouseholds || 0),
+        Number(data.partialCount || 0),
+        Number(data.pendingCount || 0),
+        Number(data.latePayments || 0)
+      ];
+
+      const total = counts.reduce((s, v) => s + v, 0);
+
+      // If everything is zero, show a placeholder slice to avoid Chart.js hiding legend
+      const displayCounts = total === 0 ? [1, 0, 0, 0] : counts;
+
+      window.reportsCharts = window.reportsCharts || {};
+      if (window.reportsCharts.paymentStatusChart) {
+        try { window.reportsCharts.paymentStatusChart.destroy(); } catch (e) { }
+      }
+
+      window.reportsCharts.paymentStatusChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Paid', 'Partial', 'Pending', 'Late'],
+          datasets: [{
+            data: displayCounts,
+            backgroundColor: ['#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b'],
+            borderWidth: 0,
+            hoverOffset: 8
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: {
+              display: true,
+              position: 'bottom'
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                plugins: {
-                    legend: {
-                        display: true,
-                        position: 'bottom'
-                    }
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const label = context.label || '';
+                  const value = context.raw || 0;
+                  const t = displayCounts.reduce((s, v) => s + v, 0);
+                  const pct = t > 0 ? Math.round((value / t) * 100 * 10) / 10 : 0;
+                  return `${label}: ${value} (${pct}%)`;
                 }
+              }
             }
-        });
+          }
+        }
+      });
     }
     
     function initRateDistributionChart(canvas, data) {
         const ctx = canvas.getContext('2d');
-        new Chart(ctx, {
+        window.reportsCharts = window.reportsCharts || {};
+        if (window.reportsCharts.rateDistributionChart) {
+          try { window.reportsCharts.rateDistributionChart.destroy(); } catch (e) { }
+        }
+
+        window.reportsCharts.rateDistributionChart = new Chart(ctx, {
             type: 'pie',
             data: {
                 labels: ['Normal', 'Senior', 'Alone'],
@@ -857,15 +957,25 @@
     
     function initMiniPaymentChart(canvas, data) {
         const ctx = canvas.getContext('2d');
-        new Chart(ctx, {
+        window.reportsCharts = window.reportsCharts || {};
+        if (window.reportsCharts.miniPaymentChart) {
+          try { window.reportsCharts.miniPaymentChart.destroy(); } catch (e) { }
+        }
+
+        window.reportsCharts.miniPaymentChart = new Chart(ctx, {
             type: 'bar',
             data: {
-                labels: ['Paid', 'Pending', 'Late'],
-                datasets: [{
-                    data: [data.paidHouseholds || 0, data.pendingCount || 0, data.latePayments || 0],
-                    backgroundColor: ['#1cc88a', '#f6c23e', '#e74a3b'],
-                    borderWidth: 0
-                }]
+          labels: ['Paid', 'Partial', 'Pending', 'Late'],
+          datasets: [{
+            data: [
+              data.paidHouseholds || 0,
+              data.partialCount || 0,
+              data.pendingCount || 0,
+              data.latePayments || 0
+            ],
+            backgroundColor: ['#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b'],
+            borderWidth: 0
+          }]
             },
             options: {
                 responsive: true,

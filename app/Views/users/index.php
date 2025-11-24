@@ -1410,7 +1410,20 @@ function loadRecentBills() {
         container.innerHTML = html;
         // Re-observe elements after loading new content
         document.querySelectorAll('.animate-on-scroll').forEach(el => {
-            if (!el.classList.contains('in-view')) observer.observe(el);
+          if (!el.classList.contains('in-view')) {
+            if (typeof observer !== 'undefined' && observer) {
+              observer.observe(el);
+            } else {
+              // Fallback: create a simple observer if the main one isn't defined yet
+              const _opts = { threshold: 0.1, rootMargin: '0px 0px -50px 0px' };
+              window.__defaultObserver = window.__defaultObserver || new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                  if (entry.isIntersecting) entry.target.classList.add('in-view');
+                });
+              }, _opts);
+              window.__defaultObserver.observe(el);
+            }
+          }
         });
     }).fail(function() {
         document.getElementById('recentBillsList').innerHTML = `

@@ -1140,6 +1140,7 @@ function initializeReportsCharts() {
         if (existing) existing.destroy();
         const rates = Array.isArray(data.collectionRates) ? data.collectionRates : new Array(12).fill(0);
         const amounts = Array.isArray(data.collectionAmounts) ? data.collectionAmounts : new Array(12).fill(0);
+        const partialRates = Array.isArray(data.partialRates) ? data.partialRates : new Array(12).fill(0);
         const sum = arr => (arr||[]).reduce((a,b)=>a+(Number(b)||0),0);
         if (sum(rates) === 0 && sum(amounts) === 0) {
             showNoDataInline('collectionChart', 'No monthly collections yet');
@@ -1175,6 +1176,17 @@ function initializeReportsCharts() {
                     pointBorderWidth: 2,
                     pointRadius: 3,
                     yAxisID: 'y1'
+                }, {
+                    label: 'Partial Rate (%)',
+                    data: partialRates,
+                    borderColor: '#06b6d4',
+                    backgroundColor: 'rgba(6,182,212,0.06)',
+                    borderWidth: 2,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#06b6d4',
+                    fill: false,
+                    tension: 0.25,
+                    yAxisID: 'y'
                 }]
             },
             options: {
@@ -1182,7 +1194,7 @@ function initializeReportsCharts() {
                 maintainAspectRatio: true,
                 interaction: { mode: 'index', intersect: false },
                 scales: {
-                    y: { beginAtZero: true, position: 'left' },
+                    y: { beginAtZero: true, position: 'left', max: 100 },
                     y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false } },
                     x: { grid: { display: false } }
                 }
@@ -1197,14 +1209,15 @@ function initializeReportsCharts() {
         const existing = Chart.getChart(canvas);
         if (existing) existing.destroy();
         const paid = Number(data.paidHouseholds||0);
+        const partial = Number(data.partialCount||0);
         const pending = Number(data.pendingCount||0);
         const late = Number(data.latePayments||0);
-        const total = paid+pending+late;
+        const total = paid + partial + pending + late;
         if (total === 0) { showNoDataInline('paymentStatusChart', 'No payment status data yet'); return; }
         new Chart(canvas.getContext('2d'), {
             type: 'doughnut',
-            data: { labels: ['Paid Households','Pending Payment','Late Payment'], datasets: [{ data: [paid,pending,late], backgroundColor: ['#10b981','#f59e0b','#ef4444'], borderWidth: 0 }] },
-            options: { responsive: true, maintainAspectRatio: true }
+            data: { labels: ['Paid','Partial','Pending','Late'], datasets: [{ data: [paid, partial, pending, late], backgroundColor: ['#10b981','#06b6d4','#f59e0b','#ef4444'], borderWidth: 0 }] },
+            options: { responsive: true, maintainAspectRatio: true, plugins: { tooltip: { callbacks: { label: function(ctx){ const v = ctx.raw||0; const pct = total>0?Math.round((v/total)*1000)/10:0; return ctx.label + ': ' + v + ' ('+pct+'%)'; } } } } }
         });
     })();
 
@@ -1230,12 +1243,13 @@ function initializeReportsCharts() {
         const existing = Chart.getChart(canvas);
         if (existing) existing.destroy();
         const paid = Number(data.paidHouseholds||0);
+        const partial = Number(data.partialCount||0);
         const pending = Number(data.pendingCount||0);
         const late = Number(data.latePayments||0);
-        if (paid+pending+late === 0) { showNoDataInline('miniPaymentChart', 'No payment data yet'); return; }
+        if (paid+partial+pending+late === 0) { showNoDataInline('miniPaymentChart', 'No payment data yet'); return; }
         new Chart(canvas.getContext('2d'), {
             type: 'bar',
-            data: { labels: ['Paid','Pending','Late'], datasets: [{ label: 'Households', data: [paid,pending,late], backgroundColor: ['#10b981','#f59e0b','#ef4444'], borderWidth: 0, borderRadius: 6 }] },
+            data: { labels: ['Paid','Partial','Pending','Late'], datasets: [{ label: 'Households', data: [paid,partial,pending,late], backgroundColor: ['#10b981','#06b6d4','#f59e0b','#ef4444'], borderWidth: 0, borderRadius: 6 }] },
             options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true }, x: { grid: { display: false } } } }
         });
     })();
