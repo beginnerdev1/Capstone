@@ -800,23 +800,23 @@ public function createCheckout()
 // Helper method to expire old pending payments
 private function expireOldPayments($userId)
 
-{
-            $paymentsModel = new PaymentsModel();
-            
-            // Mark payments as expired if they're older than 30 minutes and still awaiting_payment
-            $expiredCount = $paymentsModel
-                ->where('user_id', $userId)
-                ->where('status', 'awaiting_payment')
-                ->where('created_at <', date('Y-m-d H:i:s', strtotime('-30 minutes')))
-                ->set(['status' => 'expired', 'updated_at' => date('Y-m-d H:i:s')])
-                ->update();
-            
-            if ($expiredCount > 0) {
-                log_message('info', 'Expired ' . $expiredCount . ' old pending payments for user: ' . $userId);
-            }
-            
-            return $expiredCount;
-}
+    {
+                $paymentsModel = new PaymentsModel();
+                
+                // Mark payments as expired if they're older than 30 minutes and still awaiting_payment
+                $expiredCount = $paymentsModel
+                    ->where('user_id', $userId)
+                    ->where('status', 'awaiting_payment')
+                    ->where('created_at <', date('Y-m-d H:i:s', strtotime('-30 minutes')))
+                    ->set(['status' => 'expired', 'updated_at' => date('Y-m-d H:i:s')])
+                    ->update();
+                
+                if ($expiredCount > 0) {
+                    log_message('info', 'Expired ' . $expiredCount . ' old pending payments for user: ' . $userId);
+                }
+                
+                return $expiredCount;
+    }
 
         
     // Handle payment success and failure redirects
@@ -1257,58 +1257,75 @@ public function getDisconnectionStatus()
     ]);
 }
 
-
-// Fetch payment bills with carryover logic - For Payments Page
-public function getPaymentBills($userId)
+// Fetch payment bills via AJAX for Payments page
+public function getPaymentBillsAjax()
 {
+    $limit = 1; // only fetch latest
+
+    // Allow debug user_id via GET only in development
+    $debugUserId = $this->request->getGet('user_id');
+    if (ENVIRONMENT === 'development' && !empty($debugUserId)) {
+        $userId = (int) $debugUserId;
+    } else {
+        $userId = session()->get('user_id');
+    }
+
+    if (empty($userId)) {
+        return $this->response->setStatusCode(401)->setJSON([
+            'status' => 'error',
+            'message' => 'Unauthenticated',
+            'bills' => [],
+            'totals' => [
+                'carryover' => 0.0,
+                'currentBill' => 0.0,
+                'totalOutstanding' => 0.0,
+                'totalPaid' => 0.0
+            ]
+        ]);
+    }
+
     $billingModel = new BillingModel();
-    $paymentsModel = new PaymentsModel();
 
-    // Fetch unpaid bills ordered by due_date (latest first)
-    $bills = $billingModel->where('user_id', $userId)
-                          ->where('status', 'unpaid')
-                          ->orderBy('due_date', 'DESC')
-                          ->findAll();
-
-    if (empty($bills)) {
-        return [];
+    try {
+        $billings = $billingModel->getBillsByUser($userId, $limit);
+    } catch (\Throwable $e) {
+        log_message('error', 'getPaymentBillsAjax: failed to fetch latest bill - ' . $e->getMessage());
+        $billings = [];
     }
 
-    // Calculate total carryover
-    $carryover = $billingModel->calculateCarryoverForUser($userId);
+    $latestBill = !empty($billings) ? $billings[0] : null;
 
-    $billData = [];
-    foreach ($bills as $bill) {
-        // Sum payments for this bill
-        $paymentsMade = $paymentsModel->where('billing_id', $bill['id'])
-                                      ->where('status', 'paid')
-                                      ->selectSum('amount')
-                                      ->get()
-                                      ->getRow()
-                                      ->amount ?? 0;
-
-        // Net due: Include carryover only for the latest bill
-        $isLatest = ($bill['id'] === $bills[0]['id']);
-        $netDue = $bill['amount_due'] - $paymentsMade;
-        if ($isLatest) {
-            $netDue += $carryover;
-        }
-
-        $billData[] = [
-            'id' => $bill['id'],
-            'bill_no' => $bill['bill_no'] ?? 'N/A',
-            'month' => date('F Y', strtotime($bill['due_date'])),
-            'amount_due' => $bill['amount_due'],
-            'due_date' => $bill['due_date'],
-            'netDue' => max(0, $netDue),
-            'carryover' => $isLatest ? $carryover : 0,
-            'paymentsMade' => $paymentsMade,
-        ];
+    if ($latestBill) {
+        $amountDue = isset($latestBill['amount_due']) ? (float)$latestBill['amount_due'] : 0.0;
+        $carryover = isset($latestBill['carryover']) ? (float)$latestBill['carryover'] : 0.0;
+        $balance = ($latestBill['balance'] !== null) ? (float)$latestBill['balance'] : $amountDue;
+        $totalOutstanding = $carryover + $balance;
+        $responseBills = [$latestBill];
+    } else {
+        $amountDue = 0.0;
+        $carryover = 0.0;
+        $balance = 0.0;
+        $totalOutstanding = 0.0;
+        $responseBills = [];
     }
 
-    return $billData;
+    $response = [
+        'status' => 'success',
+        'bills' => $responseBills,
+        'totals' => [
+            'carryover' => $carryover,
+            'currentBill' => $amountDue,
+            'totalOutstanding' => $totalOutstanding,
+            'totalPaid' => 0.0
+        ],
+        // legacy keys for backward compatibility
+        'carryover' => $carryover,
+        'currentBill' => $amountDue,
+        'totalOutstanding' => $totalOutstanding,
+        'totalPaid' => 0.0,
+    ];
+
+    return $this->response->setJSON($response);
 }
-
-
 
 }

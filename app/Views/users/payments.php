@@ -128,6 +128,28 @@
     opacity: 0.8;
   }
 
+  /* Single Peso Badge */
+  .peso-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+    color: #fff;
+    width: 40px;
+    height: 40px;
+    border-radius: 999px;
+    font-weight: 800;
+    font-family: 'Poppins', sans-serif;
+    margin-right: 0.5rem;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .peso-badge.small {
+    width: 28px;
+    height: 28px;
+    font-size: 0.85rem;
+  }
+
   /* Bill Selection Styles */
   .bill-selection {
     background: white;
@@ -1183,7 +1205,7 @@
         <div class="amount-display <?= empty($bills) ? 'disabled-content' : '' ?>">
           <div class="amount-label">Total Amount Due</div>
           <div class="amount-value">
-            <span class="currency-icon">₱</span>
+            <span class="peso-badge" aria-hidden="true">₱</span>
             <span id="totalAmount">0.00</span>
           </div>
         </div>
@@ -1194,19 +1216,19 @@
         <div id="selectedBillsBreakdown">
           <div class="breakdown-item">
             <span class="breakdown-label">Carryover from Previous Bills</span>
-            <span class="breakdown-value">₱<span id="carryoverAmount">0.00</span></span>
+            <span class="breakdown-value"><span id="carryoverAmount">0.00</span></span>
           </div>
           <div class="breakdown-item">
             <span class="breakdown-label">Current Charges</span>
-            <span class="breakdown-value">₱<span id="currentAmount">0.00</span></span>
+            <span class="breakdown-value"><span id="currentAmount">0.00</span></span>
           </div>
           <div class="breakdown-item">
             <span class="breakdown-label">Payments Made</span>
-            <span class="breakdown-value">-₱<span id="paymentsAmount">0.00</span></span>
+            <span class="breakdown-value">-<span id="paymentsAmount">0.00</span></span>
           </div>
           <div class="breakdown-item">
             <span class="breakdown-label">Net Due</span>
-            <span class="breakdown-value">₱<span id="netDueAmount">0.00</span></span>
+            <span class="breakdown-value"><span id="netDueAmount">0.00</span></span>
           </div>
         </div>
         <div class="breakdown-item">
@@ -1260,12 +1282,12 @@
               <p>Secure payment via GCash</p>
             </div>
 
-            <div class="payment-amount">
-              <span class="amount-label">You will pay</span>
-              <div class="amount-display">
-                ₱<span id="gatewayAmount">0.00</span>
-              </div>
-            </div>
+                <div class="payment-amount">
+                  <span class="amount-label">You will pay</span>
+                  <div class="amount-display">
+                    <span id="gatewayAmount">0.00</span>
+                  </div>
+                </div>
 
             <div class="payment-steps">
               <div class="step-item">
@@ -1323,6 +1345,12 @@
 (function initPaymentsView() {
   const root = document.getElementById('paymentsRoot') || document;
   const serviceFeeRate = 1.99; // Fixed service fee
+  // Toggle whether service fee should apply (manual payments waive it)
+  let applyServiceFee = true;
+
+  // Client-side state
+  let billsData = [];
+  let selectedBillId = null;
 
   // Prevent double-initialization if reloaded
   if (root.dataset.initialized === '1') return;
@@ -1330,11 +1358,8 @@
 
   console.log('Payment interface with single bill selection initialized');
 
-  // Get DOM elements
-  const radioButtons = root.querySelectorAll('.bill-radio');
-  const billItems = root.querySelectorAll('.pay-bill-item');
+  // Persistent DOM elements (static parts)
   const totalAmountElement = root.querySelector('#totalAmount');
-  const billsSubtotalElement = root.querySelector('#billsSubtotal');
   const serviceFeeElement = root.querySelector('#serviceFee');
   const finalTotalElement = root.querySelector('#finalTotal');
   const gatewayAmountElement = root.querySelector('#gatewayAmount');
@@ -1352,418 +1377,102 @@
   // Calculate totals based on selected bill
   function updateTotals() {
     const selectedRadio = root.querySelector('.bill-radio:checked');
-    let carryover = 0, current = 0, payments = 0, netDue = 0;
 
-    if (selectedRadio) {
-      const billId = selectedRadio.value;
-      // Assuming bill data is stored in a global or fetched; for simplicity, fetch from data.bills if available
-      // In a real setup, store bill data in a map or refetch
-      const bill = data.bills.find(b => b.id == billId); // data.bills from loadBills
-      if (bill) {
-        carryover = bill.carryover;
-        current = bill.amount_due;
-        payments = bill.paymentsMade;
-        netDue = bill.netDue;
-      }
+    if (!selectedRadio) {
+      // Reset displays (numbers only; single peso badge shown near total)
+      document.getElementById('carryoverAmount').textContent = `0.00`;
+      document.getElementById('currentAmount').textContent = `0.00`;
+      document.getElementById('paymentsAmount').textContent = `-0.00`;
+      document.getElementById('netDueAmount').textContent = `0.00`;
+      if (totalAmountElement) totalAmountElement.textContent = '0.00';
+      if (gatewayAmountElement) gatewayAmountElement.textContent = '0.00';
+      if (hiddenTotalAmount) hiddenTotalAmount.value = '0';
+      if (hiddenBillIds) hiddenBillIds.value = '';
+      const hiddenBillingId = root.querySelector('#billing_id');
+      if (hiddenBillingId) hiddenBillingId.value = '';
+      if (gatewayPayBtn) gatewayPayBtn.disabled = true;
+      if (createTransactionBtn) createTransactionBtn.disabled = true;
+      updateManualPaymentActions();
+      return;
     }
 
-    // Update elements
-    document.getElementById('carryoverAmount').textContent = `₱${carryover.toFixed(2)}`;
-    document.getElementById('currentAmount').textContent = `₱${current.toFixed(2)}`;
-    document.getElementById('paymentsAmount').textContent = `-₱${payments.toFixed(2)}`;
-    document.getElementById('netDueAmount').textContent = `₱${netDue.toFixed(2)}`;
+    const billId = selectedRadio.value;
+    selectedBillId = billId;
+    const bill = billsData.find(b => String(b.id) === String(billId)) || null;
 
-    // Update display elements
+    // Compute safe numeric values
+    const carryover = bill ? parseFloat(bill.carryover || 0) : 0.0;
+    const current = bill ? parseFloat(bill.amount_due || 0) : 0.0;
+    const payments = bill ? parseFloat(bill.paymentsMade || 0) : 0.0;
+    let netDue = carryover + current - payments;
+    if (isNaN(netDue) || netDue < 0) netDue = Math.max(0, netDue || 0);
+
+    const serviceFee = parseFloat((applyServiceFee ? serviceFeeRate : 0) || 0);
+    const total = parseFloat((netDue + serviceFee).toFixed(2));
+
+    // Update elements (numbers only; single peso badge shown near total)
+    document.getElementById('carryoverAmount').textContent = `${carryover.toFixed(2)}`;
+    document.getElementById('currentAmount').textContent = `${current.toFixed(2)}`;
+    document.getElementById('paymentsAmount').textContent = `-${payments.toFixed(2)}`;
+    document.getElementById('netDueAmount').textContent = `${netDue.toFixed(2)}`;
+
     if (totalAmountElement) totalAmountElement.textContent = total.toFixed(2);
-    if (billsSubtotalElement) billsSubtotalElement.textContent = subtotal.toFixed(2);
     if (serviceFeeElement) serviceFeeElement.textContent = serviceFee.toFixed(2);
     if (finalTotalElement) finalTotalElement.textContent = total.toFixed(2);
     if (gatewayAmountElement) gatewayAmountElement.textContent = total.toFixed(2);
 
     // Update hidden form fields
     if (hiddenTotalAmount) hiddenTotalAmount.value = total.toFixed(2);
-    if (hiddenBillIds) hiddenBillIds.value = selectedBillId;
-
-    // FIX: Set billing_id hidden field for backend
+    if (hiddenBillIds) hiddenBillIds.value = String(selectedBillId);
     const hiddenBillingId = root.querySelector('#billing_id');
-    if (hiddenBillingId) hiddenBillingId.value = selectedBillId;
+    if (hiddenBillingId) hiddenBillingId.value = String(selectedBillId);
 
     // Enable/disable payment buttons and tabs
     const hasSelection = !!selectedRadio;
     if (gatewayPayBtn) gatewayPayBtn.disabled = !hasSelection;
+    if (createTransactionBtn) createTransactionBtn.disabled = !hasSelection;
     updateManualPaymentActions();
     if (creditTab) creditTab.disabled = !hasSelection;
     if (mobileTab) mobileTab.disabled = !hasSelection;
 
-    console.log('Totals updated:', { subtotal, serviceFee, total, selectedBill: selectedBillId });
+    console.log('Totals updated:', { netDue, serviceFee, total, selectedBill: selectedBillId });
   }
 
   // Update manual payment actions (copy/download) based on both bill selection AND GCash data
   function updateManualPaymentActions() {
     const selectedRadio = root.querySelector('.bill-radio:checked');
     const hasSelection = !!selectedRadio;
-    
+
     const gcashNumberEl = document.getElementById('gcashNumber');
     const qrImg = document.querySelector('#gcashQrWrapper img');
-    
+
     const hasGcashNumber = gcashNumberEl && gcashNumberEl.textContent.trim() !== '—' && gcashNumberEl.textContent.trim() !== '';
     const hasQrCode = qrImg && qrImg.src;
 
-    // Copy button: enabled only if both bill selected AND GCash number exists
+    // Copy button
     if (copyNumberBtn) {
       copyNumberBtn.disabled = !(hasSelection && hasGcashNumber);
-      if (copyNumberBtn.disabled) {
-        copyNumberBtn.style.opacity = '0.5';
-        copyNumberBtn.style.cursor = 'not-allowed';
-      } else {
-        copyNumberBtn.style.opacity = '1';
-        copyNumberBtn.style.cursor = 'pointer';
-      }
+      copyNumberBtn.style.opacity = copyNumberBtn.disabled ? '0.5' : '1';
+      copyNumberBtn.style.cursor = copyNumberBtn.disabled ? 'not-allowed' : 'pointer';
     }
 
-    // Download button: enabled only if both bill selected AND QR code exists
+    // Download button
     if (downloadQRBtn) {
       downloadQRBtn.disabled = !(hasSelection && hasQrCode);
       downloadQRBtn.style.pointerEvents = (hasSelection && hasQrCode) ? 'auto' : 'none';
-      
-      if (downloadQRBtn.disabled) {
-        downloadQRBtn.style.opacity = '0.5';
-        downloadQRBtn.style.cursor = 'not-allowed';
-        downloadQRBtn.style.background = '#b8b8b8';
-      } else {
-        downloadQRBtn.style.opacity = '1';
-        downloadQRBtn.style.cursor = 'pointer';
-        downloadQRBtn.style.background = ''; // Reset to original color from CSS
+      downloadQRBtn.style.opacity = downloadQRBtn.disabled ? '0.5' : '1';
+      downloadQRBtn.style.cursor = downloadQRBtn.disabled ? 'not-allowed' : 'pointer';
+      if (!downloadQRBtn.disabled && qrImg) {
         downloadQRBtn.href = qrImg.src;
         downloadQRBtn.setAttribute('download', 'gcash-qr.png');
       }
     }
-    
-    // Create Transaction button: enabled only if bill is selected
+
+    // Create Transaction button
     if (createTransactionBtn) {
       createTransactionBtn.disabled = !hasSelection;
-      if (createTransactionBtn.disabled) {
-        createTransactionBtn.style.opacity = '0.5';
-        createTransactionBtn.style.cursor = 'not-allowed';
-      } else {
-        createTransactionBtn.style.opacity = '1';
-        createTransactionBtn.style.cursor = 'pointer';
-      }
-    }
-  }
-
-  // Handle individual radio button changes
-  radioButtons.forEach(radio => {
-    radio.addEventListener('change', function() {
-      // Remove selected class from all bill items
-      billItems.forEach(item => item.classList.remove('selected'));
-      
-      // Add selected class to the current bill item
-      const billItem = this.closest('.pay-bill-item');
-      if (billItem && this.checked) {
-        billItem.classList.add('selected');
-      }
-      
-      updateTotals();
-    });
-  });
-
-  // Handle bill item clicks
-  billItems.forEach(item => {
-    item.addEventListener('click', function(e) {
-      if (e.target.type === 'radio') return; // Skip if clicking radio directly
-      
-      const radio = this.querySelector('.bill-radio');
-      if (radio) {
-        radio.checked = true;
-        radio.dispatchEvent(new Event('change'));
-      }
-    });
-  });
-
-  // Tab switching
-  function showCreditTab() {
-    if (creditTab && creditTab.disabled) return;
-    
-    if (creditTab) creditTab.classList.add('active');
-    if (mobileTab) mobileTab.classList.remove('active');
-    if (creditContent) creditContent.classList.remove('hidden');
-    if (mobileContent) mobileContent.classList.add('hidden');
-    try { localStorage.setItem('activePaymentTab', 'credit'); } catch (e) {}
-  }
-
-  function showMobileTab() {
-    if (mobileTab && mobileTab.disabled) return;
-    
-    if (mobileTab) mobileTab.classList.add('active');
-    if (creditTab) creditTab.classList.remove('active');
-    if (mobileContent) mobileContent.classList.remove('hidden');
-    if (creditContent) creditContent.classList.add('hidden');
-    try { localStorage.setItem('activePaymentTab', 'mobile'); } catch (e) {}
-  }
-
-  if (creditTab) creditTab.addEventListener('click', function(e) { e.preventDefault(); showCreditTab(); });
-  if (mobileTab) mobileTab.addEventListener('click', function(e) { e.preventDefault(); showMobileTab(); });
-
-  // Create Transaction button click handler
-  if (createTransactionBtn) {
-    createTransactionBtn.addEventListener('click', function(e) {
-      e.preventDefault();
-      
-      // Check if button is disabled
-      if (this.disabled) {
-        console.log('Create transaction button is disabled');
-        return;
-      }
-      
-      const selectedRadio = root.querySelector('.bill-radio:checked');
-      if (!selectedRadio) {
-        notify('Please select a bill to pay', 'error');
-        return;
-      }
-      
-      const subtotal = parseFloat(selectedRadio.dataset.amount) || 0;
-      const billId = selectedRadio.value;
-      
-      window.location.href = `<?= base_url('users/manualTransaction') ?>?bill_id=${billId}&amount=${subtotal.toFixed(2)}`;
-    });
-  }
-
-  // Copy GCash number - SINGLE HANDLER
-  if (copyNumberBtn) {
-    copyNumberBtn.addEventListener('click', function(e) {
-      e.preventDefault();
-      
-      // Check if button is disabled
-      if (this.disabled) {
-        console.log('Copy button is disabled');
-        return;
-      }
-      
-      const numberEl = document.getElementById('gcashNumber');
-      const text = numberEl ? numberEl.textContent.trim() : '';
-      
-      if (!text || text === '—') {
-        console.log('No GCash number to copy');
-        return;
-      }
-
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(() => {
-          const originalText = this.textContent;
-          this.textContent = '✓ Copied!';
-          setTimeout(() => { this.textContent = originalText; }, 1500);
-        }).catch(err => {
-          console.error('Copy failed:', err);
-          alert('Failed to copy number');
-        });
-      } else {
-        // Fallback for older browsers
-        const ta = document.createElement('textarea');
-        ta.value = text;
-        ta.style.position = 'fixed';
-        ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        ta.select();
-        try {
-          document.execCommand('copy');
-          const originalText = this.textContent;
-          this.textContent = '✓ Copied!';
-          setTimeout(() => { this.textContent = originalText; }, 1500);
-        } catch (err) {
-          console.error('Copy failed:', err);
-          alert('Failed to copy number');
-        }
-        document.body.removeChild(ta);
-      }
-    });
-  }
-
-  // Download QR - SINGLE HANDLER
-  if (downloadQRBtn) {
-    downloadQRBtn.addEventListener('click', function(e) {
-      // Check if button is disabled
-      if (this.disabled) {
-        e.preventDefault();
-        console.log('Download button is disabled');
-        return false;
-      }
-      
-      const qrImg = document.querySelector('#gcashQrWrapper img');
-      
-      if (!qrImg || !qrImg.src) {
-        e.preventDefault();
-        console.log('No QR code to download');
-        return false;
-      }
-      
-      // Let the browser handle the download via href
-      this.href = qrImg.src;
-      this.setAttribute('download', 'gcash-qr.png');
-    });
-  }
-
-  // Form submit handling
-  const payForm = root.querySelector('#payForm');
-  if (payForm) {
-    payForm.addEventListener('submit', function(e) {
-      const selectedBill = root.querySelector('.bill-radio:checked');
-      if (!selectedBill) {
-        e.preventDefault();
-        notify('Please select a bill to pay', 'error');
-        return;
-      }
-
-      const btn = this.querySelector('.gcash-pay-btn');
-      if (btn && !btn.disabled) {
-        const original = btn.innerHTML;
-        btn.innerHTML = '<span class="spinner me-2"></span>Processing...';
-        btn.disabled = true;
-        
-        // Re-enable after timeout in case of issues
-        setTimeout(() => {
-          btn.innerHTML = original;
-          btn.disabled = false;
-        }, 10000);
-      }
-    });
-  }
-
-  // Utility notification function
-  function notify(message, type) {
-    const el = document.createElement('div');
-    el.style.cssText = `
-      position: fixed; top: 20px; right: 20px; z-index: 9999;
-      color: #fff; padding: 1rem 1.25rem; border-radius: 12px;
-      box-shadow: 0 10px 20px rgba(0,0,0,0.12); transition: all .3s ease;
-      background: ${type === 'success' ? '#48bb78' : type === 'error' ? '#f56565' : '#667eea'};
-      opacity: 0; transform: translateX(100%);
-      font-weight: 600;
-    `;
-    el.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'} me-2"></i>${message}`;
-    document.body.appendChild(el);
-    requestAnimationFrame(() => { el.style.opacity = '1'; el.style.transform = 'translateX(0)'; });
-    setTimeout(() => { 
-      el.style.opacity = '0'; 
-      el.style.transform = 'translateX(100%)'; 
-      setTimeout(() => el.remove(), 300); 
-    }, 3000);
-  }
-
-  // Load GCash settings
-  async function loadGcashSettings() {
-    try {
-      const res = await fetch('<?= base_url('users/getGcashSettings') ?>', { credentials: 'same-origin' });
-      const data = await res.json();
-      
-      if (!data) {
-        console.log('No GCash settings received');
-        return;
-      }
-
-      const numEl = document.getElementById('gcashNumber');
-      const qrWrapper = document.getElementById('gcashQrWrapper');
-
-      // GCASH NUMBER
-      if (numEl) {
-        numEl.textContent = data.gcash_number ? data.gcash_number : '—';
-      }
-
-      // QR CODE
-      if (qrWrapper) {
-        qrWrapper.innerHTML = ''; // clear
-        if (data.qr_code_url) {
-          const img = document.createElement('img');
-          img.src = data.qr_code_url;
-          img.alt = 'GCash QR';
-          img.className = 'gcash-qr-img';
-          img.style.maxWidth = '100%';
-          img.style.height = 'auto';
-          qrWrapper.appendChild(img);
-        } else {
-          qrWrapper.innerHTML = '<div class="gcash-qr-empty"><i class="fas fa-qr-code"></i><p class="mb-0">No QR code set</p></div>';
-        }
-      }
-
-      // Update button states after loading settings
-      updateManualPaymentActions();
-      
-    } catch (err) {
-      console.error('Failed to load GCash settings', err);
-    }
-  }
-
-  // Load bills via AJAX
-  async function loadBills() {
-    try {
-      const res = await fetch('<?= base_url('users/getBillingsAjax') ?>', { 
-        credentials: 'same-origin' 
-      });
-      const data = await res.json();
-      
-      if (!data || data.status !== 'success') {
-        throw new Error('Failed to load bills');
-      }
-
-      const bills = data.bills || [];
-      const container = document.getElementById('billListContainer');
-      
-      if (bills.length === 0) {
-        container.innerHTML = `
-          <div class="text-center py-4">
-            <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
-            <h5>No Pending Bills</h5>
-            <p class="text-muted">All bills are up to date!</p>
-          </div>
-        `;
-        // Disable payment elements
-        document.querySelectorAll('.disabled-content').forEach(el => el.classList.add('disabled-content'));
-        return;
-      }
-
-      // Render bills dynamically using netDue
-      const billHtml = bills.map(bill => `
-        <div class="pay-bill-item" data-bill-id="${bill.id}" data-net-due="${bill.netDue}" data-carryover="${bill.carryover}" data-current="${bill.amount_due}" data-payments="${bill.paymentsMade}">
-          <input 
-            type="radio" 
-            class="bill-radio" 
-            name="selected_bill"
-            id="bill_${bill.id}" 
-            value="${bill.id}"
-            data-net-due="${bill.netDue}"
-          >
-          <div class="bill-details">
-            <div class="bill-month">
-              ${new Date(bill.due_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
-            </div>
-            <div class="bill-info">
-              <span>Bill #${bill.bill_no}</span>
-              <span class="due-date ${new Date(bill.due_date) < new Date() ? 'overdue' : ''}">
-                Due: ${new Date(bill.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                ${new Date(bill.due_date) < new Date() ? '(Overdue)' : ''}
-              </span>
-            </div>
-          </div>
-          <div class="bill-amount">₱${parseFloat(bill.netDue).toFixed(2)}</div>
-        </div>
-      `).join('');
-      
-      container.innerHTML = billHtml;
-      
-      // Re-attach event listeners for the new elements
-      attachBillEventListeners();
-      
-      console.log(`Loaded ${bills.length} bills successfully`);
-    } catch (err) {
-      console.error('Failed to load bills:', err);
-      document.getElementById('billListContainer').innerHTML = `
-        <div class="text-center py-4">
-          <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
-          <h5>Failed to Load Bills</h5>
-          <p class="text-muted">Please refresh the page or contact support.</p>
-          <button class="btn btn-primary btn-sm" onclick="loadBills()">Retry</button>
-        </div>
-      `;
+      createTransactionBtn.style.opacity = createTransactionBtn.disabled ? '0.5' : '1';
+      createTransactionBtn.style.cursor = createTransactionBtn.disabled ? 'not-allowed' : 'pointer';
     }
   }
 
@@ -1771,7 +1480,7 @@
   function attachBillEventListeners() {
     const radioButtons = document.querySelectorAll('.bill-radio');
     const billItems = document.querySelectorAll('.pay-bill-item');
-    
+
     radioButtons.forEach(radio => {
       radio.addEventListener('change', function() {
         billItems.forEach(item => item.classList.remove('selected'));
@@ -1795,24 +1504,194 @@
     });
   }
 
+  // Tab switching
+  function showCreditTab() {
+    if (creditTab && creditTab.disabled) return;
+    // Credit (gateway) payments include service fee
+    applyServiceFee = true;
+    if (creditTab) creditTab.classList.add('active');
+    if (mobileTab) mobileTab.classList.remove('active');
+    if (creditContent) creditContent.classList.remove('hidden');
+    if (mobileContent) mobileContent.classList.add('hidden');
+    try { localStorage.setItem('activePaymentTab', 'credit'); } catch (e) {}
+    updateTotals();
+  }
+
+  function showMobileTab() {
+    if (mobileTab && mobileTab.disabled) return;
+    // Manual payments do not apply service fee
+    applyServiceFee = false;
+    if (mobileTab) mobileTab.classList.add('active');
+    if (creditTab) creditTab.classList.remove('active');
+    if (mobileContent) mobileContent.classList.remove('hidden');
+    if (creditContent) creditContent.classList.add('hidden');
+    try { localStorage.setItem('activePaymentTab', 'mobile'); } catch (e) {}
+    updateTotals();
+  }
+
+  if (creditTab) creditTab.addEventListener('click', function(e) { e.preventDefault(); showCreditTab(); });
+  if (mobileTab) mobileTab.addEventListener('click', function(e) { e.preventDefault(); showMobileTab(); });
+
+  // Create Transaction button click handler
+  if (createTransactionBtn) {
+    createTransactionBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+
+      if (this.disabled) return;
+
+      const selectedRadio = root.querySelector('.bill-radio:checked');
+      if (!selectedRadio) {
+        notify('Please select a bill to pay', 'error');
+        return;
+      }
+
+      // Use data-net-due if present, otherwise fall back to the hidden total
+      const subtotal = parseFloat(selectedRadio.dataset.netDue || hiddenTotalAmount.value || '0') || 0;
+      const billId = selectedRadio.value;
+
+      window.location.href = `<?= base_url('users/manualTransaction') ?>?bill_id=${billId}&amount=${subtotal.toFixed(2)}`;
+    });
+  }
+
+  // Copy GCash number
+  if (copyNumberBtn) {
+    copyNumberBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      if (this.disabled) return;
+      const numberEl = document.getElementById('gcashNumber');
+      const text = numberEl ? numberEl.textContent.trim() : '';
+      if (!text || text === '—') return;
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          const originalText = this.textContent;
+          this.textContent = '✓ Copied!';
+          setTimeout(() => { this.textContent = originalText; }, 1500);
+        }).catch(err => { console.error('Copy failed:', err); alert('Failed to copy number'); });
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); const originalText = this.textContent; this.textContent = '✓ Copied!'; setTimeout(() => { this.textContent = originalText; }, 1500); }
+        catch (err) { console.error('Copy failed:', err); alert('Failed to copy number'); }
+        document.body.removeChild(ta);
+      }
+    });
+  }
+
+  // Download QR
+  if (downloadQRBtn) {
+    downloadQRBtn.addEventListener('click', function(e) {
+      if (this.disabled) { e.preventDefault(); return false; }
+      const qrImg = document.querySelector('#gcashQrWrapper img');
+      if (!qrImg || !qrImg.src) { e.preventDefault(); return false; }
+      this.href = qrImg.src; this.setAttribute('download', 'gcash-qr.png');
+    });
+  }
+
+  // Form submit handling
+  const payForm = root.querySelector('#payForm');
+  if (payForm) {
+    payForm.addEventListener('submit', function(e) {
+      const selectedBill = root.querySelector('.bill-radio:checked');
+      if (!selectedBill) { e.preventDefault(); notify('Please select a bill to pay', 'error'); return; }
+
+      const btn = this.querySelector('.gcash-pay-btn');
+      if (btn && !btn.disabled) {
+        const original = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner me-2"></span>Processing...';
+        btn.disabled = true;
+        setTimeout(() => { btn.innerHTML = original; btn.disabled = false; }, 10000);
+      }
+    });
+  }
+
+  // Utility notification function
+  function notify(message, type) {
+    const el = document.createElement('div');
+    el.style.cssText = `position: fixed; top: 20px; right: 20px; z-index: 9999; color: #fff; padding: 1rem 1.25rem; border-radius: 12px; box-shadow: 0 10px 20px rgba(0,0,0,0.12); transition: all .3s ease; background: ${type === 'success' ? '#48bb78' : type === 'error' ? '#f56565' : '#667eea'}; opacity: 0; transform: translateX(100%); font-weight: 600;`;
+    el.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'} me-2"></i>${message}`;
+    document.body.appendChild(el);
+    requestAnimationFrame(() => { el.style.opacity = '1'; el.style.transform = 'translateX(0)'; });
+    setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateX(100%)'; setTimeout(() => el.remove(), 300); }, 3000);
+  }
+
+  // Load GCash settings
+  async function loadGcashSettings() {
+    try {
+      const res = await fetch('<?= base_url('users/getGcashSettings') ?>', { credentials: 'same-origin' });
+      const data = await res.json();
+      if (!data) return;
+
+      const numEl = document.getElementById('gcashNumber');
+      const qrWrapper = document.getElementById('gcashQrWrapper');
+      if (numEl) numEl.textContent = data.gcash_number ? data.gcash_number : '—';
+      if (qrWrapper) {
+        qrWrapper.innerHTML = '';
+        if (data.qr_code_url) {
+          const img = document.createElement('img'); img.src = data.qr_code_url; img.alt = 'GCash QR'; img.className = 'gcash-qr-img'; img.style.maxWidth = '100%'; img.style.height = 'auto'; qrWrapper.appendChild(img);
+        } else {
+          qrWrapper.innerHTML = '<div class="gcash-qr-empty"><i class="fas fa-qr-code"></i><p class="mb-0">No QR code set</p></div>';
+        }
+      }
+      updateManualPaymentActions();
+    } catch (err) { console.error('Failed to load GCash settings', err); }
+  }
+
+  // Load bills via AJAX (latest only)
+  async function loadBills() {
+    try {
+      const res = await fetch('<?= base_url('users/getPaymentBillsAjax') ?>', { credentials: 'same-origin' });
+      const data = await res.json();
+      if (!data || data.status !== 'success') throw new Error('Failed to load bills');
+
+      billsData = data.bills || [];
+      const container = document.getElementById('billListContainer');
+      if (!billsData || billsData.length === 0) {
+        container.innerHTML = `<div class="text-center py-4"><i class="fas fa-check-circle fa-3x text-success mb-3"></i><h5>No Pending Bills</h5><p class="text-muted">All bills are up to date!</p></div>`;
+        document.querySelectorAll('.disabled-content').forEach(el => el.classList.add('disabled-content'));
+        updateTotals();
+        return;
+      }
+
+      // Render latest
+      const bill = billsData[0];
+      const netDueVal = parseFloat(bill.netDue || ((parseFloat(bill.carryover||0) + parseFloat(bill.amount_due||0)) - parseFloat(bill.paymentsMade||0))) || 0;
+      const netDue = netDueVal.toFixed(2);
+
+      const billHtml = `
+        <div class="pay-bill-item" data-bill-id="${bill.id}" data-net-due="${netDue}" data-carryover="${bill.carryover||0}" data-current="${bill.amount_due||0}" data-payments="${bill.paymentsMade||0}">
+          <input type="radio" class="bill-radio" name="selected_bill" id="bill_${bill.id}" value="${bill.id}" data-net-due="${netDue}">
+          <div class="bill-details">
+            <div class="bill-month">${new Date(bill.due_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}</div>
+            <div class="bill-info"><span>Bill #${bill.bill_no}</span>
+              <span class="due-date ${new Date(bill.due_date) < new Date() ? 'overdue' : ''}">Due: ${new Date(bill.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} ${new Date(bill.due_date) < new Date() ? '(Overdue)' : ''}</span>
+            </div>
+          </div>
+          <div class="bill-amount">${parseFloat(netDue).toFixed(2)}</div>
+        </div>
+      `;
+
+      container.innerHTML = billHtml;
+      attachBillEventListeners();
+
+      // Auto-select
+      const firstRadio = container.querySelector('.bill-radio');
+      if (firstRadio) { firstRadio.checked = true; firstRadio.dispatchEvent(new Event('change')); }
+
+      console.log('Loaded latest bill successfully');
+    } catch (err) {
+      console.error('Failed to load bills:', err);
+      document.getElementById('billListContainer').innerHTML = `<div class="text-center py-4"><i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i><h5>Failed to Load Bills</h5><p class="text-muted">Please refresh the page or contact support.</p><button class="btn btn-primary btn-sm" onclick="loadBills()">Retry</button></div>`;
+    }
+  }
+
   // Initialize
   updateTotals();
   loadGcashSettings();
   loadBills();
 
   // Restore tab selection
-  const savedTab = (() => { 
-    try { 
-      return localStorage.getItem('activePaymentTab'); 
-    } catch (e) { 
-      return null; 
-    } 
-  })();
-  
-  if (savedTab === 'mobile') {
-    showMobileTab();
-  } else {
-    showCreditTab();
-  }
+  const savedTab = (function() { try { return localStorage.getItem('activePaymentTab'); } catch (e) { return null; } })();
+  if (savedTab === 'mobile') showMobileTab(); else showCreditTab();
 })();
 </script>
