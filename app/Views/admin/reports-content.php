@@ -392,6 +392,55 @@
     padding: 1rem;
   }
 }
+
+/* Modal contrast and responsive tweaks */
+#partialBillingsModal .modal-content,
+#reportPreviewModal .modal-content {
+  background: #ffffff;
+  color: #111827;
+  border-radius: 0.5rem;
+  box-shadow: 0 0.5rem 1.5rem rgba(15,23,42,0.18);
+  max-width: 1100px;
+  margin: 1.25rem auto;
+}
+
+#partialBillingsModal .modal-header,
+#reportPreviewModal .modal-header {
+  background: linear-gradient(90deg, #2b59d9 0%, #153f9a 100%);
+  color: #ffffff;
+  border-bottom: none;
+}
+
+#partialBillingsModal .modal-title,
+#reportPreviewModal .modal-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+#partialBillingsModal .modal-body,
+#reportPreviewModal .modal-body {
+  color: #1f2937;
+  line-height: 1.5;
+  max-height: 65vh;
+  overflow: auto;
+  padding: 1rem;
+  background: #ffffff;
+}
+
+.btn-close.btn-close-white {
+  filter: drop-shadow(0 1px 0 rgba(0,0,0,0.12));
+}
+
+/* Ensure modal is full-width on small screens but keeps margins */
+@media (max-width: 768px) {
+  #partialBillingsModal .modal-dialog,
+  #reportPreviewModal .modal-dialog {
+    max-width: 95%;
+    margin: 0.5rem;
+  }
+  #partialBillingsModal .modal-body { max-height: 60vh; padding: 0.75rem; font-size: 0.95rem; }
+  .report-card .report-footer .btn { font-size: 0.85rem; padding: 0.4rem 0.6rem; }
+}
 </style>
 
 <div class="main-content reports-wrapper">
@@ -406,11 +455,16 @@
         <i class="fas fa-sync-alt"></i>
         Refresh
       </a>
-      <a href="<?= site_url('admin/exportReports') ?>" 
-        class="btn btn-success btn-export" data-export-url="<?= site_url('admin/exportReports') ?>" data-format="csv">
+      <select id="exportFormat" class="form-control" style="max-width:140px; display:inline-block; margin-right:0.5rem;">
+        <option value="csv">CSV</option>
+        <option value="xlsx">Excel (.xlsx)</option>
+        <option value="pdf">PDF</option>
+        <option value="print">Print</option>
+      </select>
+      <button id="btnExport" class="btn btn-success">
         <i class="fas fa-download"></i>
-        Export All
-      </a>
+        Export
+      </button>
     </div>
   </div>
 
@@ -563,7 +617,7 @@
         </div>
       </div>
       <div class="report-footer">
-        <a href="<?= site_url('admin/partialBillings') ?>" class="btn btn-sm btn-outline-primary">View All</a>
+        <a href="<?= site_url('admin/partialBillings') ?>" class="btn btn-sm btn-outline-primary btn-view-partials">View All</a>
       </div>
     </div>
 
@@ -683,6 +737,24 @@
       </div>
     </div>
   </div>
+
+        <!-- Partial Billings Modal (loads partialBillings view via AJAX) -->
+        <div class="modal fade" id="partialBillingsModal" tabindex="-1" aria-labelledby="partialBillingsLabel" aria-hidden="true">
+          <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+              <div class="modal-header" style="background: linear-gradient(90deg,var(--primary), var(--primary-dark)); color:white;">
+                <h5 class="modal-title" id="partialBillingsLabel"><i class="fas fa-list me-2"></i>Partial Billings</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <div class="modal-body" style="min-height:40vh;">
+                <div class="text-center text-muted">Loading...</div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-outline btn-sm" data-bs-dismiss="modal">Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
 </div>
 
 <!-- Data for Charts -->
@@ -1025,6 +1097,33 @@
                 viewReport(reportType);
             });
         });
+
+        // Partial Billings: open in modal via AJAX instead of navigating away
+        const partialBtn = document.querySelector('.btn-view-partials');
+        if (partialBtn) {
+          partialBtn.addEventListener('click', function(e){
+            e.preventDefault();
+            const url = this.href;
+            const modalEl = document.getElementById('partialBillingsModal');
+            const body = modalEl.querySelector('.modal-body');
+            body.innerHTML = '<div class="text-center text-muted">Loading...</div>';
+            fetch(url, { credentials: 'same-origin' })
+              .then(r => r.text())
+              .then(html => {
+              // Inject the returned partialBillings view into the modal body
+              body.innerHTML = html;
+              try {
+                const bsModal = new bootstrap.Modal(modalEl);
+                bsModal.show();
+              } catch (err) {
+                console.warn('Bootstrap modal not available, fallback to alert');
+              }
+              }).catch(err => {
+              console.error('Failed to load partial billings:', err);
+              body.innerHTML = '<div class="text-center text-danger">Failed to load. See console for details.</div>';
+              });
+          });
+        }
     }
     
     function applyFilters() {
@@ -1106,12 +1205,32 @@
         });
     }
     
+    // Export format selector logic
+    document.getElementById('btnExport')?.addEventListener('click', function() {
+      const format = document.getElementById('exportFormat')?.value || 'csv';
+      const baseUrl = '<?= site_url('admin/exportReports') ?>';
+      // Collect filter params
+      const startDate = document.getElementById('startDate')?.value;
+      const endDate = document.getElementById('endDate')?.value;
+      const reportType = document.getElementById('reportType')?.value;
+      const params = new URLSearchParams();
+      if (startDate) params.set('start', startDate);
+      if (endDate) params.set('end', endDate);
+      if (reportType) params.set('type', reportType);
+      params.set('format', format);
+      const url = baseUrl + '?' + params.toString();
+      if (format === 'print') {
+        window.open(url, '_blank');
+      } else {
+        window.location.href = url;
+      }
+    });
     // Initialize when DOM is ready
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initializeReports);
     } else {
         initializeReports();
     }
-    
+
 })();
 </script>
