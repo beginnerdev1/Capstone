@@ -1151,39 +1151,20 @@
     <!-- Left Panel: Bill Summary -->
     <div class="bill-summary">
       <!-- Bill Selection -->
-      <?php if (!empty($bills)): ?>
-        <div class="bill-selection">
-          <div class="selection-header">
-            <h3 class="selection-title">Select Bill to Pay</h3>
-          </div>
-          
-          <?php foreach ($bills as $bill): ?>
-            <div class="pay-bill-item" data-bill-id="<?= $bill['id'] ?>" data-amount="<?= $bill['amount_due'] ?>">
-              <input 
-                type="radio" 
-                class="bill-radio" 
-                name="selected_bill"
-                id="bill_<?= $bill['id'] ?>" 
-                value="<?= $bill['id'] ?>"
-                data-amount="<?= $bill['amount_due'] ?>"
-              >
-              <div class="bill-details">
-                <div class="bill-month">
-                  <?= date('F Y', strtotime($bill['billing_month'] . '-01')) ?>
-                </div>
-                <div class="bill-info">
-                  <span>Bill #<?= $bill['bill_no'] ?></span>
-                  <span class="due-date <?= strtotime($bill['due_date']) < time() ? 'overdue' : '' ?>">
-                    Due: <?= date('M j, Y', strtotime($bill['due_date'])) ?>
-                    <?= strtotime($bill['due_date']) < time() ? '(Overdue)' : '' ?>
-                  </span>
-                </div>
-              </div>
-              <div class="bill-amount">₱<?= number_format($bill['amount_due'], 2) ?></div>
-            </div>
-          <?php endforeach; ?>
+      <div class="bill-selection">
+        <div class="selection-header">
+          <h3 class="selection-title">Select Bill to Pay</h3>
         </div>
-      <?php endif; ?>
+        <div id="billListContainer">
+          <!-- Bills will be loaded here via AJAX -->
+          <div class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading bills...</span>
+            </div>
+            <p class="mt-2 text-muted">Loading your bills...</p>
+          </div>
+        </div>
+      </div>
 
       <!-- Amount Display -->
       <div class="summary-card">
@@ -1212,8 +1193,20 @@
       <div class="bill-breakdown <?= empty($bills) ? 'disabled-content' : '' ?>">
         <div id="selectedBillsBreakdown">
           <div class="breakdown-item">
-            <span class="breakdown-label">Selected Bill</span>
-            <span class="breakdown-value">₱<span id="billsSubtotal">0.00</span></span>
+            <span class="breakdown-label">Carryover from Previous Bills</span>
+            <span class="breakdown-value">₱<span id="carryoverAmount">0.00</span></span>
+          </div>
+          <div class="breakdown-item">
+            <span class="breakdown-label">Current Charges</span>
+            <span class="breakdown-value">₱<span id="currentAmount">0.00</span></span>
+          </div>
+          <div class="breakdown-item">
+            <span class="breakdown-label">Payments Made</span>
+            <span class="breakdown-value">-₱<span id="paymentsAmount">0.00</span></span>
+          </div>
+          <div class="breakdown-item">
+            <span class="breakdown-label">Net Due</span>
+            <span class="breakdown-value">₱<span id="netDueAmount">0.00</span></span>
           </div>
         </div>
         <div class="breakdown-item">
@@ -1359,16 +1352,26 @@
   // Calculate totals based on selected bill
   function updateTotals() {
     const selectedRadio = root.querySelector('.bill-radio:checked');
-    let subtotal = 0;
-    let selectedBillId = '';
+    let carryover = 0, current = 0, payments = 0, netDue = 0;
 
     if (selectedRadio) {
-      subtotal = parseFloat(selectedRadio.dataset.amount) || 0;
-      selectedBillId = selectedRadio.value;
+      const billId = selectedRadio.value;
+      // Assuming bill data is stored in a global or fetched; for simplicity, fetch from data.bills if available
+      // In a real setup, store bill data in a map or refetch
+      const bill = data.bills.find(b => b.id == billId); // data.bills from loadBills
+      if (bill) {
+        carryover = bill.carryover;
+        current = bill.amount_due;
+        payments = bill.paymentsMade;
+        netDue = bill.netDue;
+      }
     }
 
-    const serviceFee = selectedRadio ? serviceFeeRate : 0;
-    const total = subtotal + serviceFee;
+    // Update elements
+    document.getElementById('carryoverAmount').textContent = `₱${carryover.toFixed(2)}`;
+    document.getElementById('currentAmount').textContent = `₱${current.toFixed(2)}`;
+    document.getElementById('paymentsAmount').textContent = `-₱${payments.toFixed(2)}`;
+    document.getElementById('netDueAmount').textContent = `₱${netDue.toFixed(2)}`;
 
     // Update display elements
     if (totalAmountElement) totalAmountElement.textContent = total.toFixed(2);
@@ -1690,9 +1693,112 @@
     }
   }
 
+  // Load bills via AJAX
+  async function loadBills() {
+    try {
+      const res = await fetch('<?= base_url('users/getBillingsAjax') ?>', { 
+        credentials: 'same-origin' 
+      });
+      const data = await res.json();
+      
+      if (!data || data.status !== 'success') {
+        throw new Error('Failed to load bills');
+      }
+
+      const bills = data.bills || [];
+      const container = document.getElementById('billListContainer');
+      
+      if (bills.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-4">
+            <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+            <h5>No Pending Bills</h5>
+            <p class="text-muted">All bills are up to date!</p>
+          </div>
+        `;
+        // Disable payment elements
+        document.querySelectorAll('.disabled-content').forEach(el => el.classList.add('disabled-content'));
+        return;
+      }
+
+      // Render bills dynamically using netDue
+      const billHtml = bills.map(bill => `
+        <div class="pay-bill-item" data-bill-id="${bill.id}" data-net-due="${bill.netDue}" data-carryover="${bill.carryover}" data-current="${bill.amount_due}" data-payments="${bill.paymentsMade}">
+          <input 
+            type="radio" 
+            class="bill-radio" 
+            name="selected_bill"
+            id="bill_${bill.id}" 
+            value="${bill.id}"
+            data-net-due="${bill.netDue}"
+          >
+          <div class="bill-details">
+            <div class="bill-month">
+              ${new Date(bill.due_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+            </div>
+            <div class="bill-info">
+              <span>Bill #${bill.bill_no}</span>
+              <span class="due-date ${new Date(bill.due_date) < new Date() ? 'overdue' : ''}">
+                Due: ${new Date(bill.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                ${new Date(bill.due_date) < new Date() ? '(Overdue)' : ''}
+              </span>
+            </div>
+          </div>
+          <div class="bill-amount">₱${parseFloat(bill.netDue).toFixed(2)}</div>
+        </div>
+      `).join('');
+      
+      container.innerHTML = billHtml;
+      
+      // Re-attach event listeners for the new elements
+      attachBillEventListeners();
+      
+      console.log(`Loaded ${bills.length} bills successfully`);
+    } catch (err) {
+      console.error('Failed to load bills:', err);
+      document.getElementById('billListContainer').innerHTML = `
+        <div class="text-center py-4">
+          <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+          <h5>Failed to Load Bills</h5>
+          <p class="text-muted">Please refresh the page or contact support.</p>
+          <button class="btn btn-primary btn-sm" onclick="loadBills()">Retry</button>
+        </div>
+      `;
+    }
+  }
+
+  // Attach event listeners to bill items (called after AJAX load)
+  function attachBillEventListeners() {
+    const radioButtons = document.querySelectorAll('.bill-radio');
+    const billItems = document.querySelectorAll('.pay-bill-item');
+    
+    radioButtons.forEach(radio => {
+      radio.addEventListener('change', function() {
+        billItems.forEach(item => item.classList.remove('selected'));
+        const billItem = this.closest('.pay-bill-item');
+        if (billItem && this.checked) {
+          billItem.classList.add('selected');
+        }
+        updateTotals();
+      });
+    });
+
+    billItems.forEach(item => {
+      item.addEventListener('click', function(e) {
+        if (e.target.type === 'radio') return;
+        const radio = this.querySelector('.bill-radio');
+        if (radio) {
+          radio.checked = true;
+          radio.dispatchEvent(new Event('change'));
+        }
+      });
+    });
+  }
+
   // Initialize
   updateTotals();
   loadGcashSettings();
+  loadBills();
 
   // Restore tab selection
   const savedTab = (() => { 

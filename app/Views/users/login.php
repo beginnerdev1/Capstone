@@ -230,9 +230,12 @@
 
                 <button type="submit" class="btn btn-login w-100">Log In</button>
 
+                <!-- 
+                Signup link for users who don't have an account
                 <div class="signup mt-3">
-                    Don't have an account? <a href="<?= base_url('register') ?>">Sign Up</a>
+                  Don't have an account? <a href="<?= base_url('register') ?>">Sign Up</a>
                 </div>
+                -->
             </form>
 
 

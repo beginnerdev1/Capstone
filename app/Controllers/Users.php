@@ -396,49 +396,89 @@ public function changePassword()
 
 
     // Return billing data via AJAX
-   public function getBillingsAjax()
-    {
-        $limit = (int) ($this->request->getGet('limit') ?? 10);
-        $userId = session()->get('user_id'); // Fixed: was 'id', now 'user_id'
+public function getBillingsAjax()
+{
+    $limit = (int) ($this->request->getGet('limit') ?? 10);
+    $userId = session()->get('user_id');
 
-        $billingModel = new BillingModel();
-
-        // Fetch bills belonging to the logged-in user
-        $billings = $billingModel
-            ->where('user_id', $userId)
-            ->orderBy('created_at', 'DESC')
-            ->findAll($limit);
-
-        // Optionally format the data for JSON (for cleaner output)
-        $data = array_map(function ($bill) {
-            return [
-                'id'         => $bill['id'],
-                'bill_no'    => $bill['bill_no'],
-                'amount'     => (float) $bill['amount_due'],
-                'due_date'   => $bill['due_date'],
-                'status'     => ucfirst($bill['status']),
-                'month'      => $bill['billing_month'] ?? '',
-            ];
-        }, $billings);
-
-        return $this->response->setJSON($data);
+    if (empty($userId)) {
+        return $this->response->setStatusCode(401)->setJSON([
+            'status' => 'error',
+            'message' => 'Unauthenticated'
+        ]);
     }
+
+    $billingModel = new BillingModel();
+
+    // 1) Fetch recent bills
+    try {
+        $billings = $billingModel->getBillsByUser($userId, $limit);
+    } catch (\Throwable $e) {
+        $billings = [];
+        log_message('error', 'getBillingsAjax: failed to fetch bills - ' . $e->getMessage());
+    }
+
+    $latestBill = !empty($billings) ? $billings[0] : null;
+
+    if ($latestBill) {
+        $amountDue = isset($latestBill['amount_due']) ? (float)$latestBill['amount_due'] : 0.0;
+        $carryover = isset($latestBill['carryover']) ? (float)$latestBill['carryover'] : 0.0;
+        $balance = ($latestBill['balance'] !== null) ? (float)$latestBill['balance'] : $amountDue;
+
+        $totalOutstanding = $carryover + $balance;
+    } else {
+        $amountDue = 0;
+        $carryover = 0;
+        $balance = 0;
+        $totalOutstanding = 0;
+    }
+
+    $response = [
+        'status' => 'success',
+        'bills' => $billings,
+        'totals' => [
+            'carryover' => $carryover,
+            'currentBill' => $amountDue,
+            'totalOutstanding' => $totalOutstanding,
+            'totalPaid' => 0.0
+        ],
+
+        // legacy keys for backward compatibility
+        'carryover' => $carryover,
+        'currentBill' => $amountDue,
+        'totalOutstanding' => $totalOutstanding,
+        'totalPaid' => 0.0,
+    ];
+
+    return $this->response->setJSON($response);
+}
+
+
+
+// Return specific bill details via AJAX for the manual transaction
 
 // Return specific bill details via AJAX for the manual transaction
 public function getBillDetails()
 {
     $billId = $this->request->getGet('bill_id');
+    log_message('debug', 'getBillDetails: billId received: ' . $billId); // Debug: Check bill_id
+
     $billingModel = new \App\Models\BillingModel();
     $bill = $billingModel->find($billId);
+    log_message('debug', 'getBillDetails: bill array: ' . json_encode($bill)); // Debug: Inspect the full array
 
     if ($bill) {
+        log_message('debug', 'getBillDetails: Bill found, processing fields'); // Debug: Confirm branch
         return $this->response->setJSON([
-            'bill_no' => $bill['bill_no'],
-            'billing_month' => $bill['billing_month'],
-            'due_date' => $bill['due_date'],
-            'amount_due' => $bill['amount_due']
+            'bill_no' => isset($bill['bill_no']) ? $bill['bill_no'] : '',
+            'billing_month' => isset($bill['billing_month']) ? $bill['billing_month'] : '',
+            'due_date' => isset($bill['due_date']) ? $bill['due_date'] : '',
+            'amount_due' => isset($bill['amount_due']) ? (float)$bill['amount_due'] : 0.0,
+            'balance' => isset($bill['balance']) ? (float)$bill['balance'] : 0.0,
+            'carryover' => isset($bill['carryover']) ? (float)$bill['carryover'] : 0.0,
         ]);
     } else {
+        log_message('debug', 'getBillDetails: No bill found for billId: ' . $billId); // Debug: If null
         return $this->response->setJSON([]);
     }
 }
@@ -453,81 +493,78 @@ public function getBillDetails()
 
 
     // Show payments 
-    public function payments()
-    {
-        $userId = session()->get('user_id');
+public function payments()
+{
+    $userId = session()->get('user_id');
 
-        if (!$userId) {
-            return redirect()->to('/login');
-        }
+    if (!$userId) {
+        return redirect()->to('/login');
+    }
 
-        $billingModel  = new BillingModel();
-        $paymentsModel = new PaymentsModel();
+    $billingModel  = new BillingModel();
+    $paymentsModel = new PaymentsModel();
 
-        // 1) Get pending bills for the current user (from BillingModel method)
-        $pendingBills = $billingModel->getPendingBillingsByUserAndMonth($userId);
+    // 1) Get the latest pending bill for the user
+    $latestBill = $billingModel
+        ->where('user_id', $userId)
+        ->where('status', 'Pending')
+        ->orderBy('billing_month', 'DESC')
+        ->first();
 
-        // 2) Get user's payments that are NOT 'rejected' (and not soft-deleted)
-        //    We will extract all billing IDs referenced by those payments so we can exclude them.
-        $payments = $paymentsModel
+    if ($latestBill) {
+        // 2) Get carryover for this bill (or calculate total carryover if needed)
+        $carryover = isset($latestBill['carryover']) ? (float)$latestBill['carryover'] : 0.0;
+
+        // 3) Get current month bill amount
+        $currentAmount = isset($latestBill['amount_due']) ? (float)$latestBill['amount_due'] : 0.0;
+
+        // 4) Subtract payments already made for this bill
+        $paymentsMade = $paymentsModel
+            ->selectSum('amount')
             ->where('user_id', $userId)
-            ->where('deleted_at', null)
-            ->where('status !=', 'rejected')
-            ->findAll();
+            ->where('billing_id', $latestBill['id'])
+            ->whereIn('status', ['paid', 'Paid']) // Adjust statuses as needed
+            ->get()
+            ->getRowArray()['amount'] ?? 0.0;
 
-        $excludeBillingIds = [];
-        foreach ($payments as $p) {
-            if (empty($p['billing_id'])) {
-                continue;
-            }
+        // 5) Calculate net total due for latest bill
+        $netDue = $carryover + $currentAmount - $paymentsMade;
+        $netDue = max(0, $netDue); // Ensure not negative
 
-            // billing_id may be a single id or comma-separated list (gateway payments)
-            $parts = array_filter(array_map('trim', explode(',', $p['billing_id'])));
-            foreach ($parts as $part) {
-                if (is_numeric($part)) {
-                    $excludeBillingIds[] = (int) $part;
-                }
-            }
-        }
-        $excludeBillingIds = array_unique($excludeBillingIds);
-
-        // 3) Filter out pending bills that are in the exclude list
-        $availableBills = array_filter($pendingBills, function ($bill) use ($excludeBillingIds) {
-            if (!isset($bill['id'])) {
-                return true;
-            }
-            return !in_array((int) $bill['id'], $excludeBillingIds, true);
-        });
-
-        // Re-index array (optional, keeps indices clean)
-        $availableBills = array_values($availableBills);
-
-        // 4) Calculate totals (service fee remains applied if any bill selected)
-        $totalAmount = 0;
+        // 6) Add service fee
         $serviceFee = 1.99;
-
-        foreach ($availableBills as $bill) {
-            $totalAmount += (float) $bill['amount_due'];
-        }
-
-        $finalTotal = $totalAmount + $serviceFee;
-
-        // Keep latestBill derived from the filtered set
-        $latestBill = !empty($availableBills) ? $availableBills[0] : null;
+        $finalTotal = $netDue + $serviceFee;
 
         $data = [
-            'bills'       => $availableBills,
-            'totalAmount' => $totalAmount,
-            'serviceFee'  => $serviceFee,
-            'finalTotal'  => $finalTotal,
-            'latestBill'  => $latestBill,
-            'invoiceId'   => $latestBill ? $latestBill['bill_no'] : 'N/A',
-            'dueDate'     => $latestBill ? date('F j, Y', strtotime($latestBill['due_date'])) : 'N/A'
+            'bills' => [$latestBill], // Only show latest bill
+            'totalAmount' => $netDue,
+            'serviceFee' => $serviceFee,
+            'finalTotal' => $finalTotal,
+            'latestBill' => $latestBill,
+            'carryover' => $carryover,
+            'currentAmount' => $currentAmount,
+            'paymentsMade' => $paymentsMade,
         ];
+    } else {
+        // No pending bills: Show total outstanding as fallback
+        $totalOutstanding = $billingModel->getOutstandingForUser($userId);
+        $serviceFee = 1.99;
+        $finalTotal = $totalOutstanding + $serviceFee;
 
-        return view('users/payments', $data);
+        $data = [
+            'bills' => [],
+            'totalAmount' => $totalOutstanding,
+            'serviceFee' => $serviceFee,
+            'finalTotal' => $finalTotal,
+            'latestBill' => null,
+            'carryover' => 0,
+            'currentAmount' => 0,
+            'paymentsMade' => 0,
+        ];
     }
-  
+
+    return view('users/payments', $data);
+}
     
     // Check for existing pending transaction for a bill
 public function hasPendingTransaction($billId)
@@ -632,10 +669,16 @@ public function createCheckout()
             ]);
         }
 
-        // Calculate and verify amount
+        // Calculate and verify amount (now includes carryover)
         $calculatedTotal = array_sum(array_column($userBills, 'amount_due'));
+
+        // Fetch carryover
+        $billings = $billingModel->getBillsByUser($userId, 1);
+        $latestBill = !empty($billings) ? $billings[0] : null;
+        $carryover = $latestBill ? (isset($latestBill['carryover']) ? (float)$latestBill['carryover'] : 0.0) : 0.0;
+
         $serviceFee = 1.99;
-        $expectedTotal = $calculatedTotal + $serviceFee;
+        $expectedTotal = $carryover + $calculatedTotal + $serviceFee;
 
         if (abs($totalAmount - $expectedTotal) > 0.01) {
             return $this->response->setJSON([
@@ -755,8 +798,9 @@ public function createCheckout()
 }
 
 // Helper method to expire old pending payments
-    private function expireOldPayments($userId)
-        {
+private function expireOldPayments($userId)
+
+{
             $paymentsModel = new PaymentsModel();
             
             // Mark payments as expired if they're older than 30 minutes and still awaiting_payment
@@ -772,7 +816,7 @@ public function createCheckout()
             }
             
             return $expiredCount;
-        }
+}
 
         
     // Handle payment success and failure redirects
@@ -781,37 +825,110 @@ public function paySuccess()
         $session = session();
         $userId = $session->get('user_id');
 
-        $paymentModel = new \App\Models\PaymentModel();
+        // Use the PaymentsModel (plural) and BillingModel
+        $paymentsModel = new \App\Models\PaymentsModel();
         $billingModel = new \App\Models\BillingModel();
 
-        // 1️⃣ Find the latest pending bill of the user
+        // 1) Find the latest pending bill of the user
         $latestBill = $billingModel
             ->where('user_id', $userId)
             ->where('status', 'Pending')
             ->orderBy('id', 'DESC')
             ->first();
 
-        // 2️⃣ Create the payment record
+        $amountToPay = $latestBill ? (float)$latestBill['balance'] > 0 ? (float)$latestBill['balance'] : (float)$latestBill['amount_due'] : 0.0;
+
+        // 2) Create the payment record (mark paid)
         $paymentData = [
             'user_id' => $userId,
-            'amount'  => $latestBill ? $latestBill['amount_due'] : 0,
+            'amount'  => $amountToPay,
             'status'  => 'Paid',
             'billing_id' => $latestBill ? $latestBill['id'] : null,
             'created_at' => date('Y-m-d H:i:s'),
+            'paid_at' => date('Y-m-d H:i:s'),
         ];
 
-        $paymentModel->insert($paymentData);
+        $paymentsModel->insert($paymentData);
 
-        // 3️⃣ Update the billing record to mark as paid
-        if ($latestBill) {
-            $billingModel->update($latestBill['id'], [
-                'status' => 'Paid',
-                'paid_date' => date('Y-m-d H:i:s'),
-            ]);
+        // 3) Apply payment transactionally using BillingModel helper (supports partial)
+        if ($latestBill && $amountToPay > 0) {
+            try {
+                $applyRes = $billingModel->applyPaymentToBill((int)$latestBill['id'], (float)$amountToPay);
+                if ($applyRes === false) {
+                    log_message('error', 'paySuccess: applyPaymentToBill failed for bill ' . $latestBill['id']);
+                }
+            } catch (\Throwable $e) {
+                log_message('error', 'paySuccess exception applying payment: ' . $e->getMessage());
+            }
         }
 
         // Redirect or load success page
         return redirect()->to('/user/payments')->with('success', 'Payment successful!');
+    }
+
+    // AJAX endpoint to apply a payment immediately to a single bill (used by client-side quick-pay)
+    public function applyPaymentAjax()
+    {
+        $userId = session()->get('user_id');
+
+        if (!$userId) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Unauthenticated'])->setStatusCode(401);
+        }
+
+        $billId = (int) $this->request->getPost('billing_id');
+        $amount = floatval($this->request->getPost('amount'));
+
+        if ($billId <= 0 || $amount <= 0) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Invalid input']);
+        }
+
+        $paymentsModel = new \App\Models\PaymentsModel();
+        $billingModel  = new BillingModel();
+
+        // Verify the bill belongs to the user
+        $bill = $billingModel->where('id', $billId)->where('user_id', $userId)->first();
+        if (!$bill) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Bill not found']);
+        }
+
+        // Create a payment record (manual immediate capture)
+        $paymentData = [
+            'user_id' => $userId,
+            'billing_id' => $billId,
+            'method' => 'manual',
+            'amount' => $amount,
+            'currency' => 'PHP',
+            'status' => 'paid',
+            'paid_at' => date('Y-m-d H:i:s'),
+            'created_at' => date('Y-m-d H:i:s')
+        ];
+
+        $insertedId = $paymentsModel->insert($paymentData);
+        if (!$insertedId) {
+            log_message('error', 'applyPaymentAjax failed to insert payment: ' . json_encode($paymentData));
+            return $this->response->setJSON(['success' => false, 'message' => 'Failed to record payment']);
+        }
+
+        // Apply the payment to the billing atomically
+        try {
+            $res = $billingModel->applyPaymentToBill($billId, $amount);
+            if ($res === false) {
+                log_message('error', 'applyPaymentAjax: applyPaymentToBill returned false for bill ' . $billId);
+                return $this->response->setJSON(['success' => false, 'message' => 'Failed to apply payment']);
+            }
+
+            return $this->response->setJSON([
+                'success' => true,
+                'billing_id' => $billId,
+                'applied_amount' => $amount,
+                'new_balance' => isset($res['new_balance']) ? (float)$res['new_balance'] : null,
+                'status' => $res['status'] ?? null
+            ]);
+
+        } catch (\Throwable $e) {
+            log_message('error', 'applyPaymentAjax exception: ' . $e->getMessage());
+            return $this->response->setJSON(['success' => false, 'message' => 'Server error applying payment'])->setStatusCode(500);
+        }
     }
 
 
@@ -969,28 +1086,40 @@ public function paymentSuccess()
         ->first();
 
     if ($payment) {
-        if ($payment['status'] === 'awaiting_payment') {
-            // Webhook hasn't processed yet, do fallback update
-            $paymentsModel->update($payment['id'], [
-                'status' => 'paid',
-                'paid_at' => date('Y-m-d H:i:s'),
-                'updated_at' => date('Y-m-d H:i:s')
-            ]);
+            if ($payment['status'] === 'awaiting_payment') {
+                // Webhook hasn't processed yet, do fallback update
+                $paymentsModel->update($payment['id'], [
+                    'status' => 'paid',
+                    'paid_at' => date('Y-m-d H:i:s'),
+                    'updated_at' => date('Y-m-d H:i:s')
+                ]);
 
-            // Update billing records
-            if (!empty($payment['billing_id'])) {
-                $billingModel = new BillingModel();
-                $billIds = explode(',', $payment['billing_id']);
-                
-                foreach ($billIds as $billId) {
-                    $billingModel->update(trim($billId), [
-                        'status' => 'Paid',
-                        'paid_date' => date('Y-m-d H:i:s')
-                    ]);
+                // Update billing records by allocating the payment amount across referenced bills (oldest-first)
+                if (!empty($payment['billing_id'])) {
+                    $billingModel = new BillingModel();
+                    $billIds = array_filter(array_map('trim', explode(',', $payment['billing_id'])));
+                    $amountRemaining = isset($payment['amount']) ? (float)$payment['amount'] : 0.0;
+
+                    foreach ($billIds as $billId) {
+                        if ($amountRemaining <= 0) break;
+                        $bill = $billingModel->find((int)$billId);
+                        if (!$bill) continue;
+
+                        $outstanding = isset($bill['balance']) && $bill['balance'] > 0 ? (float)$bill['balance'] : (float)$bill['amount_due'];
+                        $toApply = min($amountRemaining, $outstanding);
+
+                        if ($toApply <= 0) continue;
+
+                        $res = $billingModel->applyPaymentToBill((int)$billId, $toApply);
+                        if ($res === false) {
+                            log_message('error', 'paymentSuccess: failed to apply ' . $toApply . ' to bill ' . $billId);
+                        }
+
+                        $amountRemaining = round($amountRemaining - $toApply, 2);
+                    }
                 }
-            }
 
-            log_message('info', 'Payment updated via redirect (webhook fallback) for user: ' . $userId);
+                log_message('info', 'Payment updated via redirect (webhook fallback) for user: ' . $userId);
         } else {
             log_message('info', 'Payment already processed by webhook for user: ' . $userId);
         }
@@ -1110,13 +1239,13 @@ public function getDisconnectionStatus()
     }
 
     $userId = session()->get('user_id');
-    $billModel = new \App\Models\BillModel();
+    $billingModel = new \App\Models\BillingModel();
 
     // server timezone considerations: compare dates using YYYY-MM-DD
     $thresholdDate = date('Y-m-d', strtotime('+1 day'));
 
-    $urgent = $billModel
-        ->select('bill_no, due_date')
+    $urgent = $billingModel
+        ->select('id, bill_no, due_date, amount_due, COALESCE(balance,0) as balance, status, billing_month')
         ->where('user_id', $userId)
         ->where('status', 'pending')
         ->where('due_date <=', $thresholdDate)
@@ -1127,5 +1256,59 @@ public function getDisconnectionStatus()
         'bills' => $urgent
     ]);
 }
+
+
+// Fetch payment bills with carryover logic - For Payments Page
+public function getPaymentBills($userId)
+{
+    $billingModel = new BillingModel();
+    $paymentsModel = new PaymentsModel();
+
+    // Fetch unpaid bills ordered by due_date (latest first)
+    $bills = $billingModel->where('user_id', $userId)
+                          ->where('status', 'unpaid')
+                          ->orderBy('due_date', 'DESC')
+                          ->findAll();
+
+    if (empty($bills)) {
+        return [];
+    }
+
+    // Calculate total carryover
+    $carryover = $billingModel->calculateCarryoverForUser($userId);
+
+    $billData = [];
+    foreach ($bills as $bill) {
+        // Sum payments for this bill
+        $paymentsMade = $paymentsModel->where('billing_id', $bill['id'])
+                                      ->where('status', 'paid')
+                                      ->selectSum('amount')
+                                      ->get()
+                                      ->getRow()
+                                      ->amount ?? 0;
+
+        // Net due: Include carryover only for the latest bill
+        $isLatest = ($bill['id'] === $bills[0]['id']);
+        $netDue = $bill['amount_due'] - $paymentsMade;
+        if ($isLatest) {
+            $netDue += $carryover;
+        }
+
+        $billData[] = [
+            'id' => $bill['id'],
+            'bill_no' => $bill['bill_no'] ?? 'N/A',
+            'month' => date('F Y', strtotime($bill['due_date'])),
+            'amount_due' => $bill['amount_due'],
+            'due_date' => $bill['due_date'],
+            'netDue' => max(0, $netDue),
+            'carryover' => $isLatest ? $carryover : 0,
+            'paymentsMade' => $paymentsMade,
+        ];
+    }
+
+    return $billData;
+}
+
+
 
 }
