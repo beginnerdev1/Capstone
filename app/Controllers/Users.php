@@ -584,14 +584,13 @@ public function hasPendingTransaction($billId)
     }
 
 
-// Create PayMongo checkout session
+    // Create PayMongo checkout session
 public function createCheckout()
 {
     try {
-        $secretKey = env('PAYMONGO_SECRET_KEY'); // Fixed environment variable name
+        $secretKey = env('PAYMONGO_SECRET_KEY');
         $userId = session()->get('user_id');
-        
-        // Validate user session
+
         if (!$userId) {
             return $this->response->setJSON([
                 'status' => 'error',
@@ -599,17 +598,7 @@ public function createCheckout()
             ]);
         }
 
-        // Get and validate input
-        $totalAmount = filter_var($this->request->getPost('total_amount'), FILTER_VALIDATE_FLOAT);
         $billIds = trim($this->request->getPost('bill_ids') ?? '');
-        
-        if ($totalAmount === false || $totalAmount <= 0) {
-            return $this->response->setJSON([
-                'status' => 'error',
-                'message' => 'Invalid payment amount'
-            ]);
-        }
-
         if (empty($billIds)) {
             return $this->response->setJSON([
                 'status' => 'error',
@@ -617,50 +606,15 @@ public function createCheckout()
             ]);
         }
 
-        $paymentsModel = new PaymentsModel();
-        
-        // CHECK FOR EXISTING PENDING PAYMENTS - Prevent duplicates
-        $existingPendingPayment = $paymentsModel
-            ->where('user_id', $userId)
-            ->where('billing_id', $billIds)
-            ->whereIn('status', ['awaiting_payment', 'pending'])
-            ->where('created_at >', date('Y-m-d H:i:s', strtotime('-30 minutes'))) // Only check recent payments
-            ->first();
-
-        if ($existingPendingPayment) {
-            log_message('info', 'Duplicate payment attempt blocked for user: ' . $userId);
-            return $this->response->setJSON([
-                'status' => 'error',
-                'message' => 'A payment for these bills is already in progress. Please wait a few minutes before trying again.'
-            ]);
-        }
-
-        // CHECK DAILY PAYMENT ATTEMPTS LIMIT
-        $todayAttempts = $paymentsModel
-            ->where('user_id', $userId)
-            ->where('method', 'gateway')
-            ->where('DATE(created_at)', date('Y-m-d'))
-            ->countAllResults();
-
-        if ($todayAttempts >= 5) { // Maximum 5 attempts per day
-            log_message('warning', 'Payment attempt limit exceeded for user: ' . $userId);
-            return $this->response->setJSON([
-                'status' => 'error',
-                'message' => 'You have exceeded the daily payment attempt limit. Please try again tomorrow or contact support.'
-            ]);
-        }
-
-        // EXPIRE OLD PENDING PAYMENTS before creating new one
-        $this->expireOldPayments($userId);
-
-        // Verify bill ownership and calculate total
-        $billingModel = new BillingModel();
         $billIdArray = array_filter(explode(',', $billIds));
-        
+        $billingModel = new BillingModel();
+        $paymentsModel = new PaymentsModel();
+
+        // Get selected bills (only Pending status, ignore partial)
         $userBills = $billingModel->whereIn('id', $billIdArray)
-                                 ->where('user_id', $userId)
-                                 ->where('status', 'Pending')
-                                 ->findAll();
+                                  ->where('user_id', $userId)
+                                  ->where('status', 'Pending')
+                                  ->findAll();
 
         if (count($userBills) !== count($billIdArray)) {
             return $this->response->setJSON([
@@ -669,26 +623,55 @@ public function createCheckout()
             ]);
         }
 
-        // Calculate and verify amount (now includes carryover)
-        $calculatedTotal = array_sum(array_column($userBills, 'amount_due'));
+        // Total of selected bills (exact balances)
+        $calculatedTotal = array_sum(array_column($userBills, 'balance'));
 
-        // Fetch carryover
-        $billings = $billingModel->getBillsByUser($userId, 1);
-        $latestBill = !empty($billings) ? $billings[0] : null;
-        $carryover = $latestBill ? (isset($latestBill['carryover']) ? (float)$latestBill['carryover'] : 0.0) : 0.0;
+        // Include carryover from latest bill
+        $latestBill = $billingModel->where('user_id', $userId)
+                                   ->orderBy('billing_month', 'DESC')
+                                   ->first();
+        $carryover = $latestBill ? (float)($latestBill['carryover'] ?? 0) : 0.0;
 
-        $serviceFee = 1.99;
-        $expectedTotal = $carryover + $calculatedTotal + $serviceFee;
+        $totalAmount = $calculatedTotal + $carryover;
 
-        if (abs($totalAmount - $expectedTotal) > 0.01) {
+        // Validate payment amount
+        $inputAmount = filter_var($this->request->getPost('total_amount'), FILTER_VALIDATE_FLOAT);
+        if ($inputAmount === false || abs($inputAmount - $totalAmount) > 0.01) {
             return $this->response->setJSON([
                 'status' => 'error',
-                'message' => 'Payment amount verification failed'
+                'message' => 'Payment amount must exactly match the total due of selected bills including carryover'
             ]);
         }
 
-        // Convert to centavos for PayMongo
-        $amount = (int)($totalAmount * 100);
+        // Server-side service fee (fixed) — prevents client tampering
+        $serviceFee = 1.99;
+
+        // Gateway amount = net due + service fee (this is the amount we'll charge via PayMongo)
+        $gatewayAmount = round($totalAmount + $serviceFee, 2);
+
+        // Persist a pending payment record so we can reference it later (and store service fee)
+        $paymentData = [
+            'billing_id'     => $billIds,
+            'user_id'        => $userId,
+            'method'         => 'gateway',
+            'amount'         => $totalAmount,
+            'gateway_amount' => $gatewayAmount,
+            'service_fee'    => $serviceFee,
+            'status'         => 'initiated',
+            'currency'       => 'PHP',
+            'created_at'     => date('Y-m-d H:i:s'),
+        ];
+
+        $insertedPaymentId = $paymentsModel->insert($paymentData);
+        if (!$insertedPaymentId) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'Failed to create payment record'
+            ]);
+        }
+
+        // Convert gateway amount to centavos
+        $amount = (int) round($gatewayAmount * 100);
 
         // Create PayMongo checkout session
         $payload = [
@@ -727,7 +710,8 @@ public function createCheckout()
         curl_close($ch);
 
         if ($curlError) {
-            log_message('error', 'PayMongo API cURL error: ' . $curlError);
+            // mark payment as failed
+            $paymentsModel->update($insertedPaymentId, ['status' => 'failed', 'updated_at' => date('Y-m-d H:i:s')]);
             return $this->response->setJSON([
                 'status' => 'error',
                 'message' => 'Payment gateway connection failed'
@@ -735,67 +719,39 @@ public function createCheckout()
         }
 
         $result = json_decode($response, true);
-        log_message('debug', 'PayMongo checkout response: ' . $response);
-
         if ($httpCode === 200 && isset($result['data']['id'])) {
-            $checkoutUrl = $result['data']['attributes']['checkout_url'];
+            $checkoutUrl = $result['data']['attributes']['checkout_url'] ?? null;
             $paymentIntentId = $result['data']['attributes']['payment_intent']['id'] ?? null;
 
-            if ($paymentIntentId) {
-                // Create payment record with tracking fields
-                $paymentData = [
-                    'user_id' => $userId,
-                    'billing_id' => $billIds,
-                    'payment_intent_id' => $paymentIntentId,
-                    'method' => 'gateway',
-                    'amount' => $totalAmount,
-                    'currency' => 'PHP',
-                    'status' => 'awaiting_payment',
-                    'expires_at' => date('Y-m-d H:i:s', strtotime('+30 minutes')),
-                    'attempt_number' => $todayAttempts + 1,
-                    'created_at' => date('Y-m-d H:i:s')
-                ];
+            // update payment record with gateway references
+            $updateData = [
+                'payment_intent_id' => $paymentIntentId,
+                'checkout_url' => $checkoutUrl,
+                'status' => 'awaiting_payment',
+                'updated_at' => date('Y-m-d H:i:s')
+            ];
+            $paymentsModel->update($insertedPaymentId, $updateData);
 
-                $paymentId = $paymentsModel->insert($paymentData);
-                
-                if (!$paymentId) {
-                    log_message('error', 'Failed to create payment record for user: ' . $userId);
-                    return $this->response->setJSON([
-                        'status' => 'error',
-                        'message' => 'Failed to initialize payment'
-                    ]);
-                }
-
-                log_message('info', 'Payment session created for user: ' . $userId . ', Payment ID: ' . $paymentId);
-
+            if ($checkoutUrl) {
                 return redirect()->to($checkoutUrl);
             }
         }
 
-        // Handle API errors
-        $errorMessage = 'Payment gateway error';
-        if (isset($result['errors']) && is_array($result['errors'])) {
-            $errorDetails = array_map(function($error) {
-                return $error['detail'] ?? 'Unknown error';
-            }, $result['errors']);
-            $errorMessage = implode('; ', $errorDetails);
-        }
-
-        log_message('error', 'PayMongo API error (HTTP ' . $httpCode . '): ' . $response);
-        
+        // If we reach here something went wrong with the gateway
+        $paymentsModel->update($insertedPaymentId, ['status' => 'failed', 'updated_at' => date('Y-m-d H:i:s')]);
         return $this->response->setJSON([
             'status' => 'error',
-            'message' => $errorMessage
+            'message' => 'Payment gateway error'
         ]);
 
     } catch (\Exception $e) {
-        log_message('error', 'Exception in createCheckout: ' . $e->getMessage());
         return $this->response->setJSON([
             'status' => 'error',
-            'message' => 'An unexpected error occurred while processing payment'
+            'message' => 'An unexpected error occurred: ' . $e->getMessage()
         ]);
     }
 }
+
 
 // Helper method to expire old pending payments
 private function expireOldPayments($userId)
@@ -819,52 +775,7 @@ private function expireOldPayments($userId)
     }
 
         
-    // Handle payment success and failure redirects
-public function paySuccess()
-    {
-        $session = session();
-        $userId = $session->get('user_id');
 
-        // Use the PaymentsModel (plural) and BillingModel
-        $paymentsModel = new \App\Models\PaymentsModel();
-        $billingModel = new \App\Models\BillingModel();
-
-        // 1) Find the latest pending bill of the user
-        $latestBill = $billingModel
-            ->where('user_id', $userId)
-            ->where('status', 'Pending')
-            ->orderBy('id', 'DESC')
-            ->first();
-
-        $amountToPay = $latestBill ? (float)$latestBill['balance'] > 0 ? (float)$latestBill['balance'] : (float)$latestBill['amount_due'] : 0.0;
-
-        // 2) Create the payment record (mark paid)
-        $paymentData = [
-            'user_id' => $userId,
-            'amount'  => $amountToPay,
-            'status'  => 'Paid',
-            'billing_id' => $latestBill ? $latestBill['id'] : null,
-            'created_at' => date('Y-m-d H:i:s'),
-            'paid_at' => date('Y-m-d H:i:s'),
-        ];
-
-        $paymentsModel->insert($paymentData);
-
-        // 3) Apply payment transactionally using BillingModel helper (supports partial)
-        if ($latestBill && $amountToPay > 0) {
-            try {
-                $applyRes = $billingModel->applyPaymentToBill((int)$latestBill['id'], (float)$amountToPay);
-                if ($applyRes === false) {
-                    log_message('error', 'paySuccess: applyPaymentToBill failed for bill ' . $latestBill['id']);
-                }
-            } catch (\Throwable $e) {
-                log_message('error', 'paySuccess exception applying payment: ' . $e->getMessage());
-            }
-        }
-
-        // Redirect or load success page
-        return redirect()->to('/user/payments')->with('success', 'Payment successful!');
-    }
 
     // AJAX endpoint to apply a payment immediately to a single bill (used by client-side quick-pay)
     public function applyPaymentAjax()

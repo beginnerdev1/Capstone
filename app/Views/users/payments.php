@@ -1268,7 +1268,12 @@
       <!-- GCash Gateway Form -->
       <div id="creditContent" class="payment-form">
         <form id="payForm" action="<?= site_url('users/createCheckout') ?>" method="post">
+          <!-- `total_amount` stays as the net-due for server validation (carryover + charges - payments) -->
           <input type="hidden" name="total_amount" id="hiddenTotalAmount" value="0">
+          <!-- `gateway_amount` is the actual amount charged through the gateway (includes service fee) -->
+          <input type="hidden" name="gateway_amount" id="hiddenGatewayAmount" value="0">
+          <!-- include service fee separately for server-side records -->
+          <input type="hidden" name="service_fee" id="hiddenServiceFee" value="0">
           <input type="hidden" name="bill_ids" id="hiddenBillIds" value="">
           <input type="hidden" name="billing_id" id="billing_id" value="">
           
@@ -1422,7 +1427,8 @@
     if (gatewayAmountElement) gatewayAmountElement.textContent = total.toFixed(2);
 
     // Update hidden form fields
-    if (hiddenTotalAmount) hiddenTotalAmount.value = total.toFixed(2);
+    // Send net due (carryover + current - payments) to server — do NOT include service fee
+    if (hiddenTotalAmount) hiddenTotalAmount.value = netDue.toFixed(2);
     if (hiddenBillIds) hiddenBillIds.value = String(selectedBillId);
     const hiddenBillingId = root.querySelector('#billing_id');
     if (hiddenBillingId) hiddenBillingId.value = String(selectedBillId);
