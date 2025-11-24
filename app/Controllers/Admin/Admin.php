@@ -1868,57 +1868,126 @@ public function confirmGCashPayment()
         }
     }
 
-    // Add counter payment (AJAX) - Transaction Payments
-    public function addCounterPayment()
-    {
-        try {
-            $data = $this->request->getJSON(true);
 
-            if (!$data || empty($data['user_id']) || empty($data['billing_id']) || empty($data['amount'])) {
-                return $this->response->setJSON(['success' => false, 'message' => 'Required fields missing']);
-            }
+// Add counter payment (AJAX) - Transaction Payments
+public function addCounterPayment()
+{
+    try {
+        $data = $this->request->getJSON(true);
 
-            $billingModel = new \App\Models\BillingModel();
-            $paymentsModel = new \App\Models\PaymentsModel();
-
-            $billing = $billingModel->find($data['billing_id']);
-            if (!$billing) {
-                return $this->response->setJSON(['success' => false, 'message' => 'Billing not found']);
-            }
-
-            if ($billing['user_id'] != $data['user_id']) {
-                return $this->response->setJSON(['success' => false, 'message' => 'Billing does not match user']);
-            }
-
-            if (floatval($data['amount']) != floatval($billing['amount_due'])) {
-                return $this->response->setJSON(['success' => false, 'message' => 'Amount does not match billing']);
-            }
-
-            $adminRef = $data['admin_reference'] ?? ('CNT-' . date('YmdHis') . '-' . rand(100, 999));
-
-            $paymentsModel->insert([
-                'user_id' => $data['user_id'],
-                'billing_id' => $data['billing_id'],
-                'amount' => $data['amount'],
-                'method' => 'offline',
-                'status' => 'Paid',
-                'payment_intent_id' => null,
-                'payment_method_id' => null,
-                'reference_number' => null,
-                'admin_reference' => $adminRef,
-                'paid_at' => date('Y-m-d H:i:s'),
-                'created_at' => date('Y-m-d H:i:s')
-            ]);
-
-            $billingModel->update($data['billing_id'], ['status' => 'Paid', 'paid_date' => date('Y-m-d H:i:s')]);
-
-            return $this->response->setJSON(['success' => true]);
-
-        } catch (\Exception $e) {
-            log_message('error', $e->getMessage());
-            return $this->response->setJSON(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
+        if (!$data || empty($data['user_id']) || empty($data['billing_id']) || empty($data['amount'])) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Required fields missing']);
         }
+
+        $billingModel = new \App\Models\BillingModel();
+        $paymentsModel = new \App\Models\PaymentsModel();
+
+        $billing = $billingModel->find($data['billing_id']);
+        if (!$billing) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Billing not found']);
+        }
+
+        if ($billing['user_id'] != $data['user_id']) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Billing does not match user']);
+        }
+
+        $amountPaid = floatval($data['amount']);
+
+        $adminRef = $data['admin_reference'] ?? ('CNT-' . date('YmdHis') . '-' . rand(100, 999));
+
+        // Insert payment record (keep original fields)
+        $paymentId = $paymentsModel->insert([
+            'user_id'           => $data['user_id'],
+            'billing_id'        => $data['billing_id'],
+            'amount'            => $amountPaid,
+            'method'            => 'offline',  // original
+            'status'            => 'Paid',     // will update later if partial
+            'payment_intent_id' => null,
+            'payment_method_id' => null,
+            'reference_number'  => null,
+            'admin_reference'   => $adminRef,
+            'paid_at'           => date('Y-m-d H:i:s'),
+            'created_at'        => date('Y-m-d H:i:s')
+        ], true);
+
+        // --- Apply carryover and balance logic ---
+        $carryover = floatval($billing['carryover'] ?? 0);
+        $balance   = floatval($billing['balance'] ?? $billing['amount_due']);
+
+        // Deduct from carryover first
+        if ($carryover > 0) {
+            $deduct = min($amountPaid, $carryover);
+            $carryover -= $deduct;
+            $amountPaid -= $deduct;
+        }
+
+        // Deduct from balance next
+        if ($amountPaid > 0 && $balance > 0) {
+            $deduct = min($amountPaid, $balance);
+            $balance -= $deduct;
+            $amountPaid -= $deduct;
+        }
+
+        // Determine billing status
+        $billingStatus = ($balance <= 0 && $carryover <= 0) ? 'Paid' : 'Partial';
+
+        // Update billing
+        $billingModel->update($data['billing_id'], [
+            'carryover' => $carryover,
+            'balance'   => $balance,
+            'status'    => $billingStatus,
+            'paid_date' => ($billingStatus === 'Paid') ? date('Y-m-d H:i:s') : null
+        ]);
+
+        // Update payment status accordingly
+        $paymentsModel->update($paymentId, [
+            'status' => strtolower($billingStatus)
+        ]);
+
+        return $this->response->setJSON([
+            'success' => true,
+            'message' => 'Payment recorded successfully',
+            'billing_status' => $billingStatus
+        ]);
+
+    } catch (\Exception $e) {
+        log_message('error', $e->getMessage());
+        return $this->response->setJSON(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
     }
+}
+
+    // Private method: carryover and balance deduction logic
+    private function computeCarryoverAndBalance(array $billing, float $amountPaid): array
+    {
+        $carryover = floatval($billing['carryover'] ?? 0);
+        $balance   = floatval($billing['balance'] ?? 0);
+
+        // Deduct from carryover first
+        if ($carryover > 0) {
+            $deduct = min($amountPaid, $carryover);
+            $carryover -= $deduct;
+            $amountPaid -= $deduct;
+        }
+
+        // Deduct from balance next
+        if ($amountPaid > 0 && $balance > 0) {
+            $deduct = min($amountPaid, $balance);
+            $balance -= $deduct;
+            $amountPaid -= $deduct;
+        }
+
+        $status = ($carryover <= 0 && $balance <= 0) ? 'Paid' : 'Partial';
+
+        return [
+            'carryover' => $carryover,
+            'balance'   => $balance,
+            'status'    => $status
+        ];
+    }
+
+
+
+
 
     // Export payments data (CSV) - Transaction Payments
     public function exportPayments()
@@ -2640,224 +2709,167 @@ public function confirmGCashPayment()
         }
     }
 
-    //Synchronize billings (for automatic billing setup)
- public function synchronizeBillings()
-    {
-        try {
-            $input = $this->request->getJSON(true);
-            $month = $input['month'] ?? date('Y-m');
-            
-            // Validate month format
-            if (!preg_match('/^\d{4}-\d{2}$/', $month)) {
-                return $this->response->setJSON([
-                    'success' => false,
-                    'message' => 'Invalid month format'
-                ]);
-            }
-            
-            // ✅ Check if billing for this month has already been synchronized
-            $existingBillingsForMonth = $this->billingModel
-                ->where('DATE_FORMAT(billing_month, "%Y-%m")', $month) // Check requested month
-                ->countAllResults();
+// Synchronize billings (automatic billing) with carryover and email notifications
+public function synchronizeBillings()
+{
+    try {
+        $input = $this->request->getJSON(true);
+        $month = $input['month'] ?? date('Y-m');
 
-            if ($existingBillingsForMonth > 0) {
-                $monthName = date('F Y');
-                $approvedUsersCount = $this->usersModel
-                    ->whereIn('status', ['approved', 'Approved'])
-                    ->countAllResults();
-                
-                return $this->response->setJSON([
-                    'success' => false,
-                    'message' => "⚠️ Billing synchronization for {$monthName} has already been completed! Found {$existingBillingsForMonth} existing billings out of {$approvedUsersCount} approved users. You cannot synchronize for the same month twice."
-                ]);
-            }
-            
-            // ✅ FIXED - Focus on approved users only, regardless of other fields
-            $users = $this->usersModel
-                ->select('users.id, 
-                         users.status,
-                         users.active,
-                         users.email,
-                         user_information.family_number,
-                         user_information.age,
-                         user_information.first_name,
-                         user_information.last_name')
-                ->join('user_information', 'user_information.user_id = users.id', 'left')
-                ->whereIn('users.status', ['approved', 'Approved'])  // Only approved users
-                ->findAll();
-            
-            // Debug information about what users we found
-            log_message('info', 'Billing Sync: Found ' . count($users) . ' users with approved status');
-            
-            if (empty($users)) {
-                // Let's check what users actually exist in the database
-                $allUsers = $this->usersModel
-                    ->select('users.id, users.email, users.status, users.active, users.is_verified, users.profile_complete')
-                    ->limit(10)
-                    ->findAll();
-                
-                $debugInfo = '';
-                if (!empty($allUsers)) {
-                    $debugInfo = ' Debug - Found ' . count($allUsers) . ' total users. Sample statuses: ';
-                    foreach (array_slice($allUsers, 0, 5) as $u) {
-                        $debugInfo .= "[ID:{$u['id']} Status:'{$u['status']}' Active:{$u['active']}] ";
-                    }
-                } else {
-                    $debugInfo = ' No users found in database at all.';
-                }
-                
-                return $this->response->setJSON([
-                    'success' => false,
-                    'message' => 'No approved users found for billing synchronization.' . $debugInfo
-                ]);
-            }
-            
-            $created = 0;
-            $existing = 0;
-            $processed = 0;
-            $skipped = 0;
-            $emailsSent = 0; // ✅ ADD EMAIL COUNTER
-            
-            foreach ($users as $user) {
-                $processed++;
-                
-                // Use default values for missing family/age data
-                $familyNumber = (int) ($user['family_number'] ?? 1);
-                $age = (int) ($user['age'] ?? 30);
-                
-                // Ensure minimum valid values
-                if ($familyNumber <= 0) $familyNumber = 1;
-                if ($age <= 0) $age = 30;
-                
-                // Prepare user data with defaults for billing calculation
-                $userForCalculation = [
-                    'family_number' => $familyNumber,
-                    'age' => $age
-                ];
-                
-                // Calculate billing amount
-                $amount = $this->calculateBillingAmount($userForCalculation);
-                
-                // Check if billing already exists for this user and month (using due_date)
-                $existingBilling = $this->billingModel
-                    ->where('user_id', $user['id'])
-                    ->where('DATE_FORMAT(billing_month, "%Y-%m")', $month) // Check requested month
-                    ->first();
-                
-                if ($existingBilling) {
-                    $existing++;
-                    $skipped++;
-                    log_message('info', "Billing sync: User {$user['id']} already has billing for current month");
-                    continue;
-                }
-                
-                // Create new billing record for the requested month (first day) and due date 1 week from now
-                $syncDate = date('Y-m-d H:i:s');
-                $dueDate = date('Y-m-d', strtotime('+7 days'));
-                $billNo = 'BILL-' . date('Ymd') . '-' . str_pad($user['id'], 4, '0', STR_PAD_LEFT);
-
-                $billingData = [
-                    'user_id' => $user['id'],
-                    'bill_no' => $billNo,
-                    'amount_due' => $amount,
-                    // initial balance will be computed below
-                    'balance' => 0,
-                    'billing_month' => $month . '-01', // Use the first day of the requested month
-                    'due_date' => $dueDate,
-                    'status' => 'Pending',
-                    'created_at' => $syncDate,
-                    'updated_at' => $syncDate
-                ];
-
-                // compute outstanding (sum of unpaid pending bills)
-                try {
-                    // Sum remaining balances from previous pending bills (use balance if present)
-                    $oldRow = $this->billingModel
-                        ->select('COALESCE(SUM(COALESCE(balance,0)),0) as outstanding')
-                        ->where('user_id', $user['id'])
-                        ->where('status', 'Pending')
-                        ->where('paid_date IS NULL')
-                        ->get()
-                        ->getRow();
-                    $oldOutstanding = (float) ($oldRow->outstanding ?? 0);
-                } catch (\Throwable $_) {
-                    $oldOutstanding = 0.0;
-                }
-
-                // New outstanding becomes previous outstanding plus the new amount
-                $billingData['balance'] = $oldOutstanding + (float)$amount;
-
-                if ($this->billingModel->insert($billingData)) {
-                    $created++;
-                    log_message('info', "Billing sync: Created billing for User {$user['id']} - Amount: ₱{$amount} - Sync Date: {$syncDate} - Due Date: {$dueDate}");
-                    
-                    // ✅ SEND EMAIL NOTIFICATION
-                    if (!empty($user['email'])) {
-                        $userName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
-                        if (empty($userName)) {
-                            $userName = 'Valued Customer';
-                        }
-                        
-                        $this->sendBillingNotificationEmail(
-                            $user['email'],
-                            $userName,
-                            $billNo,
-                            $amount,
-                            $dueDate,
-                            $syncDate
-                        );
-                        $emailsSent++;
-                    } else {
-                        log_message('warning', "No email address found for User {$user['id']}, skipping email notification");
-                    }
-                    
-                } else {
-                    $skipped++;
-                    log_message('error', "Billing sync: Failed to create billing for User {$user['id']}");
-                }
-            }
-            
-            // Build success message with detailed stats
-            $monthName = date('F Y', strtotime($month . '-01'));
-            $message = "✅ Billing synchronization for {$monthName} completed successfully! ";
-            $message .= "Processed: {$processed} approved users, ";
-            $message .= "Created: {$created} new billings, ";
-            $message .= "Emails sent: {$emailsSent}"; // ✅ ADD EMAIL COUNT
-            
-            if ($existing > 0) {
-                $message .= ", Skipped: {$existing} existing billings";
-            }
-            
-            if ($skipped > $existing) {
-                $failedCount = $skipped - $existing;
-                $message .= ", Failed: {$failedCount} billing creations";
-            }
-            
-            // Log the results
-            log_message('info', "Billing synchronization completed - {$message}");
-            
-            return $this->response->setJSON([
-                'success' => true,
-                'message' => $message,
-                'stats' => [
-                    'month' => $monthName,
-                    'processed' => $processed,
-                    'created' => $created,
-                    'existing' => $existing,
-                    'skipped' => $skipped,
-                    'emails_sent' => $emailsSent, // ✅ ADD EMAIL STATS
-                    'total_approved_users' => count($users)
-                ]
-            ]);
-            
-        } catch (\Exception $e) {
-            log_message('error', 'Error in synchronizeBillings: ' . $e->getMessage());
+        if (!preg_match('/^\d{4}-\d{2}$/', $month)) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'Failed to synchronize billings: ' . $e->getMessage()
+                'message' => 'Invalid month format'
             ]);
         }
+
+        // Check if billings for this month already exist
+        $existingBillingsForMonth = $this->billingModel
+            ->where('DATE_FORMAT(billing_month, "%Y-%m")', $month)
+            ->countAllResults();
+
+        if ($existingBillingsForMonth > 0) {
+            $monthName = date('F Y', strtotime($month . '-01'));
+            $approvedUsersCount = $this->usersModel
+                ->whereIn('status', ['approved', 'Approved'])
+                ->countAllResults();
+
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => "⚠️ Billing synchronization for {$monthName} has already been completed! Found {$existingBillingsForMonth} existing billings out of {$approvedUsersCount} approved users."
+            ]);
+        }
+
+        // Fetch approved users
+        $users = $this->usersModel
+            ->select('users.id, users.status, users.email, user_information.family_number, user_information.age, user_information.first_name, user_information.last_name')
+            ->join('user_information', 'user_information.user_id = users.id', 'left')
+            ->whereIn('users.status', ['approved', 'Approved'])
+            ->findAll();
+
+        if (empty($users)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'No approved users found for billing synchronization.'
+            ]);
+        }
+
+        $created = 0;
+        $existing = 0;
+        $processed = 0;
+        $skipped = 0;
+        $emailsSent = 0;
+
+        foreach ($users as $user) {
+            $processed++;
+
+            $familyNumber = max(1, (int) ($user['family_number'] ?? 1));
+            $age = max(1, (int) ($user['age'] ?? 30));
+            $amount = $this->calculateBillingAmount(['family_number' => $familyNumber, 'age' => $age]);
+
+            // Skip if billing already exists for this month
+            $existingBilling = $this->billingModel
+                ->where('user_id', $user['id'])
+                ->where('DATE_FORMAT(billing_month, "%Y-%m")', $month)
+                ->first();
+
+            if ($existingBilling) {
+                $existing++;
+                $skipped++;
+                continue;
+            }
+
+            $syncDate = date('Y-m-d H:i:s');
+            $dueDate = date('Y-m-d', strtotime('+7 days'));
+            $billNo = 'BILL-' . date('Ymd') . '-' . str_pad($user['id'], 4, '0', STR_PAD_LEFT);
+
+            // --- Get previous billing to calculate carryover ---
+            $prevBill = $this->billingModel
+                ->where('user_id', $user['id'])
+                ->where('billing_month <', $month . '-01')
+                ->orderBy('billing_month', 'DESC')
+                ->first();
+
+            $carryover = 0.0;
+            $balance = $amount;
+
+            if ($prevBill) {
+                $prevBalance = floatval($prevBill['balance'] ?? 0);
+
+                // Update previous billing status to Partial if it has unpaid balance
+                if ($prevBalance > 0) {
+                    $this->billingModel->update($prevBill['id'], [
+                        'status' => 'Partial',
+                        'updated_at' => $syncDate
+                    ]);
+                }
+
+                // Carryover for new billing = previous balance
+                $carryover = $prevBalance;
+                $balance += $carryover;
+            }
+
+            $billingData = [
+                'user_id' => $user['id'],
+                'bill_no' => $billNo,
+                'amount_due' => number_format($amount, 2, '.', ''),
+                'carryover' => number_format($carryover, 2, '.', ''),
+                'balance' => number_format($balance, 2, '.', ''),
+                'billing_month' => $month . '-01',
+                'due_date' => $dueDate,
+                'status' => 'Pending',
+                'created_at' => $syncDate,
+                'updated_at' => $syncDate
+            ];
+
+            if ($this->billingModel->insert($billingData)) {
+                $created++;
+
+                // Send email notification
+                if (!empty($user['email'])) {
+                    $userName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: 'Valued Customer';
+                    $this->sendBillingNotificationEmail(
+                        $user['email'],
+                        $userName,
+                        $billNo,
+                        $balance,
+                        $dueDate,
+                        $month . '-01'
+                    );
+                    $emailsSent++;
+                }
+            } else {
+                $skipped++;
+            }
+        }
+
+        $monthName = date('F Y', strtotime($month . '-01'));
+        $message = "✅ Billing synchronization for {$monthName} completed. Processed: {$processed}, Created: {$created}, Emails sent: {$emailsSent}";
+        if ($existing > 0) $message .= ", Skipped (existing): {$existing}";
+        if ($skipped > $existing) $message .= ", Failed: " . ($skipped - $existing);
+
+        return $this->response->setJSON([
+            'success' => true,
+            'message' => $message,
+            'stats' => [
+                'month' => $monthName,
+                'processed' => $processed,
+                'created' => $created,
+                'existing' => $existing,
+                'skipped' => $skipped,
+                'emails_sent' => $emailsSent,
+                'total_approved_users' => count($users)
+            ]
+        ]);
+
+    } catch (\Exception $e) {
+        log_message('error', 'Error in synchronizeBillings: ' . $e->getMessage());
+        return $this->response->setJSON([
+            'success' => false,
+            'message' => 'Failed to synchronize billings: ' . $e->getMessage()
+        ]);
     }
+}
 
 
 
@@ -3126,18 +3138,19 @@ public function createManualBilling()
 
     $carryover = 0.0;
     if ($prevBill) {
-        $balance = floatval($prevBill['balance']);
-        $amountDue = floatval($prevBill['amount_due']);
+        $balancePrev = floatval($prevBill['balance']);
+        $carryoverPrev = floatval($prevBill['carryover'] ?? 0);
 
-        // Update previous bill status if needed
-        $status = ($balance <= 0) ? 'Paid' : (($balance < $amountDue) ? 'Partial' : 'Unpaid');
-        $this->billingModel->update($prevBill['id'], [
-            'status' => $status,
-            'updated_at' => date('Y-m-d H:i:s')
-        ]);
+        // Only set carryover for the new billing
+        $carryover = $carryoverPrev + $balancePrev;
 
-        // Set carryover for new billing
-        $carryover = $balance;
+        // Update last billing status to Partial if it has unpaid balance
+        if ($balancePrev > 0) {
+            $this->billingModel->update($prevBill['id'], [
+                'status' => 'Partial',
+                'updated_at' => date('Y-m-d H:i:s')
+            ]);
+        }
     }
 
     // Build unique bill_no
@@ -3157,13 +3170,13 @@ public function createManualBilling()
         $billNo = $datePrefix . '-' . uniqid();
     }
 
-    // Prepare new billing row
+    // New billing: balance = new amount, carryover = sum from last billing
     $newBilling = [
         'user_id'       => $userId,
         'bill_no'       => $billNo,
         'amount_due'    => number_format($amount, 2, '.', ''),
-        'carryover'     => number_format($carryover, 2, '.', ''),
-        'balance'       => number_format($amount, 2, '.', ''),
+        'carryover'     => number_format($carryover, 2, '.', ''), 
+        'balance'       => number_format($amount, 2, '.', ''),   
         'status'        => 'Pending',
         'billing_month' => $billingMonthFirstDay,
         'due_date'      => date('Y-m-d', strtotime($billingMonthFirstDay . ' +7 days')),
@@ -3173,19 +3186,32 @@ public function createManualBilling()
 
     try {
         $inserted = $this->billingModel->insert($newBilling);
+
         if ($inserted) {
-            $totalDue = $carryover + floatval($newBilling['balance']);
+            // Send email notification
+            if (!empty($user['email'])) {
+                $userName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: 'Valued Customer';
+                $this->sendBillingNotificationEmail(
+                    $user['email'],
+                    $userName,
+                    $billNo,
+                    $amount,
+                    $newBilling['due_date'],
+                    $billingMonthFirstDay
+                );
+            }
+
             return $this->response->setJSON([
                 'success'    => true,
-                'message'    => 'Manual billing created',
+                'message'    => 'Manual billing created and email sent',
                 'bill_no'    => $billNo,
                 'billing'    => [
                     'user_id'       => $userId,
                     'bill_no'       => $billNo,
                     'amount_due'    => number_format($amount, 2, '.', ''),
-                    'balance'       => number_format($newBilling['balance'], 2, '.', ''),
+                    'balance'       => number_format($amount, 2, '.', ''),
                     'carryover'     => number_format($carryover, 2, '.', ''),
-                    'total_due'     => number_format($totalDue, 2, '.', ''),
+                    'total_due'     => number_format($carryover + $amount, 2, '.', ''),
                     'billing_month' => $billingMonthFirstDay,
                     'due_date'      => $newBilling['due_date'],
                     'status'        => $newBilling['status'],
@@ -3199,6 +3225,7 @@ public function createManualBilling()
 
     return $this->response->setJSON(['success' => false, 'message' => 'Failed to create manual billing']);
 }
+
 
     // Billing Reports
     public function reports()
