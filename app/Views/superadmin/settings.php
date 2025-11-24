@@ -2,6 +2,21 @@
   <div class="d-flex align-items-center justify-content-between mb-3">
     <h4 class="mb-0">Settings</h4>
   </div>
+          <hr>
+          <h6>Restore From Backup</h6>
+          <form id="restoreForm" method="post" enctype="multipart/form-data">
+            <?= csrf_field() ?>
+            <div class="mb-2">
+              <label class="form-label">Upload Backup ZIP</label>
+              <input type="file" id="restoreFile" name="restore_zip" accept=".zip" class="form-control form-control-sm" required>
+              <div class="form-text">Upload a previously generated backup ZIP to restore. This action can modify the database.</div>
+            </div>
+            <div class="d-flex gap-2">
+              <button id="btnUploadRestore" type="submit" class="btn btn-warning btn-sm">Upload for Restore</button>
+              <button id="btnApplyRestore" type="button" class="btn btn-danger btn-sm" disabled>Apply Restore (Danger)</button>
+            </div>
+            <div id="restoreMessage" class="small text-muted mt-2"></div>
+          </form>
 
   <div class="row g-3">
     <div class="col-md-6">
@@ -47,7 +62,7 @@
 (function(){
   function humanBytes(n){ if(!n) return '0'; const sizes=['B','KB','MB','GB','TB']; let i=0; while(n>=1024 && i<sizes.length-1){ n/=1024; i++; } return n.toFixed(1)+' '+sizes[i]; }
 
-  function loadSystem(){
+  window.loadSystem = function(){
     $.getJSON('<?= site_url('superadmin/systemInfo') ?>').done(function(res){
       if(!res || res.status !== 'success') return;
       const info = res.info || {};
@@ -102,5 +117,90 @@
   });
 
   loadSystem();
+})();
+</script>
+<script>
+(function(){
+  // Restore upload & apply handlers
+  let uploadedRestoreFile = null;
+
+  $(document).on('submit', '#restoreForm', function(e){
+    e.preventDefault();
+    const fileEl = document.getElementById('restoreFile');
+    if (!fileEl || !fileEl.files || !fileEl.files[0]) { alert('Please select a ZIP file to upload'); return; }
+    const f = fileEl.files[0];
+    const fd = new FormData();
+    fd.append('restore_zip', f);
+    // include CSRF token
+    const csrf = $(this).find("input[name^='csrf_']").first();
+    if (csrf && csrf.length) fd.append(csrf.attr('name'), csrf.val());
+
+    $('#btnUploadRestore').prop('disabled', true).text('Uploading...');
+    $('#restoreMessage').text('Uploading backup...');
+
+    $.ajax({
+      url: '<?= site_url('superadmin/uploadRestore') ?>',
+      method: 'POST',
+      data: fd,
+      processData: false,
+      contentType: false,
+      dataType: 'json'
+    }).done(function(res){
+      if (res && res.status === 'success' && res.filename) {
+        uploadedRestoreFile = res.filename;
+        $('#restoreMessage').text('Uploaded: ' + res.filename + '. Tables found: ' + (res.tables || []).join(', '));
+        $('#btnApplyRestore').prop('disabled', false);
+        loadSystem();
+      } else {
+        $('#restoreMessage').text('Upload failed: ' + (res && res.message ? res.message : 'Unknown'));
+      }
+    }).fail(function(jq){
+      let msg = 'Upload failed';
+      try { if (jq && jq.responseJSON && jq.responseJSON.message) msg = jq.responseJSON.message; } catch(e){}
+      $('#restoreMessage').text(msg);
+    }).always(function(){
+      $('#btnUploadRestore').prop('disabled', false).text('Upload for Restore');
+    });
+  });
+
+  $(document).on('click', '#btnApplyRestore', function(e){
+    if (!uploadedRestoreFile) { alert('No uploaded backup selected.'); return; }
+    const confirmVal = prompt('Type RESTORE to confirm you understand this is destructive:');
+    if (confirmVal !== 'RESTORE') { alert('Confirmation not provided. Restore cancelled.'); return; }
+
+    $(this).prop('disabled', true).text('Applying...');
+    $('#restoreMessage').text('Applying restore (this may take a while)...');
+
+    const fd = new FormData();
+    fd.append('filename', uploadedRestoreFile);
+    // include CSRF token (pull from page)
+    const csrf = $("#restoreForm").find("input[name^='csrf_']").first();
+    if (csrf && csrf.length) fd.append(csrf.attr('name'), csrf.val());
+    fd.append('confirm', 'RESTORE');
+
+    $.ajax({
+      url: '<?= site_url('superadmin/applyRestore') ?>',
+      method: 'POST',
+      data: fd,
+      processData: false,
+      contentType: false,
+      dataType: 'json'
+    }).done(function(res){
+      if (res && res.status === 'success') {
+        $('#restoreMessage').text('Restore applied successfully: ' + (res.message || 'Completed'));
+        uploadedRestoreFile = null;
+        $('#btnApplyRestore').prop('disabled', true);
+        loadSystem();
+      } else {
+        $('#restoreMessage').text('Restore failed: ' + (res && res.message ? res.message : 'Unknown'));
+      }
+    }).fail(function(jq){
+      let msg = 'Restore request failed';
+      try { if (jq && jq.responseJSON && jq.responseJSON.message) msg = jq.responseJSON.message; } catch(e){}
+      $('#restoreMessage').text(msg);
+    }).always(function(){
+      $('#btnApplyRestore').prop('disabled', false).text('Apply Restore (Danger)');
+    });
+  });
 })();
 </script>

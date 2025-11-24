@@ -238,6 +238,9 @@ $routes->group('superadmin', ['namespace' => 'App\Controllers'], function ($rout
         $routes->get('settings', 'SuperAdmin::settings');
         $routes->get('backup', 'SuperAdmin::backup');
         $routes->post('backup', 'SuperAdmin::backup');
+        // Restore endpoints (upload and apply)
+        $routes->post('uploadRestore', 'SuperAdmin::uploadRestore');
+        $routes->post('applyRestore', 'SuperAdmin::applyRestore');
         $routes->get('logs', 'SuperAdmin::logs');
         // Reference pages for admin/debugging
         $routes->get('logs-admin-ref', 'SuperAdmin::logsAdminRef');

@@ -838,6 +838,10 @@ form.addEventListener('submit', async (e) => {
   try {
     const response = await fetch('<?= base_url('admin/updateProfile') ?>', {
       method: 'POST',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'Accept': 'application/json'
+      },
       body: formData
     });
 
@@ -849,6 +853,11 @@ form.addEventListener('submit', async (e) => {
       document.getElementById('profileName').textContent = 
         formData.get('first_name') + ' ' + formData.get('last_name');
       document.getElementById('profileEmailDisplay').textContent = formData.get('email');
+      // If server indicates a redirect (e.g. password was changed), follow it
+      if (data.redirect) {
+        setTimeout(function(){ window.location.href = data.redirect; }, 800);
+        return;
+      }
     } else {
       showAlert(data.message || 'Failed to update profile', 'error');
     }
@@ -909,7 +918,7 @@ sendOtpBtn.addEventListener('click', async () => {
   if (csrf) fd.append(csrf.name, csrf.value);
   fd.append('current_password', currentPwd);
   try {
-    const res = await fetch('<?= base_url('admin/requestPasswordOtp') ?>', { method: 'POST', body: fd });
+    const res = await fetch('<?= base_url('admin/requestPasswordOtp') ?>', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }, body: fd });
     const data = await res.json();
     if (data.success) {
       otpStatus.textContent = 'OTP sent. Check your delivery channel.';
@@ -942,7 +951,7 @@ changePasswordBtn.addEventListener('click', async () => {
   fd.append('confirm_password', confirmPwd);
   changePasswordBtn.disabled = true; changePasswordBtn.textContent = '⏳ Changing...';
   try {
-    const res = await fetch('<?= base_url('admin/changePassword') ?>', { method: 'POST', body: fd });
+    const res = await fetch('<?= base_url('admin/changePassword') ?>', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }, body: fd });
     const data = await res.json();
     if (data.success) {
       showPwdMessage('Password changed successfully.', 'success');
@@ -955,6 +964,11 @@ changePasswordBtn.addEventListener('click', async () => {
       otpInput.disabled = true;
       changePasswordBtn.disabled = true;
       otpStatus.textContent = 'Request a new OTP to change again';
+      // Follow redirect instruction from server (clear forced change)
+      if (data.redirect) {
+        setTimeout(function(){ window.location.href = data.redirect; }, 800);
+        return;
+      }
     } else {
       showPwdMessage(data.message || 'Failed to change password.', 'error');
     }

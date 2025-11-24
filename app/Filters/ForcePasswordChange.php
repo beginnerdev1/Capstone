@@ -15,13 +15,20 @@ class ForcePasswordChange implements FilterInterface
         // Only redirect if password change is required for admin
         $currentPath = uri_string();
 
-        // Admin enforcement
+        // Admin enforcement: when force_password_change is set, block access to
+        // all admin pages except the profile edit/update and logout endpoints.
         if ($session->get('is_admin_logged_in') === true && $session->get('force_password_change') === true) {
-            $excluded = ['admin/change-password', 'admin/setPassword', 'admin/logout'];
-            if (!in_array($currentPath, $excluded)) {
+            $excluded = [
+                'admin/edit-profile',       // allow updating profile (GET)
+                'admin/updateProfile',      // allow POST that saves profile
+                'admin/requestPasswordOtp', // allow AJAX OTP request from edit-profile
+                'admin/changePassword',     // allow AJAX password change endpoint
+                'admin/logout',
+            ];
+            if (! in_array($currentPath, $excluded)) {
                 log_message('info', '🧩 ForcePasswordChange (admin) triggered for ' . $currentPath);
-                return redirect()->to(base_url('admin/change-password'))
-                                 ->with('info', 'Please change your default password first.');
+                return redirect()->to(base_url('admin/edit-profile'))
+                                 ->with('info', 'Please complete your profile and change your default password before continuing.');
             }
         }
 

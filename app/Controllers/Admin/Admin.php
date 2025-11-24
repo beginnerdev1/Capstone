@@ -907,6 +907,14 @@ class Admin extends BaseController
 
         if (!$user) return $this->response->setJSON([]);
 
+        $pic = $info['profile_picture'] ?? '';
+        $picUrl = '';
+        if (!empty($pic)) {
+            // normalize stored filename (no leading slash)
+            $pic = ltrim($pic, '/');
+            $picUrl = base_url('uploads/profile_pictures/' . $pic);
+        }
+
         return $this->response->setJSON([
             'id'            => $user['id'],
             'email'         => $user['email'],
@@ -922,7 +930,7 @@ class Admin extends BaseController
             'municipality'  => $info['municipality'] ?? '',
             'province'      => $info['province'] ?? '',
             'zipcode'       => $info['zipcode'] ?? '',
-            'profile_picture' => $info['profile_picture'] ?? ''
+            'profile_picture' => $picUrl
         ]);
     }
 
@@ -3565,7 +3573,17 @@ public function createManualBilling()
             }
         }
 
-        if ($this->adminModel->update($adminId, $updateData)) {
+        $didUpdate = false;
+        try {
+            $didUpdate = $this->adminModel->update($adminId, $updateData);
+        } catch (\Throwable $e) {
+            // Log update errors for debugging
+            if (function_exists('log_message')) log_message('error', 'updateProfile failed: ' . $e->getMessage());
+            $didUpdate = false;
+        }
+
+        // Update session values on success
+        if ($didUpdate) {
             session()->set([
                 'admin_first_name'  => $updateData['first_name'],
                 'admin_middle_name' => $updateData['middle_name'],
@@ -3573,7 +3591,19 @@ public function createManualBilling()
                 'admin_email'       => $updateData['email'],
                 'admin_picture'     => $updateData['profile_picture'] ?? $admin['profile_picture'] ?? 'default.png',
             ]);
+        }
 
+        // If this is an AJAX/fetch request, return JSON so the client can handle it.
+        $isAjax = $this->request->isAJAX() || $this->request->getHeaderLine('X-Requested-With') === 'XMLHttpRequest' || strpos($this->request->getHeaderLine('Accept'), 'application/json') !== false;
+
+        if ($isAjax) {
+            if ($didUpdate) {
+                return $this->response->setJSON(['success' => true, 'message' => 'Profile updated successfully.']);
+            }
+            return $this->response->setJSON(['success' => false, 'message' => 'Failed to update profile.']);
+        }
+
+        if ($didUpdate) {
             return redirect()->back()->with('success', 'Profile updated successfully.');
         }
 
@@ -3753,438 +3783,21 @@ public function createManualBilling()
         session()->remove('pwd_otp_fail_count');
         session()->remove('pwd_otp_locked_until');
 
-        return $this->response->setJSON(['success' => true, 'message' => 'Password changed successfully']);
-    }
-
-
-    // ---------------- Logs Functions ----------------
-        // Activity logs view (admin)
-    public function logs()
-    {
-        return view('admin/logs');
-    }
-
-    // JSON: latest admin logs
-    public function getLogs()
-    {
-        $limit = (int) ($this->request->getGet('limit') ?? 200);
-        $limit = max(1, min(500, $limit));
-        $model = new \App\Models\AdminActivityLogModel();
-        $builder = $model->where('actor_type', 'admin');
-
-        $action = trim($this->request->getGet('action') ?? '');
-        $method = trim($this->request->getGet('method') ?? '');
-        $actorId = (int) ($this->request->getGet('actor_id') ?? 0);
-        $logId = (int) ($this->request->getGet('log_id') ?? 0);
-        $q = trim($this->request->getGet('q') ?? '');
-        $start = trim($this->request->getGet('start') ?? '');
-        $end = trim($this->request->getGet('end') ?? '');
-
-        if ($actorId > 0) { $builder->where('actor_id', $actorId); }
-        if ($logId > 0) { $builder->where('id', $logId); }
-        if ($action !== '') { $builder->where('action', $action); }
-        if ($method !== '') { $builder->where('method', strtoupper($method)); }
-        if ($start !== '') { $builder->where('created_at >=', $start . ' 00:00:00'); }
-        if ($end !== '') { $builder->where('created_at <=', $end . ' 23:59:59'); }
-        if ($q !== '') {
-            // Search admin first/last name instead of route/resource/details
-            try {
-                $admModel = new \App\Models\AdminModel();
-                $matches = $admModel->groupStart()
-                    ->like('first_name', $q)
-                    ->orLike('last_name', $q)
-                    ->orLike("CONCAT(first_name, ' ', last_name)", $q)
-                ->groupEnd()
-                ->get()
-                ->getResultArray();
-                $ids = array_column($matches, 'id');
-                if (!empty($ids)) {
-                    $builder->whereIn('actor_id', $ids);
-                } else {
-                    // no matching admin names, ensure empty result
-                    $builder->where('actor_id', 0);
-                }
-            } catch (\Throwable $_) {
-                // fallback: return no results on error
-                $builder->where('actor_id', 0);
-            }
-        }
-        $rows = $builder->orderBy('id','DESC')->findAll($limit);
-        // Enrich rows with actor display name for admins to allow client to show friendly names
+        // Clear any forced-change flags in DB and session so the admin can continue
         try {
-            foreach ($rows as &$rr) {
-                if (($rr['actor_type'] ?? '') === 'admin' && !empty($rr['actor_id'])) {
-                    $adm = $this->adminModel->find((int)$rr['actor_id']);
-                    if ($adm) {
-                        $rr['actor_name'] = trim(($adm['first_name'] ?? '') . ' ' . ($adm['last_name'] ?? ''));
-                    }
-                }
-            }
-            unset($rr);
-        } catch (\Throwable $_) {
-            // ignore enrichment errors
-        }
-        return $this->response->setJSON($rows);
-    }
-
-    // CSV export for admin logs (read-only)
-    public function exportLogs()
-    {
-        $format = strtolower($this->request->getGet('format') ?? 'csv');
-        $fileBase = 'admin-activity-logs-' . date('Y-m-d');
-
-        $model = new \App\Models\AdminActivityLogModel();
-        $builder = $model->where('actor_type', 'admin');
-        $action = trim($this->request->getGet('action') ?? '');
-        $method = trim($this->request->getGet('method') ?? '');
-        $actorId = (int) ($this->request->getGet('actor_id') ?? 0);
-        $logId = (int) ($this->request->getGet('log_id') ?? 0);
-        $q = trim($this->request->getGet('q') ?? '');
-        $start = trim($this->request->getGet('start') ?? '');
-        $end = trim($this->request->getGet('end') ?? '');
-        if ($actorId > 0) { $builder->where('actor_id', $actorId); }
-        if ($logId > 0) { $builder->where('id', $logId); }
-        if ($action !== '') { $builder->where('action', $action); }
-        if ($method !== '') { $builder->where('method', strtoupper($method)); }
-        if ($start !== '') { $builder->where('created_at >=', $start . ' 00:00:00'); }
-        if ($end !== '') { $builder->where('created_at <=', $end . ' 23:59:59'); }
-        if ($q !== '') {
-            // Search admin first/last name instead of route/resource/details for exports
-            try {
-                $admModel = new \App\Models\AdminModel();
-                $matches = $admModel->groupStart()
-                    ->like('first_name', $q)
-                    ->orLike('last_name', $q)
-                    ->orLike("CONCAT(first_name, ' ', last_name)", $q)
-                ->groupEnd()
-                ->get()
-                ->getResultArray();
-                $ids = array_column($matches, 'id');
-                if (!empty($ids)) {
-                    $builder->whereIn('actor_id', $ids);
-                } else {
-                    $builder->where('actor_id', 0);
-                }
-            } catch (\Throwable $_) {
-                $builder->where('actor_id', 0);
-            }
-        }
-
-        $rows = $builder->orderBy('id','DESC')->findAll(2000);
-        $fh = fopen('php://temp', 'w+');
-        // Determine requester type: only include raw JSON for superadmins
-        $session = session();
-        $isSuper = (bool) $session->get('is_superadmin_logged_in');
-
-        $headers = ['Time','Actor','Action','Method','Route','Resource','Performed By','Details Summary'];
-        if ($isSuper) $headers[] = 'Details (raw JSON)';
-        $headers = array_merge($headers, ['IP','User Agent','Logged Out']);
-        fputcsv($fh, $headers);
-        // For each log row, flatten inner actions into individual CSV rows
-        $superModel = null;
-        foreach ($rows as $r) {
-            // Determine performer display name from actor tables
-            $actorKey = ($r['actor_type'] ?? '') . '#' . ($r['actor_id'] ?? '');
-            $performedBy = $actorKey;
-            try {
-                if (($r['actor_type'] ?? '') === 'admin') {
-                    $adm = $this->adminModel->find((int)($r['actor_id'] ?? 0));
-                    if ($adm) $performedBy = trim(($adm['first_name'] ?? '') . ' ' . ($adm['last_name'] ?? '')) ?: $actorKey;
-                } elseif (($r['actor_type'] ?? '') === 'superadmin') {
-                    if ($superModel === null) $superModel = new \App\Models\SuperAdminModel();
-                    $sa = $superModel->find((int)($r['actor_id'] ?? 0));
-                    if ($sa) $performedBy = $sa['email'] ?? $actorKey;
-                }
-            } catch (\Throwable $_) {
-                // ignore and fallback to actorKey
-            }
-
-            if (!empty($r['details'])) {
-                $d = json_decode($r['details'], true);
-                // Session-merged details array
-                if (is_array($d) && isset($d[0]) && is_array($d[0]) && isset($d[0]['action'])) {
-                    foreach ($d as $act) {
-                        $time = $act['time'] ?? $r['created_at'] ?? '';
-                        // Prefix time with apostrophe to force CSV/Excel to treat as text (prevents #### display)
-                        if ($time !== '') $time = "'" . $time;
-                        $actName = $act['action'] ?? ($r['action'] ?? '');
-                        $method = $act['method'] ?? $r['method'] ?? '';
-                        $route = $act['route'] ?? $r['route'] ?? '';
-                        $resource = $act['resource'] ?? $r['resource'] ?? '';
-
-                        // Build details summary for this inner action
-                        $summaryParts = [];
-                        if (!empty($act['details'])) {
-                            $det = json_decode($act['details'], true);
-                            if (is_array($det)) {
-                                if (!empty($det['user_name'])) $summaryParts[] = 'User: ' . $det['user_name'];
-                                elseif (!empty($det['first_name']) || !empty($det['last_name'])) $summaryParts[] = 'User: ' . trim(($det['first_name'] ?? '') . ' ' . ($det['last_name'] ?? ''));
-                                elseif (!empty($det['id'])) $summaryParts[] = 'User ID: ' . $det['id'];
-                                if (!empty($det['reason'])) $summaryParts[] = 'Reason: ' . $det['reason'];
-                            }
-                        }
-                        if ($resource) $summaryParts[] = 'Resource: ' . $resource;
-                        $detailsSummary = implode('; ', $summaryParts);
-
-                        $row = [
-                            $time,
-                            $actorKey,
-                            $actName,
-                            $method,
-                            $route,
-                            $resource,
-                            $performedBy,
-                            $detailsSummary,
-                        ];
-                        if ($isSuper) $row[] = ($act['details'] ?? $r['details'] ?? '');
-                        $row = array_merge($row, [
-                            $r['ip_address'] ?? '',
-                            $r['user_agent'] ?? '',
-                            $r['logged_out_at'] ?? '',
-                        ]);
-                        fputcsv($fh, $row);
-                    }
-                    continue;
-                }
-                // Single-action details (not an array)
-                $time = $r['created_at'] ?? '';
-                if ($time !== '') $time = "'" . $time;
-                $actName = $r['action'] ?? '';
-                $method = $r['method'] ?? '';
-                $route = $r['route'] ?? '';
-                $resource = $r['resource'] ?? '';
-
-                $summaryParts = [];
-                $det = is_array($d) ? $d : [];
-                if (!empty($det['user_name'])) $summaryParts[] = 'User: ' . $det['user_name'];
-                elseif (!empty($det['first_name']) || !empty($det['last_name'])) $summaryParts[] = 'User: ' . trim(($det['first_name'] ?? '') . ' ' . ($det['last_name'] ?? ''));
-                elseif (!empty($det['id'])) $summaryParts[] = 'User ID: ' . ($det['id'] ?? '');
-                if (!empty($det['reason'])) $summaryParts[] = 'Reason: ' . $det['reason'];
-                if ($resource) $summaryParts[] = 'Resource: ' . $resource;
-                $detailsSummary = implode('; ', $summaryParts);
-
-                $row = [
-                    $time,
-                    $actorKey,
-                    $actName,
-                    $method,
-                    $route,
-                    $resource,
-                    $performedBy,
-                    $detailsSummary,
-                ];
-                if ($isSuper) $row[] = ($r['details'] ?? '');
-                $row = array_merge($row, [
-                    $r['ip_address'] ?? '',
-                    $r['user_agent'] ?? '',
-                    $r['logged_out_at'] ?? '',
-                ]);
-                fputcsv($fh, $row);
-                continue;
-            }
-
-            // If no details present, output a minimal row for the log
-            $row = [
-                ($r['created_at'] ? "'" . $r['created_at'] : ''),
-                $actorKey,
-                $r['action'] ?? '',
-                $r['method'] ?? '',
-                $r['route'] ?? '',
-                $r['resource'] ?? '',
-                $performedBy,
-                '',
-            ];
-            if ($isSuper) $row[] = ($r['details'] ?? '');
-            $row = array_merge($row, [
-                $r['ip_address'] ?? '',
-                $r['user_agent'] ?? '',
-                $r['logged_out_at'] ?? '',
-            ]);
-            fputcsv($fh, $row);
-        }
-        rewind($fh);
-        $csv = stream_get_contents($fh);
-        fclose($fh);
-
-        // If XLSX requested and PhpSpreadsheet is available, produce a workbook
-        if (($format === 'excel' || $format === 'xlsx') && class_exists('\\PhpOffice\\PhpSpreadsheet\\Spreadsheet')) {
-            try {
-                $lines = array_values(array_filter(array_map('trim', explode("\n", trim($csv)))));
-                if (empty($lines)) {
-                    // Nothing to export, return empty CSV as fallback
-                    return $this->response
-                        ->setHeader('Content-Type', 'text/csv')
-                        ->setHeader('Content-Disposition', 'attachment; filename="' . $fileBase . '.csv"')
-                        ->setBody('');
-                }
-
-                $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
-                $sheet = $spreadsheet->getActiveSheet();
-                $sheet->setTitle('Logs');
-
-                // Build rows array from CSV lines
-                $rowsArr = [];
-                foreach ($lines as $ln) {
-                    $rowsArr[] = str_getcsv($ln);
-                }
-
-                // Populate sheet with rows
-                $sheet->fromArray($rowsArr, null, 'A1');
-
-                // Compute simple action counts (Action column)
-                $headerRow = $rowsArr[0];
-                $actionIdx = array_search('Action', $headerRow);
-                $actionCounts = [];
-                if ($actionIdx !== false) {
-                    for ($i = 1; $i < count($rowsArr); $i++) {
-                        $val = $rowsArr[$i][$actionIdx] ?? '';
-                        $val = trim($val);
-                        if ($val === '') continue;
-                        if (!isset($actionCounts[$val])) $actionCounts[$val] = 0;
-                        $actionCounts[$val]++;
-                    }
-                }
-
-                // If we have action counts, add a Stats sheet and a simple bar chart
-                if (!empty($actionCounts)) {
-                    $stats = $spreadsheet->createSheet();
-                    $stats->setTitle('Stats');
-                    $stats->setCellValue('A1', 'Action');
-                    $stats->setCellValue('B1', 'Count');
-                    $r = 2;
-                    foreach ($actionCounts as $act => $cnt) {
-                        $stats->setCellValue('A' . $r, $act);
-                        $stats->setCellValue('B' . $r, $cnt);
-                        $r++;
-                    }
-
-                    $lastRow = $r - 1;
-                    // Build chart series references
-                    $catRef = "'" . $stats->getTitle() . "'!\$A\$2:\$A\$" . $lastRow;
-                    $valRef = "'" . $stats->getTitle() . "'!\$B\$2:\$B\$" . $lastRow;
-
-                    $categories = new \PhpOffice\PhpSpreadsheet\Chart\DataSeriesValues('String', $catRef, null, ($lastRow - 1));
-                    $values = new \PhpOffice\PhpSpreadsheet\Chart\DataSeriesValues('Number', $valRef, null, ($lastRow - 1));
-
-                    $series = new \PhpOffice\PhpSpreadsheet\Chart\DataSeries(
-                        \PhpOffice\PhpSpreadsheet\Chart\DataSeries::TYPE_BARCHART,
-                        null,
-                        [0],
-                        [],
-                        [$categories],
-                        [$values]
-                    );
-                    $plotArea = new \PhpOffice\PhpSpreadsheet\Chart\PlotArea(null, [$series]);
-                    $title = new \PhpOffice\PhpSpreadsheet\Chart\Title('Actions Count');
-                    $legend = new \PhpOffice\PhpSpreadsheet\Chart\Legend(\PhpOffice\PhpSpreadsheet\Chart\Legend::POSITION_RIGHT, null, false);
-                    $chart = new \PhpOffice\PhpSpreadsheet\Chart\Chart('action_chart', $title, $legend, $plotArea, true, 0, null, null);
-                    $chart->setTopLeftPosition('D2');
-                    $chart->setBottomRightPosition('L20');
-                    $stats->addChart($chart);
-                }
-
-                // Output XLSX
-                $filename = $fileBase . '.xlsx';
-                header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-                header('Content-Disposition: attachment; filename="' . $filename . '"');
-                header('Cache-Control: max-age=0');
-
-                $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
-                $writer->setIncludeCharts(true);
-                $writer->save('php://output');
-                exit;
-            } catch (\Throwable $e) {
-                log_message('error', 'XLSX export failed: ' . $e->getMessage());
-                // fall back to CSV below
-            }
-        }
-
-        // Prefer PDF output, but fall back to CSV if Dompdf isn't available.
-        if (! class_exists('\\Dompdf\\Dompdf')) {
-            log_message('warning', 'Dompdf not installed; falling back to CSV export.');
-            // Return CSV so the frontend download flow continues to work.
-            return $this->response
-                ->setHeader('Content-Type', 'text/csv')
-                ->setHeader('Content-Disposition', 'attachment; filename="' . $fileBase . '.csv"')
-                ->setBody($csv);
-        }
-
-        // Build filter labels for the PDF header
-        $filterParts = [];
-        if ($start || $end) $filterParts[] = 'Date: ' . ($start ?: '...') . ' to ' . ($end ?: '...');
-        if ($action) $filterParts[] = 'Action: ' . htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
-        if ($method) $filterParts[] = 'Method: ' . htmlspecialchars($method, ENT_QUOTES, 'UTF-8');
-        if ($q) $filterParts[] = 'Search: ' . htmlspecialchars($q, ENT_QUOTES, 'UTF-8');
-
-        $metaHtml = '';
-        if (! empty($filterParts)) {
-            $metaHtml .= '<div style="margin-bottom:10px;">';
-            foreach ($filterParts as $p) {
-                $metaHtml .= '<span style="display:inline-block;background:#eef2ff;padding:6px 8px;border-radius:6px;margin-right:8px;font-size:11px;color:#0b2e6f">' . $p . '</span>';
-            }
-            $metaHtml .= '</div>';
-        }
-
-        // Generate HTML table for PDF
-        $html = '<!doctype html><html><head><meta charset="utf-8"><style>'
-            . 'body{font-family: DejaVu Sans, Arial, Helvetica, sans-serif; color:#111; font-size:12px;}'
-            . 'h1{font-size:16px;margin:0 0 6px 0}'
-            . '.meta{font-size:11px;color:#555;margin-bottom:8px}'
-            . 'table{border-collapse:collapse;width:100%;margin-top:6px}'
-            . 'th,td{border:1px solid #ddd;padding:6px;text-align:left;vertical-align:top;font-size:11px}'
-            . 'th{background:#f7f7f7;font-weight:700}'
-            . '</style></head><body>';
-
-        $html .= '<h1>Admin Activity Logs</h1>';
-        $html .= '<div class="meta">Generated: ' . date('Y-m-d H:i:s') . '</div>';
-        $html .= $metaHtml;
-
-        $html .= '<table><thead><tr>';
-        foreach ($headers as $h) {
-            $html .= '<th>' . htmlspecialchars($h, ENT_QUOTES, 'UTF-8') . '</th>';
-        }
-        $html .= '</tr></thead><tbody>';
-
-        // Parse CSV rows into table (skip CSV header)
-        $lines = explode("\n", trim($csv));
-        foreach ($lines as $idx => $line) {
-            if ($line === '') continue;
-            if ($idx === 0) continue; // header
-            $cells = str_getcsv($line);
-            $html .= '<tr>';
-            foreach ($cells as $cell) {
-                $html .= '<td>' . htmlspecialchars(trim($cell), ENT_QUOTES, 'UTF-8') . '</td>';
-            }
-            $html .= '</tr>';
-        }
-
-        $html .= '</tbody></table></body></html>';
-
+            $this->adminModel->update($adminId, ['must_change_password' => 0]);
+        } catch (\Throwable $_) { }
         try {
-            $dompdf = new \Dompdf\Dompdf(['isHtml5ParserEnabled' => true]);
-            $dompdf->setPaper('A4', 'landscape');
-            $dompdf->loadHtml($html);
-            $dompdf->render();
-            $pdf = $dompdf->output();
-            return $this->response->setHeader('Content-Type', 'application/pdf')
-                ->setHeader('Content-Disposition', 'attachment; filename="admin-activity-logs.pdf"')
-                ->setBody($pdf);
-        } catch (\Throwable $e) {
-            log_message('error', 'PDF export failed: ' . $e->getMessage());
-            return $this->response->setStatusCode(500)->setBody('Failed to generate PDF export.');
-        }
+            session()->set('force_password_change', false);
+            session()->remove('force_password_change');
+        } catch (\Throwable $_) { }
+
+        return $this->response->setJSON([
+            'success' => true,
+            'message' => 'Password changed successfully',
+            // Direct SPA-driven clients to load the dashboard content fragment
+            'redirect' => base_url('admin/index')
+        ]);
     }
 
-    /**
-     * Return available export formats based on installed libraries.
-     * JSON: { pdf: bool, xlsx: bool }
-     */
-    public function exportAvailability()
-    {
-        $available = [
-            'pdf'  => class_exists('\\Dompdf\\Dompdf'),
-            'xlsx' => class_exists('\\PhpOffice\\PhpSpreadsheet\\Spreadsheet'),
-        ];
-        return $this->response->setJSON($available);
-    }
 }

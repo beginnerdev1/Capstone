@@ -239,6 +239,195 @@ class SuperAdmin extends Controller
         return $this->response->setJSON(['status'=>'error','message'=>'Not found']);
     }
 
+    /**
+     * Upload a backup ZIP for restore. Stores under WRITEPATH/backups/restores/ and
+     * returns a JSON list of tables found in the ZIP (from JSON filenames).
+     */
+    public function uploadRestore()
+    {
+        $current = session()->get('superadmin_id');
+        if (!$current) return $this->response->setJSON(['status'=>'error','message'=>'Not authenticated']);
+
+        if (!$this->request->is('post')) {
+            return $this->response->setJSON(['status'=>'error','message'=>'Invalid request method']);
+        }
+
+        $file = $this->request->getFile('restore_zip');
+        if (!$file || !$file->isValid()) {
+            return $this->response->setJSON(['status'=>'error','message'=>'No file uploaded or file invalid']);
+        }
+        $ext = strtolower(pathinfo($file->getClientName(), PATHINFO_EXTENSION));
+        if ($ext !== 'zip') {
+            return $this->response->setJSON(['status'=>'error','message'=>'Only ZIP archives are accepted']);
+        }
+
+        $destDir = WRITEPATH . 'backups/restores/';
+        if (!is_dir($destDir)) @mkdir($destDir, 0755, true);
+        $filename = 'restore_' . date('Ymd_His') . '_' . bin2hex(random_bytes(6)) . '.zip';
+        $target = $destDir . $filename;
+
+        try {
+            $file->move($destDir, $filename);
+        } catch (\Exception $e) {
+            return $this->response->setJSON(['status'=>'error','message'=>'Failed to save uploaded file: ' . $e->getMessage()]);
+        }
+
+        // Inspect ZIP for JSON files and metadata
+        $tables = [];
+        $zip = new \ZipArchive();
+        if ($zip->open($target) === true) {
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $stat = $zip->statIndex($i);
+                $name = $stat['name'] ?? '';
+                if (preg_match('/^(.+)\.json$/i', $name, $m)) {
+                    $tbl = $m[1];
+                    // skip generic metadata file
+                    if (strtolower($tbl) === 'metadata') continue;
+                    $tables[] = $tbl;
+                }
+            }
+            $zip->close();
+        }
+
+        return $this->response->setJSON(['status'=>'success','message'=>'Uploaded','filename'=>$filename,'tables'=>$tables]);
+    }
+
+    /**
+     * Apply a previously uploaded restore ZIP. Requires POST param `filename` and
+     * `confirm` equal to 'RESTORE'. This performs a best-effort REPLACE INTO for each
+     * JSON file named <table>.json contained in the archive. All work is executed
+     * inside a DB transaction; on error the transaction is rolled back.
+     */
+    public function applyRestore()
+    {
+        $current = session()->get('superadmin_id');
+        if (!$current) return $this->response->setJSON(['status'=>'error','message'=>'Not authenticated']);
+        if (!$this->request->is('post')) return $this->response->setJSON(['status'=>'error','message'=>'Invalid request method']);
+
+        $filename = trim((string)$this->request->getPost('filename'));
+        $confirm = trim((string)$this->request->getPost('confirm'));
+        if ($confirm !== 'RESTORE') return $this->response->setJSON(['status'=>'error','message'=>'Restore not confirmed']);
+        if ($filename === '') return $this->response->setJSON(['status'=>'error','message'=>'Missing filename']);
+
+        $filePath = WRITEPATH . 'backups/restores/' . $filename;
+        if (!file_exists($filePath)) return $this->response->setJSON(['status'=>'error','message'=>'Restore file not found']);
+
+        $tmpDir = WRITEPATH . 'backups/tmp_restore_' . bin2hex(random_bytes(6)) . '/';
+        if (!is_dir($tmpDir)) @mkdir($tmpDir, 0755, true);
+
+        $zip = new \ZipArchive();
+        if ($zip->open($filePath) !== true) return $this->response->setJSON(['status'=>'error','message'=>'Failed to open ZIP archive']);
+
+        // Extract only JSON files into tmp dir
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $stat = $zip->statIndex($i);
+            $name = $stat['name'] ?? '';
+            if (preg_match('/^(.+)\.json$/i', $name)) {
+                // extract to tmpDir preserving filename
+                copy('zip://' . $filePath . '#' . $name, $tmpDir . basename($name));
+            }
+        }
+        $zip->close();
+
+        $db = \Config\Database::connect();
+        $db->transStart();
+
+        try {
+            // For each JSON file, perform REPLACE INTO for each row
+            $files = glob($tmpDir . '*.json');
+            $skippedTables = [];
+            $processedTables = [];
+            $errors = [];
+            $rowIssues = [];
+
+            foreach ($files as $f) {
+                $base = basename($f);
+                if (strtolower($base) === 'metadata.json') continue;
+                $table = preg_replace('/\.json$/i', '', $base);
+
+                // Skip if table does not exist
+                if (! $db->tableExists($table)) {
+                    $skippedTables[] = $table;
+                    continue;
+                }
+
+                // Get column list for the table
+                $tableCols = [];
+                try {
+                    $colResults = $db->query("SHOW COLUMNS FROM `{$table}`")->getResultArray();
+                    foreach ($colResults as $cr) {
+                        if (isset($cr['Field'])) $tableCols[] = $cr['Field'];
+                    }
+                } catch (\Throwable $_) {
+                    // If we cannot get columns, skip table
+                    $skippedTables[] = $table;
+                    continue;
+                }
+
+                $contents = file_get_contents($f);
+                $rows = json_decode($contents, true);
+                if (!is_array($rows) || empty($rows)) continue;
+
+                $processedTables[] = $table;
+
+                foreach ($rows as $idx => $row) {
+                    if (!is_array($row)) { $rowIssues[] = [ 'table' => $table, 'row' => $idx, 'reason' => 'not_array' ]; continue; }
+
+                    // Filter row keys to table columns to avoid SQL errors
+                    $filtered = array_intersect_key($row, array_flip($tableCols));
+                    if (empty($filtered)) { $rowIssues[] = [ 'table' => $table, 'row' => $idx, 'reason' => 'no_matching_columns' ]; continue; }
+
+                    $cols = array_keys($filtered);
+                    $colList = implode(',', array_map(function($c){ return '`'.str_replace('`','',$c).'`'; }, $cols));
+                    $placeholders = rtrim(str_repeat('?,', count($cols)), ',');
+                    $sql = "REPLACE INTO `{$table}` ({$colList}) VALUES ({$placeholders})";
+                    $bindings = array_values($filtered);
+
+                    try {
+                        $db->query($sql, $bindings);
+                        $err = $db->error();
+                        if (!empty($err) && isset($err['code']) && $err['code'] != 0) {
+                            $errors[] = [ 'table' => $table, 'row' => $idx, 'error' => $err ];
+                        }
+                    } catch (\Throwable $qe) {
+                        $errors[] = [ 'table' => $table, 'row' => $idx, 'exception' => $qe->getMessage() ];
+                    }
+                }
+            }
+
+            // If any errors occurred, rollback and report summary
+            if (!empty($errors)) {
+                $db->transRollback();
+                // cleanup tmp dir
+                foreach (glob($tmpDir . '*') as $tf) @unlink($tf);
+                @rmdir($tmpDir);
+                log_message('error', 'applyRestore errors: ' . json_encode($errors));
+                return $this->response->setJSON(['status'=>'error','message'=>'Database transaction failed during restore','debug'=>['errors'=>$errors,'skipped'=>$skippedTables,'row_issues'=>$rowIssues]]);
+            }
+
+            $db->transComplete();
+            if ($db->transStatus() === false) {
+                // cleanup tmp dir
+                foreach (glob($tmpDir . '*') as $tf) @unlink($tf);
+                @rmdir($tmpDir);
+                return $this->response->setJSON(['status'=>'error','message'=>'Database transaction failed during restore','debug'=>['skipped'=>$skippedTables,'row_issues'=>$rowIssues]]);
+            }
+
+            // cleanup tmp dir
+            foreach (glob($tmpDir . '*') as $tf) @unlink($tf);
+            @rmdir($tmpDir);
+
+            return $this->response->setJSON(['status'=>'success','message'=>'Restore applied','summary'=>['processed'=>$processedTables,'skipped'=>$skippedTables,'row_issues'=>$rowIssues]]);
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            // cleanup tmp dir
+            foreach (glob($tmpDir . '*') as $tf) @unlink($tf);
+            @rmdir($tmpDir);
+            log_message('error', 'applyRestore error: ' . $e->getMessage());
+            return $this->response->setJSON(['status'=>'error','message'=>'Restore failed: ' . $e->getMessage()]);
+        }
+    }
+
     // Batch resolve actor display names (POST JSON: {actors: [{type:'admin',id:1}, ...]})
     public function getActorDisplays()
     {

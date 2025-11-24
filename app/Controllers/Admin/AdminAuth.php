@@ -103,8 +103,10 @@ class AdminAuth extends BaseController
             'force_password_change' => $forceChange
         ]);
 
+        // If this account must change its default password, redirect immediately
+        // to the edit-profile page so the admin cannot navigate elsewhere.
         if ($forceChange) {
-            return redirect()->to('admin/')->with('warning', 'Please change your default password.');
+            return redirect()->to('admin/edit-profile')->with('warning', 'Please complete your profile and change your default password before continuing.');
         }
 
         // Log login
@@ -254,9 +256,27 @@ class AdminAuth extends BaseController
             ]);
 
             $updatedAdmin = $this->adminModel->find($adminId);
+            $forceChange = false;
             if (!empty($updatedAdmin['must_change_password'])) {
+                $forceChange = true;
                 session()->setFlashdata('force_password_change', true);
                 session()->set('force_password_change', true);
+            } else {
+                // Also consider default password match as requiring change
+                $defaultPassword = getenv('DEFAULT_PASSWORD') ?: '123456';
+                try {
+                    if (password_verify($defaultPassword, $updatedAdmin['password'])) {
+                        $forceChange = true;
+                        session()->setFlashdata('force_password_change', true);
+                        session()->set('force_password_change', true);
+                    }
+                } catch (\Throwable $_) { }
+            }
+
+            // If force change is required, go directly to edit profile
+            if ($forceChange) {
+                return redirect()->to('admin/edit-profile')
+                    ->with('success', 'Email verified! Please complete your profile and change the default password.');
             }
 
             // Log login after OTP verification
