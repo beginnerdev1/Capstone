@@ -2596,7 +2596,7 @@ class Admin extends BaseController
             
             // ✅ Check if billing for this month has already been synchronized
             $existingBillingsForMonth = $this->billingModel
-                ->where('DATE_FORMAT(billing_month, "%Y-%m")', date('Y-m')) // Check current month instead
+                ->where('DATE_FORMAT(billing_month, "%Y-%m")', $month) // Check requested month
                 ->countAllResults();
 
             if ($existingBillingsForMonth > 0) {
@@ -2680,7 +2680,7 @@ class Admin extends BaseController
                 // Check if billing already exists for this user and month (using due_date)
                 $existingBilling = $this->billingModel
                     ->where('user_id', $user['id'])
-                    ->where('DATE_FORMAT(billing_month, "%Y-%m")', date('Y-m')) // Check current month
+                    ->where('DATE_FORMAT(billing_month, "%Y-%m")', $month) // Check requested month
                     ->first();
                 
                 if ($existingBilling) {
@@ -2690,28 +2690,29 @@ class Admin extends BaseController
                     continue;
                 }
                 
-                // Create new billing record with current date and due date 1 week later
-                $syncDate = date('Y-m-d');
+                // Create new billing record for the requested month (first day) and due date 1 week from now
+                $syncDate = date('Y-m-d H:i:s');
                 $dueDate = date('Y-m-d', strtotime('+7 days'));
                 $billNo = 'BILL-' . date('Ymd') . '-' . str_pad($user['id'], 4, '0', STR_PAD_LEFT);
-                
+
                 $billingData = [
                     'user_id' => $user['id'],
                     'bill_no' => $billNo,
                     'amount_due' => $amount,
-                    // compute previous unpaid balance and add
+                    // initial balance will be computed below
                     'balance' => 0,
-                    'billing_month' => $syncDate, // Date when admin synchronized
-                    'due_date' => $dueDate, // Due date is 7 days from synchronization
+                    'billing_month' => $month . '-01', // Use the first day of the requested month
+                    'due_date' => $dueDate,
                     'status' => 'Pending',
-                    'created_at' => date('Y-m-d H:i:s'),
-                    'updated_at' => date('Y-m-d H:i:s')
+                    'created_at' => $syncDate,
+                    'updated_at' => $syncDate
                 ];
 
                 // compute outstanding (sum of unpaid pending bills)
                 try {
+                    // Sum remaining balances from previous pending bills (use balance if present)
                     $oldRow = $this->billingModel
-                        ->select('COALESCE(SUM(amount_due),0) as outstanding')
+                        ->select('COALESCE(SUM(COALESCE(balance,0)),0) as outstanding')
                         ->where('user_id', $user['id'])
                         ->where('status', 'Pending')
                         ->where('paid_date IS NULL')
@@ -2722,6 +2723,7 @@ class Admin extends BaseController
                     $oldOutstanding = 0.0;
                 }
 
+                // New outstanding becomes previous outstanding plus the new amount
                 $billingData['balance'] = $oldOutstanding + (float)$amount;
 
                 if ($this->billingModel->insert($billingData)) {
@@ -3022,138 +3024,139 @@ class Admin extends BaseController
     }
 
     // Create Manual Billing (AJAX)
-  public function createManualBilling()
-    {
-        try {
-            $input = $this->request->getJSON(true);
-            
-            if (!$input || empty($input['user_id']) || empty($input['month']) || empty($input['amount'])) {
-                return $this->response->setJSON([
-                    'success' => false,
-                    'message' => 'Missing required fields'
-                ]);
-            }
-            
-            $userId = (int)$input['user_id'];
-            $month = $input['month'];
-            $amount = (float)$input['amount'];
-            $purok = $input['purok'] ?? '';
-            
-            // Validate month format
-            if (!preg_match('/^\d{4}-\d{2}$/', $month)) {
-                return $this->response->setJSON([
-                    'success' => false,
-                    'message' => 'Invalid month format'
-                ]);
-            }
-            
-            // Check if user exists and get user details for email
-            $user = $this->usersModel
-                ->select('users.id, users.email, user_information.first_name, user_information.last_name')
-                ->join('user_information', 'user_information.user_id = users.id', 'left')
-                ->where('users.id', $userId)
-                ->first();
-            
-            if (!$user) {
-                return $this->response->setJSON([
-                    'success' => false,
-                    'message' => 'User not found'
-                ]);
-            }
-            
-            // Check if billing already exists for this user and month
-            $existingBilling = $this->billingModel
-                ->where('user_id', $userId)
-                ->where('DATE_FORMAT(billing_month, "%Y-%m")', $month)
-                ->first();
-            
-            if ($existingBilling) {
-                return $this->response->setJSON([
-                    'success' => false,
-                    'message' => 'User already has a billing for this month'
-                ]);
-            }
-            
-            // Create billing record
-            $today = date('Y-m-d');
-            $dueDate = date('Y-m-d', strtotime('+7 days'));
-            $billNo = 'MANUAL-' . date('Ymd') . '-' . str_pad($userId, 4, '0', STR_PAD_LEFT);
-            
-            $billingData = [
-                'user_id' => $userId,
-                'bill_no' => $billNo,
-                'amount_due' => $amount,
-                // compute previous unpaid balance and add (old balance + new bill)
-                'balance' => 0,
-                'billing_month' => $month . '-01', // First day of the month
-                'due_date' => $dueDate,
-                'status' => 'Pending',
-                'created_at' => date('Y-m-d H:i:s'),
-                'updated_at' => date('Y-m-d H:i:s')
-            ];
+public function createManualBilling()
+{
+    $json   = $this->request->getJSON(true) ?? $this->request->getPost();
+    $userId = (int) ($json['user_id'] ?? $this->request->getPost('user_id'));
+    $month  = trim($json['month'] ?? $this->request->getPost('month') ?? date('Y-m'));
+    $amount = isset($json['amount']) ? (float)$json['amount'] : (float)$this->request->getPost('amount');
 
-            // compute previous unpaid balance
-            try {
-                $oldRow = $this->billingModel
-                    ->select('COALESCE(SUM(amount_due),0) as outstanding')
-                    ->where('user_id', $userId)
-                    ->where('status', 'Pending')
-                    ->where('paid_date IS NULL')
-                    ->get()
-                    ->getRow();
-                $oldOutstanding = (float) ($oldRow->outstanding ?? 0);
-            } catch (\Throwable $_) {
-                $oldOutstanding = 0.0;
-            }
+    if (!$userId || !preg_match('/^\d{4}-\d{2}$/', $month) || $amount <= 0) {
+        return $this->response->setJSON(['success' => false, 'message' => 'Invalid input']);
+    }
 
-            $billingData['balance'] = $oldOutstanding + (float)$amount;
+    $billingMonthFirstDay = $month . '-01';
 
-            if ($this->billingModel->insert($billingData)) {
-                $userName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
-                if (empty($userName)) {
-                    $userName = 'Valued Customer';
-                }
-                
-                // ✅ SEND EMAIL NOTIFICATION FOR MANUAL BILLING
-                if (!empty($user['email'])) {
-                    $this->sendBillingNotificationEmail(
-                        $user['email'],
-                        $userName,
-                        $billNo,
-                        $amount,
-                        $dueDate,
-                        $month . '-01'  // Use first day of month for display
-                    );
-                    
-                    log_message('info', "Manual billing email sent to {$user['email']} for bill {$billNo}");
-                    
-                    return $this->response->setJSON([
-                        'success' => true,
-                        'message' => "Manual billing created successfully for {$userName} - ₱{$amount}. Email notification sent!"
-                    ]);
-                } else {
-                    log_message('warning', "Manual billing created for User {$userId} but no email address found, skipping email notification");
-                    
-                    return $this->response->setJSON([
-                        'success' => true,
-                        'message' => "Manual billing created successfully for {$userName} - ₱{$amount}. (No email address found)"
-                    ]);
-                }
-            } else {
-                return $this->response->setJSON([
-                    'success' => false,
-                    'message' => 'Failed to create manual billing'
-                ]);
-            }
-            
-        } catch (\Exception $e) {
-            log_message('error', 'Error in createManualBilling: ' . $e->getMessage());
-            return $this->response->setJSON([
-                'success' => false,
-                'message' => 'Failed to create manual billing: ' . $e->getMessage()
-            ]);
+    // Verify user exists
+    $user = $this->usersModel->find($userId);
+    if (!$user) {
+        return $this->response->setJSON(['success' => false, 'message' => 'User not found']);
+    }
+
+    // Prevent duplicate billing for same user+month
+    $exists = $this->billingModel
+        ->where('user_id', $userId)
+        ->where("DATE_FORMAT(billing_month, '%Y-%m')", $month)
+        ->first();
+
+    if ($exists) {
+        return $this->response->setJSON(['success' => false, 'message' => 'Billing already exists for this user and month']);
+    }
+
+    // Compute outstanding from previous bills (older months only) for display (case-insensitive paid check)
+    $db = \Config\Database::connect();
+    $prevRow = $db->table('billings')
+        ->select("COALESCE(SUM(COALESCE(balance, amount_due)),0) AS outstanding", false)
+        ->where('user_id', $userId)
+        ->where('billing_month <', $billingMonthFirstDay)
+        ->where("LOWER(status) != 'paid'")
+        ->get()
+        ->getRowArray();
+
+    $carryover = isset($prevRow['outstanding']) ? (float)$prevRow['outstanding'] : 0.0;
+
+    // Build unique bill_no with retries (safe against race conditions)
+    $datePrefix = 'MANUAL-' . date('Ymd'); // e.g. MANUAL-20251123
+    $maxAttempts = 50;
+    $billNo = null;
+
+    for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+        $suffix = str_pad($attempt, 4, '0', STR_PAD_LEFT);
+        $candidate = $datePrefix . '-' . $suffix;
+        $found = $this->billingModel->where('bill_no', $candidate)->first();
+        if (!$found) {
+            $billNo = $candidate;
+            break;
         }
     }
+
+    if ($billNo === null) {
+        $billNo = $datePrefix . '-' . uniqid();
+    }
+
+    // Prepare new billing row
+    // NOTE: explicitly set `balance` = `amount_due` and persist carryover (non-null)
+    $newBilling = [
+        'user_id'       => $userId,
+        'bill_no'       => $billNo,
+        'amount_due'    => number_format((float)$amount, 2, '.', ''),
+        'carryover'     => number_format($carryover, 2, '.', ''), // non-null to match schema
+        'balance'       => number_format((float)$amount, 2, '.', ''), // explicit remaining current-month balance
+        'status'        => 'Pending',
+        'billing_month' => $billingMonthFirstDay,
+        'due_date'      => date('Y-m-d', strtotime($billingMonthFirstDay . ' +7 days')),
+        'created_at'    => date('Y-m-d H:i:s'),
+        'updated_at'    => date('Y-m-d H:i:s'),
+    ];
+
+    // Attempt insert; on duplicate-key exceptions try a few times with new bill_no
+    $insertAttempts = 0;
+    $maxInsertAttempts = 8;
+    while ($insertAttempts < $maxInsertAttempts) {
+        try {
+            $inserted = $this->billingModel->insert($newBilling);
+            if ($inserted) {
+                // Return computed carryover and total_due so UI can show full amount owed
+                $totalDue = $carryover + (float)$newBilling['balance'];
+                return $this->response->setJSON([
+                    'success'    => true,
+                    'message'    => 'Manual billing created',
+                    'bill_no'    => $billNo,
+                    'billing'    => [
+                        'user_id'       => $userId,
+                        'bill_no'       => $billNo,
+                        'amount_due'    => number_format((float)$amount, 2, '.', ''),
+                        'balance'       => number_format((float)$newBilling['balance'], 2, '.', ''),
+                        'carryover'     => number_format($carryover, 2, '.', ''),
+                        'total_due'     => number_format($totalDue, 2, '.', ''),
+                        'billing_month' => $billingMonthFirstDay,
+                        'due_date'      => $newBilling['due_date'],
+                        'status'        => $newBilling['status'],
+                    ]
+                ]);
+            }
+            // Unexpected falsy return — break to avoid infinite loop
+            break;
+        } catch (\Throwable $e) {
+            $msg = $e->getMessage();
+            // Detect duplicate key (MySQL 1062 or 'Duplicate entry' text)
+            if (stripos($msg, 'Duplicate entry') !== false || stripos($msg, '1062') !== false) {
+                $insertAttempts++;
+                // try a randomized suffix next (quick, low-collision)
+                $newSuffix = str_pad(rand(1000, 9999), 4, '0', STR_PAD_LEFT);
+                $newCandidate = $datePrefix . '-' . $newSuffix;
+                if (!$this->billingModel->where('bill_no', $newCandidate)->first()) {
+                    $newBilling['bill_no'] = $newCandidate;
+                    $billNo = $newCandidate;
+                    continue;
+                } else {
+                    // fallback to uniqid
+                    $newBilling['bill_no'] = $datePrefix . '-' . uniqid();
+                    $billNo = $newBilling['bill_no'];
+                    continue;
+                }
+            }
+
+            // Other errors: log and return failure
+            log_message('error', 'createManualBilling insert error: ' . $e->getMessage());
+            return $this->response->setJSON(['success' => false, 'message' => 'Failed to create manual billing: ' . $e->getMessage()]);
+        }
+    }
+
+    // All retries exhausted
+    return $this->response->setJSON(['success' => false, 'message' => 'Failed to create manual billing after multiple attempts']);
+}
+
 
     // Billing Reports
     public function reports()

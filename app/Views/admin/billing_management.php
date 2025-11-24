@@ -433,8 +433,7 @@
                         <label class="ubill-form-label">Current Billing Month</label>
                         <!-- Fix the input field -->
 <input type="month" id="ubill-billingMonth" class="ubill-form-input" 
-       style="font-weight: 600; color: var(--ubill-primary); background: white;"
-       readonly> <!-- THIS PREVENTS SETTING VALUE -->
+    style="font-weight: 600; color: var(--ubill-primary); background: white;"> 
                     </div>
                 </div>
                 
@@ -519,6 +518,7 @@
                                 <th>User Name</th>
                                 <th>Email</th>
                                 <th>Amount Due</th>
+                                <th>Balance</th>
                                 <th>Status</th>
                                 <th>Billing Month</th>
                                 <th>Due Date</th>
@@ -526,7 +526,7 @@
                         </thead>
                         <tbody id="ubill-billingTable">
                             <tr>
-                                <td colspan="7" class="ubill-no-data">
+                                <td colspan="8" class="ubill-no-data">
                                     <div class="ubill-no-data-icon">📭</div>
                                     <div>Loading billing data...</div>
                                 </td>
@@ -751,7 +751,7 @@ function renderBillingTable(data) {
         
         billingTableBody.innerHTML = `
             <tr>
-                <td colspan="7" style="text-align: center; padding: 3rem;">
+                <td colspan="8" style="text-align: center; padding: 3rem;">
                     <div class="ubill-no-data-icon">📋</div>
                     <div>No billing records found for ${filterText}</div>
                 </td>
@@ -792,12 +792,25 @@ function renderBillingTable(data) {
             <td>${item.user_name || '-'}</td>
             <td>${item.email || '-'}</td>
             <td>₱${parseFloat(item.amount_due || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-            <td>${item.status || '-'}</td>
+            <td>₱${parseFloat(item.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            <td>${renderStatusBadge(item.status)}</td>
             <td>${ubillFormatMonth(item.billing_month)}</td>
             <td ${dueDateClass}>${dueDateDisplay}</td>
         `;
         billingTableBody.appendChild(row);
     });
+}
+
+// Render a simple status badge HTML for table
+function renderStatusBadge(status) {
+    if (!status) return '-';
+    const s = status.toString();
+    let cls = 'ubill-status-badge';
+    let text = s;
+    if (s === 'Paid') cls += ' ubill-status-active';
+    if (s === 'Partial') cls += ' ubill-status-warning';
+    if (s === 'Pending') cls += ' ubill-status-pending';
+    return `<span class="${cls}">${text}</span>`;
 }
 
 // === Initialize Functions ===
@@ -990,6 +1003,7 @@ function ubillPrintTable() {
                         <td style="border:1px solid #333; padding:8px;">${item.user_name || '-'}</td>
                         <td style="border:1px solid #333; padding:8px;">${item.email || '-'}</td>
                         <td style="border:1px solid #333; padding:8px;">₱${parseFloat(item.amount_due || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td style="border:1px solid #333; padding:8px;">₱${parseFloat(item.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                         <td style="border:1px solid #333; padding:8px;">${item.status || '-'}</td>
                         <td style="border:1px solid #333; padding:8px;">${ubillFormatMonth(item.billing_month)}</td>
                         <td style="border:1px solid #333; padding:8px;">${dueDateDisplay}</td>
@@ -1021,10 +1035,11 @@ function ubillPrintTable() {
                             <th style="border:1px solid #333; padding:8px; background:#f3f3f3;">Bill No</th>
                             <th style="border:1px solid #333; padding:8px; background:#f3f3f3;">User Name</th>
                             <th style="border:1px solid #333; padding:8px; background:#f3f3f3;">Email</th>
-                            <th style="border:1px solid #333; padding:8px; background:#f3f3f3;">Amount Due</th>
-                            <th style="border:1px solid #333; padding:8px; background:#f3f3f3;">Status</th>
-                            <th style="border:1px solid #333; padding:8px; background:#f3f3f3;">Billing Month</th>
-                            <th style="border:1px solid #333; padding:8px; background:#f3f3f3;">Due Date</th>
+                                            <th style="border:1px solid #333; padding:8px; background:#f3f3f3;">Amount Due</th>
+                                            <th style="border:1px solid #333; padding:8px; background:#f3f3f3;">Balance</th>
+                                            <th style="border:1px solid #333; padding:8px; background:#f3f3f3;">Status</th>
+                                            <th style="border:1px solid #333; padding:8px; background:#f3f3f3;">Billing Month</th>
+                                            <th style="border:1px solid #333; padding:8px; background:#f3f3f3;">Due Date</th>
                         </tr>
                     </thead>
                     <tbody>
