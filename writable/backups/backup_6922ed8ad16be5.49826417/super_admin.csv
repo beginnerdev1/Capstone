@@ -1,0 +1,2 @@
+id,admin_code,email,password,created_at,updated_at,first_name,middle_name,last_name,otp_hash,otp_expires,is_primary,otp_failed_attempts,otp_locked_until,admin_code_used_at,must_change_password
+1,$2y$10$KyfrssEoullRWkThwMcYf.KoxPiQBP54dLpWzWjoVk.7F4jlsIDnu,mikevidal689@gmail.com,$2y$10$cTb4pdPMsB.VtZjbD504O.7fixBPLOlpbvdKCz5Q5ldpoEizBPFZ2,"2025-11-23 18:55:19","2025-11-23 18:58:44","Mike Lorenz",Verial,Vidal,,,0,0,,,0

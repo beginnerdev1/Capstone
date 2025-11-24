@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use CodeIgniter\Controller;
 use App\Models\AdminModel;
+use App\Models\SuperAdminModel;
 use Brevo\Client\Configuration;
 use Brevo\Client\Api\TransactionalEmailsApi;
 use Brevo\Client\Model\SendSmtpEmail;
@@ -71,65 +72,18 @@ class SuperAdmin extends Controller
         return $this->response->setJSON($rows);
     }
 
-    // Create a new super admin immediately (limit 2)
-    public function createSuperAdmin()
-    {
-        $email = trim($this->request->getPost('email') ?? '');
-        $firstName = trim($this->request->getPost('first_name') ?? '');
-        $lastName = trim($this->request->getPost('last_name') ?? '');
-        $password = $this->request->getPost('password') ?? '';
-        $confirm = $this->request->getPost('confirm_password') ?? '';
-
-        if (!$email || !$password || !$confirm || !$firstName) return $this->response->setJSON(['status'=>'error','message'=>'Missing fields (first name, email, password required)']);
-        if ($password !== $confirm) return $this->response->setJSON(['status'=>'error','message'=>'Passwords do not match']);
-        if (strlen($password) < 8) return $this->response->setJSON(['status'=>'error','message'=>'Password too short']);
-
-        $model = new \App\Models\SuperAdminModel();
-        $existing = $model->where('email', $email)->first();
-        if ($existing) return $this->response->setJSON(['status'=>'error','message'=>'Email already used']);
-
-        $all = $model->findAll();
-        if (count($all) >= 2) return $this->response->setJSON(['status'=>'error','message'=>'Maximum of 2 super admins allowed']);
-
-        $code = $model->generateAdminCode();
-        // Determine is_primary: only set to primary if there is no existing primary
-        $existingPrimary = $model->where('is_primary', 1)->first();
-        $isPrimary = $existingPrimary ? 0 : 1;
-
-        $data = [
-            'email' => $email,
-            'first_name' => $firstName,
-            'last_name' => $lastName,
-            'password' => password_hash($password, PASSWORD_DEFAULT),
-            'admin_code' => $code,
-            'is_primary' => $isPrimary,
-        ];
-
-        $insertId = $model->insert($data);
-        if ($insertId) {
-            // Send notification email to the new super admin (if email provided)
-            try {
-                $fromEmail = getenv('SMTP_FROM') ?: (getenv('SMTP_USER') ?: 'no-reply@localhost');
-                $fromName  = getenv('MAIL_FROM_NAME') ?: getenv('SMTP_FROM_NAME') ?: 'Support';
-                $subject = 'Your Super Admin Account has been created';
-                $loginUrl = site_url('superadmin/login');
-                $html = "<p>Hello " . esc($firstName) . ",</p>" .
-                    "<p>Your super admin account has been created.</p>" .
-                    "<p><strong>Email:</strong> " . esc($email) . "</p>" .
-                    "<p>Please log in at <a href=\"{$loginUrl}\">{$loginUrl}</a>. For security, change your password after first login.</p>";
-                $this->sendEmail($email, trim($firstName . ' ' . $lastName), $subject, $html);
-            } catch (\Exception $e) {
-                // swallow email errors but continue
-            }
-
-            return $this->response->setJSON(['status'=>'success','message'=>'Super admin created']);
-        }
-        return $this->response->setJSON(['status'=>'error','message'=>'Failed to create super admin']);
-    }
+    // Note: Interactive creation of additional superadmins has been removed.
+    // This application enforces a single superadmin. Account creation via
+    // controller/API is intentionally disabled to prevent multiple superadmins.
 
     // Return pending actions
     public function pendingActions()
     {
+        $db = \Config\Database::connect();
+        if (! $db->tableExists('superadmin_actions')) {
+            // Table removed; return empty list so UI degrades gracefully
+            return $this->response->setJSON([]);
+        }
         $model = new \App\Models\SuperAdminActionModel();
         $rows = $model->getPending();
         return $this->response->setJSON($rows);
@@ -141,7 +95,10 @@ class SuperAdmin extends Controller
         $current = session()->get('superadmin_id');
         if (!$current) return $this->response->setJSON(['status'=>'error','message'=>'Not authenticated']);
         if (!$actionId) return $this->response->setJSON(['status'=>'error','message'=>'Missing action id']);
-
+        $db = \Config\Database::connect();
+        if (! $db->tableExists('superadmin_actions')) {
+            return $this->response->setJSON(['status'=>'error','message'=>'Superadmin actions feature not available']);
+        }
         $actionModel = new \App\Models\SuperAdminActionModel();
         $act = $actionModel->find($actionId);
         if (!$act || $act['status'] !== 'pending') return $this->response->setJSON(['status'=>'error','message'=>'Action not found or not pending']);
@@ -211,6 +168,10 @@ class SuperAdmin extends Controller
         $current = session()->get('superadmin_id');
         if (!$current) return $this->response->setJSON(['status'=>'error','message'=>'Not authenticated']);
         if (!$actionId) return $this->response->setJSON(['status'=>'error','message'=>'Missing action id']);
+        $db = \Config\Database::connect();
+        if (! $db->tableExists('superadmin_actions')) {
+            return $this->response->setJSON(['status'=>'error','message'=>'Superadmin actions feature not available']);
+        }
         $actionModel = new \App\Models\SuperAdminActionModel();
         $act = $actionModel->find($actionId);
         if (!$act || $act['status'] !== 'pending') return $this->response->setJSON(['status'=>'error','message'=>'Action not found or not pending']);
@@ -406,6 +367,104 @@ class SuperAdmin extends Controller
             ->setBody($csv);
     }
 
+    // Dashboard metrics (AJAX)
+    public function dashboardMetrics()
+    {
+        $this->response->setHeader('Content-Type', 'application/json');
+        $adminModel = new \App\Models\AdminModel();
+        $superModel = new \App\Models\SuperAdminModel();
+        $logModel = new \App\Models\AdminActivityLogModel();
+        $actionModel = new \App\Models\SuperAdminActionModel();
+
+        try {
+            $admins = (int) $adminModel->countAll();
+        } catch (\Throwable $_) { $admins = 0; }
+        try { $superadmins = (int) $superModel->countAll(); } catch (\Throwable $_) { $superadmins = 0; }
+        try { $logs = (int) $logModel->countAllResults(); } catch (\Throwable $_) { $logs = 0; }
+        try { $pending = (int) $actionModel->where('status','pending')->countAllResults(); } catch (\Throwable $_) { $pending = 0; }
+
+        // Active admins: distinct admin actor_ids with activity in the last N minutes
+        try {
+            $minutes = 10; // consider "active now" as activity within the last 10 minutes
+            $since = date('Y-m-d H:i:s', strtotime("-{$minutes} minutes"));
+            $db = \Config\Database::connect();
+            $activeAdmins = (int) $db->table('admin_activity_logs')
+                ->select('actor_id')
+                ->where('actor_type', 'admin')
+                ->where('created_at >=', $since)
+                ->groupBy('actor_id')
+                ->countAllResults();
+        } catch (\Throwable $_) { $activeAdmins = 0; }
+
+        return $this->response->setJSON([
+            'status' => 'success',
+            'data' => [
+                'admin_count' => $admins,
+                'superadmin_count' => $superadmins,
+                'log_count' => $logs,
+                'pending_actions' => $pending,
+                'active_admin_count' => $activeAdmins,
+            ]
+        ]);
+    }
+
+    // System info and backups (AJAX)
+    public function systemInfo()
+    {
+        $this->response->setHeader('Content-Type', 'application/json');
+        $db = \Config\Database::connect();
+        $info = [];
+        try {
+            $info['php_version'] = PHP_VERSION;
+            $info['os'] = PHP_OS_FAMILY . ' ' . PHP_OS;
+            $info['db_version'] = $db->getVersion();
+            // DB size for current database (best-effort)
+            $query = $db->query("SELECT IFNULL(SUM(data_length+index_length),0) AS bytes FROM information_schema.tables WHERE table_schema = DATABASE()");
+            $row = $query->getRowArray();
+            $info['db_bytes'] = isset($row['bytes']) ? (int)$row['bytes'] : 0;
+        } catch (\Throwable $_) {
+            $info['db_version'] = 'unknown';
+            $info['db_bytes'] = 0;
+        }
+
+        // Disk space and backups
+        $writable = WRITEPATH . 'backups';
+        $info['backups_dir'] = $writable;
+        $info['disk_free'] = @disk_free_space(WRITEPATH) ?: 0;
+        $info['disk_total'] = @disk_total_space(WRITEPATH) ?: 0;
+        $backups = [];
+        if (is_dir($writable)) {
+            foreach (glob($writable . DIRECTORY_SEPARATOR . '*') as $f) {
+                if (!is_file($f)) continue;
+                $backups[] = [
+                    'name' => basename($f),
+                    'size' => filesize($f),
+                    'mtime' => date('c', filemtime($f)),
+                ];
+            }
+            usort($backups, function($a,$b){ return strcmp($b['mtime'],$a['mtime']); });
+        }
+
+        return $this->response->setJSON(['status'=>'success','info'=>$info,'backups'=>$backups]);
+    }
+
+    // Download a specific backup ZIP from WRITEPATH/backups
+    public function downloadBackup()
+    {
+        $file = $this->request->getGet('file');
+        if (!$file) return $this->response->setJSON(['status'=>'error','message'=>'Missing file']);
+        $name = basename((string)$file);
+        $path = WRITEPATH . 'backups' . DIRECTORY_SEPARATOR . $name;
+        if (!is_file($path)) return $this->response->setJSON(['status'=>'error','message'=>'File not found']);
+
+        $size = filesize($path);
+        return $this->response
+            ->setHeader('Content-Type', 'application/zip')
+            ->setHeader('Content-Disposition', 'attachment; filename="' . $name . '"')
+            ->setHeader('Content-Length', (string)$size)
+            ->setBody(file_get_contents($path));
+    }
+
     // Handle user creation AJAX
     public function createUser()
     {
@@ -533,11 +592,22 @@ class SuperAdmin extends Controller
     public function backup()
     {
         $current = session()->get('superadmin_id');
-        if (! $current) return redirect()->to(site_url('superadmin/login'));
+        if (! $current) {
+            if ($this->request->isAJAX()) {
+                return $this->response->setJSON(['status' => 'error', 'message' => 'Not authenticated']);
+            }
+            return redirect()->to(site_url('superadmin/login'));
+        }
 
-        // Only allow POST to create backup to avoid accidental GET triggers
+        // Only allow POST to create backup to avoid accidental GET triggers.
+        // However, allow AJAX requests through even if they arrive as GET (some clients
+        // may issue an AJAX GET). Prefer POST, but be permissive for AJAX so the UI
+        // can trigger backups reliably. Non-AJAX GETs will be redirected.
         if ($this->request->getMethod() !== 'post') {
-            return redirect()->to(site_url('superadmin/settings'));
+            if (! $this->request->isAJAX()) {
+                return redirect()->to(site_url('superadmin/settings'));
+            }
+            // continue for AJAX requests even if not POST
         }
 
         $db = \Config\Database::connect();
@@ -626,6 +696,76 @@ class SuperAdmin extends Controller
         ];
         file_put_contents($tmpDir . DIRECTORY_SEPARATOR . 'metadata.json', json_encode($meta, JSON_PRETTY_PRINT));
 
+        // Additionally, produce a SQL dump (backup.sql) including CREATE TABLE and INSERT statements.
+        // This is a best-effort SQL export constructed from the live schema and rows.
+        $sqlPath = $tmpDir . DIRECTORY_SEPARATOR . 'backup.sql';
+        try {
+            $fpSql = fopen($sqlPath, 'w');
+            if ($fpSql !== false) {
+                fwrite($fpSql, "-- Backup generated on " . date('Y-m-d H:i:s') . "\n\n");
+                foreach ($tables as $table) {
+                    try {
+                        // Get CREATE TABLE statement
+                        $create = '';
+                        $res = $db->query("SHOW CREATE TABLE `" . str_replace('`','``',$table) . "`");
+                        if ($res) {
+                            $row = $res->getRowArray();
+                            if ($row) {
+                                foreach ($row as $c) { $create = $c; break; }
+                            }
+                        }
+
+                        if ($create !== '') {
+                            fwrite($fpSql, "-- Table structure for `{$table}`\n");
+                            fwrite($fpSql, "DROP TABLE IF EXISTS `{$table}`;\n");
+                            fwrite($fpSql, $create . ";\n\n");
+                        }
+
+                        // Emit INSERT statements in batches
+                        $batch = 500;
+                        $offset = 0;
+                        while (true) {
+                            $rows = $db->table($table)->limit($batch, $offset)->get()->getResultArray();
+                            if (empty($rows)) break;
+                            foreach ($rows as $r) {
+                                $cols = array_keys($r);
+                                $values = [];
+                                foreach ($cols as $c) {
+                                    $val = $r[$c];
+                                    if ($val === null) {
+                                        $values[] = 'NULL';
+                                    } else {
+                                        // Use the DB connection escape to quote/escape values
+                                        try {
+                                            $values[] = $db->escape($val);
+                                        } catch (\Throwable $_) {
+                                            // Fallback: basic addslashes and quoted
+                                            $values[] = "'" . addslashes(is_scalar($val) ? (string)$val : json_encode($val)) . "'";
+                                        }
+                                    }
+                                }
+                                $colList = '`' . implode('`,`', array_map(function($s){ return str_replace('`','``',$s); }, $cols)) . '`';
+                                $valList = implode(', ', $values);
+                                fwrite($fpSql, "INSERT INTO `{$table}` ({$colList}) VALUES ({$valList});\n");
+                            }
+                            $offset += $batch;
+                        }
+                        fwrite($fpSql, "\n");
+                    } catch (\Throwable $_) {
+                        // ignore table-level failures and continue
+                    }
+                }
+                fclose($fpSql);
+                $counts['backup_sql'] = filesize($sqlPath);
+            }
+        } catch (\Throwable $_) { /* ignore SQL dump errors */ }
+
+        // Rewrite metadata to include any new counts (e.g., backup_sql size)
+        try {
+            $meta['counts'] = $counts;
+            file_put_contents($tmpDir . DIRECTORY_SEPARATOR . 'metadata.json', json_encode($meta, JSON_PRETTY_PRINT));
+        } catch (\Throwable $_) { }
+
         // Create ZIP
         if (!is_dir(WRITEPATH . 'backups')) @mkdir(WRITEPATH . 'backups', 0775, true);
         $zipName = 'backup-all-' . date('Ymd-His') . '.zip';
@@ -677,11 +817,16 @@ class SuperAdmin extends Controller
             }
         } catch (\Exception $_) { }
 
-        // Stream ZIP to client
+        // Stream ZIP to client (or return JSON when requested via AJAX)
         if (!file_exists($zipPath)) {
             array_map('unlink', glob($tmpDir . DIRECTORY_SEPARATOR . '*'));
             @rmdir($tmpDir);
             return $this->response->setJSON(['status'=>'error','message'=>'ZIP file missing']);
+        }
+        // If this is an AJAX request, return the filename as JSON so the client
+        // can fetch the ZIP via `downloadBackup`. Otherwise, stream the binary.
+        if ($this->request->isAJAX()) {
+            return $this->response->setJSON(['status' => 'success', 'filename' => $zipName, 'message' => 'Backup created']);
         }
 
         $size = filesize($zipPath);
@@ -783,7 +928,73 @@ class SuperAdmin extends Controller
         }
         $superModel = new \App\Models\SuperAdminModel();
         $currentRow = $superModel->find($current);
-        if (!$currentRow || empty($currentRow['admin_code']) || $currentRow['admin_code'] !== $providedCode) {
+        if (!$currentRow || empty($currentRow['admin_code'])) {
+            return $this->response->setJSON(['status' => 'error', 'message' => 'Invalid admin code']);
+        }
+
+        // Stored admin_code may be hashed (bcrypt) or legacy plaintext.
+        // Support three verification paths (in order):
+        // 1) Direct equality of the raw provided value to the stored value
+        //    (covers the case where someone pastes the stored hash directly)
+        // 2) password_verify() when stored is a bcrypt hash and the user provided
+        //    the plain alphanumeric code (we normalize before verifying)
+        // 3) plaintext equality fallback for legacy rows
+        $stored = (string) ($currentRow['admin_code'] ?? '');
+        $rawProvided = (string) $providedCode;
+
+        // Normalize the raw provided value by trimming control characters but keep
+        // a cleaned alphanumeric-only version for password_verify of generated codes.
+        $trimmed = trim($rawProvided);
+        $trimmed = str_replace(["\r", "\n", "\t"], '', $trimmed);
+        $providedAlnum = preg_replace('/[^A-Za-z0-9]/', '', $trimmed);
+
+        $isValid = false;
+
+        // 1) Direct raw equality (if user pasted the stored hash itself)
+        $rawEqual = ($rawProvided !== '' && $rawProvided === $stored);
+        if ($rawEqual) $isValid = true;
+
+        // 2) Try password_verify for any supported hash format (bcrypt, argon2, etc.)
+        $pwVerified = false;
+        if (! $isValid && $providedAlnum !== '') {
+            try {
+                if (password_verify($providedAlnum, $stored)) {
+                    $pwVerified = true;
+                    $isValid = true;
+                }
+            } catch (\Throwable $_) {
+                // ignore and continue to fallback
+            }
+        }
+
+        // 3) Fallback: direct plaintext comparison (covers legacy rows still storing plaintext)
+        $plainEqual = (! $isValid && $providedAlnum !== '' && $stored === $providedAlnum);
+        if ($plainEqual) $isValid = true;
+
+        // If verification failed, write a concise debug log (no secrets)
+        if (! $isValid) {
+            $debug = [
+                'superadmin_id' => $current,
+                'rawProvided_len' => strlen($rawProvided),
+                'providedAlnum_len' => strlen($providedAlnum),
+                'stored_len' => strlen($stored),
+                'rawEqual' => $rawEqual ? 1 : 0,
+                'pwVerified' => $pwVerified ? 1 : 0,
+                'plainEqual' => $plainEqual ? 1 : 0,
+            ];
+            if (function_exists('log_message')) {
+                log_message('error', 'retireUser: admin_code verification failed: ' . json_encode($debug));
+            }
+
+            // In non-production environments, return debugging info to the client
+            if (defined('ENVIRONMENT') && ENVIRONMENT !== 'production') {
+                return $this->response->setJSON(['status' => 'error', 'message' => 'Invalid admin code', 'debug' => $debug]);
+            }
+
+            return $this->response->setJSON(['status' => 'error', 'message' => 'Invalid admin code']);
+        }
+
+        if (! $isValid) {
             return $this->response->setJSON(['status' => 'error', 'message' => 'Invalid admin code']);
         }
 

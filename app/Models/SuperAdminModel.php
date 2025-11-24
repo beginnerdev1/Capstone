@@ -17,18 +17,16 @@ class SuperAdminModel extends Model
     protected $updatedField  = 'updated_at';
 
     // Generate new admin code
-    public function generateAdminCode()
+    public function generateAdminCode(int $length = 12): string
     {
-        $lastAdmin = $this->orderBy('id', 'DESC')->first();
-
-        if ($lastAdmin && isset($lastAdmin['admin_code'])) {
-            $lastNumber = (int) substr($lastAdmin['admin_code'], 6); // get number after SUP-A-
-            $newNumber  = $lastNumber + 1;
-        } else {
-            $newNumber = 1;
+        // Generate a secure random alphanumeric string (mixed letters and numbers)
+        $chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'; // avoid ambiguous chars
+        $max = strlen($chars) - 1;
+        $code = '';
+        for ($i = 0; $i < $length; $i++) {
+            $code .= $chars[random_int(0, $max)];
         }
-
-        return 'SUP-A-' . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
+        return $code;
     }
 
     /**

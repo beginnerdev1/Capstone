@@ -1,0 +1,2 @@
+id,original_admin_id,first_name,middle_name,last_name,username,email,password,position,is_verified,profile_picture,created_at,updated_at,archived_at
+1,1,John,A.,Doe,admin,admin@example.com,$2y$10$mvJ70jy6yD1YSpu2zaHE7ujXudiRkAH61WXXN3ULvBJWoL7O.o4mG,Administrator,1,,"2025-11-23 18:55:19","2025-11-23 18:55:19","2025-11-23 18:56:18"

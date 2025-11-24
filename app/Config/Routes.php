@@ -178,9 +178,13 @@ $routes->get('getOverduePaymentsData', 'Admin::getOverduePaymentsData');// Get O
         $routes->get('chat/getAdmins', 'Chat::getAdmins');
         $routes->get('chat/getMessages', 'Chat::getMessages');
         $routes->get('chat/getConversations', 'Chat::getConversations');
+        $routes->get('chat/getBroadcasts', 'Chat::getBroadcasts');
         $routes->get('chat/getMessages/(:num)', 'Chat::getMessagesFor/$1');
         $routes->post('chat/markRead/(:num)', 'Chat::markRead/$1');
         $routes->post('chat/postMessage', 'Chat::postMessage');
+        // Admin-to-admin internal messaging
+        $routes->get('chat/getMessagesForAdmin/(:num)', 'Chat::getMessagesForAdmin/$1');
+        $routes->post('chat/postAdminMessage', 'Chat::postAdminMessage');
         $routes->get('chat/unreadCount', 'Chat::unreadCount');
         $routes->post('chat/importJson', 'Chat::importJson');
         $routes->post('updateProfile', 'Admin::updateProfile');
@@ -227,6 +231,9 @@ $routes->group('superadmin', ['namespace' => 'App\Controllers'], function ($rout
         $routes->get('dashboard', 'SuperAdmin::index');
         $routes->get('dashboard-content', 'SuperAdmin::content');
         $routes->get('content', 'SuperAdmin::content');
+        $routes->get('dashboardMetrics', 'SuperAdmin::dashboardMetrics');
+        $routes->get('systemInfo', 'SuperAdmin::systemInfo');
+        $routes->get('downloadBackup', 'SuperAdmin::downloadBackup');
         $routes->get('users', 'SuperAdmin::users');
         $routes->get('settings', 'SuperAdmin::settings');
         $routes->get('backup', 'SuperAdmin::backup');
@@ -254,11 +261,13 @@ $routes->group('superadmin', ['namespace' => 'App\Controllers'], function ($rout
         // Superadmin chat (wraps Admin chat implementation)
         $routes->get('chat', 'Superadmin\Chat::index');
         $routes->get('chat/getAdmins', 'Superadmin\Chat::getAdmins');
+        // Expose admin-only chat endpoints for superadmin: list admins and private admin<->admin messages
         $routes->get('chat/getMessages', 'Superadmin\Chat::getMessages');
-        $routes->get('chat/getConversations', 'Superadmin\Chat::getConversations');
-        $routes->get('chat/getMessages/(:num)', 'Superadmin\Chat::getMessagesFor/$1');
+        // Do NOT expose user conversations to superadmin. Instead provide admin-admin conversation endpoints:
+        $routes->get('chat/getMessagesForAdmin/(:num)', 'Superadmin\Chat::getMessagesForAdmin/$1');
+        $routes->post('chat/postAdminMessage', 'Superadmin\Chat::postAdminMessage');
+        $routes->get('chat/getBroadcasts', 'Superadmin\Chat::getBroadcasts');
         $routes->post('chat/markRead/(:num)', 'Superadmin\Chat::markRead/$1');
-        $routes->post('chat/postMessage', 'Superadmin\Chat::postMessage');
         $routes->get('chat/unreadCount', 'Superadmin\Chat::unreadCount');
         $routes->post('chat/importJson', 'Superadmin\Chat::importJson');
     });
