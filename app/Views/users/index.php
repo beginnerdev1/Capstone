@@ -10,6 +10,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
   <link href="<?= base_url('assets/Users/css/navbar.css') . '?' . time() ?>" rel="stylesheet">
+    <link href="<?= base_url('assets/Users/css/main.css') . '?' . time() ?>" rel="stylesheet">
   <style>
     :root {
       --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);

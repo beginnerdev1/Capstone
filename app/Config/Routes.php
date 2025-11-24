@@ -76,6 +76,7 @@ $routes->group('users', ['filter' => 'userauth'], function ($routes) {
     $routes->get('cleanupPayments', 'Users::cleanupPayments');       // Manual cleanup of expired payments
 $routes->get('getGcashSettings', 'Users::getGcashSettings'); // Fetch GCash settings for payment page
 $routes->get('getBillDetails', 'Users::getBillDetails'); // Fetch bill details for payment confirmation
+$routes->get('getPaymentBillsAjax', 'Users::getPaymentBillsAjax'); // Fetch user billings via AJAX for payment page
     });
 
 });
