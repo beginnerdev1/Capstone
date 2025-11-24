@@ -63,7 +63,7 @@ class CreatePaymentsTable extends Migration
             ],
             'status' => [
                 'type'       => 'ENUM',
-                'constraint' => ['pending','paid','rejected','awaiting_payment','expired','cancelled'],
+                'constraint' => ['pending','paid','rejected','awaiting_payment','expired','cancelled','partial'],
                 'default'    => 'pending',
             ],
             'expires_at' => [

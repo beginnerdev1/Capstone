@@ -59,6 +59,7 @@
       .badge-pending { background: rgba(245, 158, 11, 0.25); color: #92400e; border: 1.5px solid rgba(245, 158, 11, 0.4); }
       .badge-confirmed { background: rgba(16, 185, 129, 0.2); color: #059669; border: 1.5px solid rgba(16, 185, 129, 0.4); }
       .badge-paid { background: rgba(16, 185, 129, 0.2); color: #059669; border: 1.5px solid rgba(16, 185, 129, 0.4); }
+    .badge-partial { background: rgba(249, 115, 22, 0.12); color: #b45309; border: 1.5px solid rgba(249, 115, 22, 0.28); box-shadow: 0 2px 4px rgba(249,115,22,0.06); }
       .badge-container { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
       .amount { font-weight: 700; color: var(--dark); font-size: 0.95rem; }
       .no-data { text-align: center; padding: 4rem 2rem; color: var(--muted); }
@@ -503,7 +504,27 @@ function loadPayments(filters = {})
     // Update statistics section
     function updateStats(stats) {
         document.getElementById('totalUsers').textContent = stats.total_users || 0;
-        document.getElementById('totalAmount').textContent = (stats.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        // Compute total collected including partial payments from client data when available
+        let clientTotal = 0;
+        const list = window.paymentsData || [];
+        if (Array.isArray(list) && list.length) {
+            const allowed = ['paid', 'pending', 'partial', 'partially_paid', 'partial payment', 'partially paid'];
+            clientTotal = list.reduce((sum, item) => {
+                const s = (item.status || '').toLowerCase().trim();
+                if (allowed.includes(s)) {
+                    const amt = parseFloat(item.amount) || 0;
+                    return sum + amt;
+                }
+                return sum;
+            }, 0);
+        }
+
+        // Fallback to backend-provided total if client data is empty
+        if (!clientTotal) {
+            clientTotal = parseFloat(stats.total_amount) || 0;
+        }
+
+        document.getElementById('totalAmount').textContent = clientTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         document.getElementById('gatewayCount').textContent = stats.gateway || 0;
         document.getElementById('gcashCount').textContent = stats.gcash || 0;
         document.getElementById('counterCount').textContent = stats.counter || 0;
@@ -553,6 +574,11 @@ function createBadge(type, value, rawMethod = null)
             className = 'badge-paid'; 
             icon = '✅'; 
         }
+        else if (lower === 'partial' || lower === 'partial payment' || lower === 'partially_paid' || lower === 'partially paid') {
+            className = 'badge-partial';
+            icon = '🔶';
+            value = 'Partial';
+        }
     }
 
     const badgeHTML = `<span class="badge ${className}">${icon} ${value}</span>`;
@@ -570,7 +596,7 @@ function mapMethod(method)
     return method;
 }
 
-// Render payment table (only show Paid and Pending)
+// Render payment table (show Paid, Pending, Partial)
 function renderTable(data) 
 {
     if (!paymentTableBody) return;
@@ -579,10 +605,11 @@ function renderTable(data)
     // Ensure we have an array
     const list = Array.isArray(data) ? data : [];
 
-    // Filter to only 'paid' and 'pending' statuses (case-insensitive)
+    // Filter to only 'paid', 'pending', and 'partial' statuses (case-insensitive)
     const filtered = list.filter(item => {
         const s = (item.status || '').toLowerCase().trim();
-        return s === 'paid' || s === 'pending';
+        const allowed = ['paid', 'pending', 'partial', 'partially_paid', 'partial payment', 'partially paid'];
+        return allowed.includes(s);
     });
 
     // If nothing to show after filtering
@@ -595,7 +622,9 @@ function renderTable(data)
     filtered.forEach(item => {
         const methodLabel = mapMethod(item.method);
         const statusLabel = item.status || 'Unknown';
-        const isPendingGCash = methodLabel === 'Manual GCash' && statusLabel.toLowerCase() === 'pending';
+        const statusNorm = (statusLabel || '').toLowerCase().trim();
+        // Only true for manual GCash that are actually pending (not partial)
+        const isPendingGCash = methodLabel === 'Manual GCash' && statusNorm === 'pending';
         const isOverTheCounter = methodLabel === 'Over the Counter';
 
         const row = document.createElement('tr');
