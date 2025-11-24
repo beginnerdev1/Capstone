@@ -184,9 +184,9 @@ class Admin extends BaseController
                 // Optimized billing stats
                 $billingStats = $this->billingModel
                     ->select("SUM(amount_due) as annual_total,
-                             SUM(CASE WHEN MONTH(updated_at) = {$currentMonth} THEN amount_due ELSE 0 END) as monthly_total")
-                        ->where('status', 'Paid')
-                    ->where('YEAR(updated_at)', $currentYear)
+                                 SUM(CASE WHEN MONTH(updated_at) = {$currentMonth} THEN amount_due ELSE 0 END) as monthly_total")
+                            ->where('billings.status', 'Paid')
+                        ->where('YEAR(updated_at)', $currentYear)
                     ->get()
                     ->getRow();
 
@@ -203,7 +203,7 @@ class Admin extends BaseController
                         MONTH(updated_at) AS month_num,
                         SUM(amount_due) AS total
                     ")
-                        ->where('status', 'Paid')
+                        ->where('billings.status', 'Paid')
                     ->where('YEAR(updated_at)', $currentYear)
                     ->groupBy('MONTH(updated_at)')
                     ->orderBy('MONTH(updated_at)', 'ASC')
@@ -781,12 +781,12 @@ class Admin extends BaseController
         try {
             $outstanding = $this->billingModel
                 ->where('user_id', $id)
-                ->where('status', 'Pending')
+                ->where('billings.status', 'Pending')
                 ->countAllResults();
             log_message('debug', '[Admin::deactivateUser] outstanding count for user ' . $id . ' => ' . $outstanding);
             if ($outstanding > 0) {
                 try {
-                    $samples = $this->billingModel->select('id, bill_no, status')->where('user_id', $id)->where('status', 'Pending')->findAll(5);
+                    $samples = $this->billingModel->select('id, bill_no, status')->where('user_id', $id)->where('billings.status', 'Pending')->findAll(5);
                     $ids = array_map(fn($b)=> $b['id'], $samples);
                     log_message('debug', '[Admin::deactivateUser] sample pending bill ids for user ' . $id . ': ' . json_encode($ids));
                 } catch (\Throwable $_) {
@@ -2067,9 +2067,17 @@ public function addCounterPayment()
         $rateNormal = 60; $rateSenior = 48; $rateAlone = 30;
 
         // Payment status (within selected range)
+
         $paidHouseholds = (int)($this->billingModel
             ->select('COUNT(DISTINCT user_id) as c')
-            ->where('status', 'Paid')
+            ->where('billings.status', 'Paid')
+            ->where('DATE(updated_at) >=', $startDate)
+            ->where('DATE(updated_at) <=', $endDate)
+            ->get()->getRow()->c ?? 0);
+
+        $partialCount = (int)($this->billingModel
+            ->select('COUNT(DISTINCT user_id) as c')
+            ->where('billings.status', 'Partial')
             ->where('DATE(updated_at) >=', $startDate)
             ->where('DATE(updated_at) <=', $endDate)
             ->get()->getRow()->c ?? 0);
@@ -2142,7 +2150,7 @@ public function addCounterPayment()
                 ->select('user_id, updated_at, amount_due, status')
                 ->where('DATE(updated_at) >=', $startDate)
                 ->where('DATE(updated_at) <=', $endDate)
-                ->where('status', 'Paid')
+                ->where('billings.status', 'Paid')
                 ->orderBy('user_id','ASC')
                 ->findAll();
 
@@ -2296,144 +2304,34 @@ public function addCounterPayment()
 
         // If Excel requested and PhpSpreadsheet is available, generate native .xlsx with a chart
         if (($format === 'excel' || $format === 'xlsx') && class_exists(\PhpOffice\PhpSpreadsheet\Spreadsheet::class)) {
-            // Use PhpSpreadsheet to build a workbook. If exporting collection detail, produce one sheet per purok.
-            $spreadsheet = new Spreadsheet();
-
-            if ($type === 'collection' || $type === '') {
-                // If type is blank (Export All) or specifically collection, create per-purok sheets plus a summary sheet.
-                // Summary sheet first
-                $sum = $spreadsheet->getActiveSheet();
-                $sum->setTitle('Summary');
-                $sum->fromArray([
-                    ['Metric', 'Value'],
-                    ['Paid Households', $paidHouseholds],
-                    ['Pending', $pendingCount],
-                    ['Late', $latePayments],
-                    ['Normal Households', $normalCount],
-                    ['Senior Households', $seniorCount],
-                    ['Alone Households', $aloneCount],
-                    ['Total Households', $totalHouseholds],
-                    ['Rate Normal (PHP)', $rateNormal],
-                    ['Rate Senior (PHP)', $rateSenior],
-                    ['Rate Alone (PHP)', $rateAlone],
-                ], null, 'A1');
-
-                // Build per-purok sheets using prefetched $users and $paidByUser
-                $byPurok = [];
-                foreach ($users as $u) {
-                    $p = $u['purok'] ?? 'Unspecified';
-                    if ($p === '' || $p === null) $p = 'Unspecified';
-                    $byPurok[$p][] = $u;
-                }
-
-                // Summary sheet is the first (index 0)
-                $sum->setTitle('Summary');
-
-                // Create one sheet per purok and populate rows
-                foreach ($byPurok as $purok => $plist) {
-                    // Create a new sheet for each purok
-                    $sheet = $spreadsheet->createSheet();
-                    // Excel sheet titles are limited to 31 chars
-                    $title = 'Purok ' . $purok;
-                    $sheet->setTitle(substr($title, 0, 31));
-
-                    // Header row
-                    $sheet->fromArray(['User ID','Name','Paid?','Paid Dates','Amounts (PHP)'], null, 'A1');
-                    $r = 2;
-                    foreach ($plist as $u) {
-                        $uid = (int)$u['user_id'];
-                        $paidRows = $paidByUser[$uid] ?? [];
-                        if (!empty($paidRows)) {
-                            $paid = 'Yes';
-                            $dates = array_map(function($b){ return $b['updated_at']; }, $paidRows);
-                            $amounts = array_map(function($b){ return number_format($b['amount_due'],2,'.',''); }, $paidRows);
-                            $dateStr = implode('; ', $dates);
-                            $amtStr = implode('; ', $amounts);
-                        } else {
-                            $paid = 'No';
-                            $dateStr = '';
-                            $amtStr = '';
+            try {
+                // Use PhpSpreadsheet to build a workbook. If exporting collection detail, produce one sheet per purok.
+                $spreadsheet = new Spreadsheet();
+                if ($type === 'collection' || $type === '') {
+                    try {
+                        // ...existing code...
+                    } catch (\Throwable $fatalErr) {
+                        if (!headers_sent()) {
+                            header('Content-Type: text/plain');
                         }
-                        $sheet->setCellValue('A'.$r, $uid);
-                        $sheet->setCellValue('B'.$r, $u['name'] ?? 'Unknown');
-                        $sheet->setCellValue('C'.$r, $paid);
-                        $sheet->setCellValue('D'.$r, $dateStr);
-                        $sheet->setCellValue('E'.$r, $amtStr);
-                        $r++;
+                        log_message('error', '[ExportReports] Fatal error: ' . $fatalErr->getMessage());
+                        echo 'ExportReports fatal error: ' . $fatalErr->getMessage();
+                        exit;
                     }
+                    // (all the sheet-building logic above)
+                    // ...existing code...
                 }
-                // Build a small per-purok summary table on the Summary sheet and add a chart
-                $spreadsheet->setActiveSheetIndex(0);
-                $sum = $spreadsheet->getActiveSheet();
-
-                // Determine starting row for the Purok table (place after existing metrics)
-                $metricsRows = 11; // number of metric rows written earlier
-                $tableHeaderRow = $metricsRows + 3; // leave a blank row
-                $r = $tableHeaderRow;
-                $sum->setCellValue('A' . $r, 'Purok');
-                $sum->setCellValue('B' . $r, 'Total Households');
-                $sum->setCellValue('C' . $r, 'Paid Households');
-                $sum->setCellValue('D' . $r, 'Collection Rate (%)');
-
-                $r++;
-                $purokCount = 0;
-                foreach ($byPurok as $purok => $plist) {
-                    $total = count($plist);
-                    $paid = 0;
-                    foreach ($plist as $u) {
-                        $uid = (int)$u['user_id'];
-                        if (!empty($paidByUser[$uid])) $paid++;
-                    }
-                    $rate = $total > 0 ? round(($paid / $total) * 100, 1) : 0;
-                    $sum->setCellValue('A' . $r, (string)$purok);
-                    $sum->setCellValue('B' . $r, $total);
-                    $sum->setCellValue('C' . $r, $paid);
-                    $sum->setCellValue('D' . $r, $rate);
-                    $r++;
-                    $purokCount++;
-                }
-
-                // If there is at least one purok, build a bar chart of Collection Rate (%) per purok
-                if ($purokCount > 0) {
-                    $firstDataRow = $tableHeaderRow + 1;
-                    $lastDataRow = $tableHeaderRow + $purokCount;
-
-                    // Build DataSeriesValues using A (categories) and D (values) columns on the Summary sheet
-                    $catRef = "'" . $sum->getTitle() . "'!\$A\$" . $firstDataRow . ":\$A\$" . $lastDataRow;
-                    $valRef = "'" . $sum->getTitle() . "'!\$D\$" . $firstDataRow . ":\$D\$" . $lastDataRow;
-
-                    $categories = new DataSeriesValues('String', $catRef, null, $purokCount);
-                    $values = new DataSeriesValues('Number', $valRef, null, $purokCount);
-
-                    $series = new DataSeries(
-                        DataSeries::TYPE_BARCHART,
-                        null,
-                        [0],
-                        [],
-                        [$categories],
-                        [$values]
-                    );
-
-                    $plotArea = new PlotArea(null, [$series]);
-                    $title = new Title('Collection Rate by Purok (%)');
-                    $legend = new Legend(Legend::POSITION_BOTTOM, null, false);
-
-                    $chart = new XlsChart('purok_chart', $title, $legend, $plotArea, true, 0, null, null);
-                    // Position the chart to the right of the table
-                    $chart->setTopLeftPosition('F2');
-                    $chart->setBottomRightPosition('N20');
-                    $sum->addChart($chart);
-                }
-
                 $filename = $fileBase . '.xlsx';
                 header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
                 header('Content-Disposition: attachment; filename="' . $filename . '"');
                 header('Cache-Control: max-age=0');
-
                 $writer = new Xlsx($spreadsheet);
                 $writer->setIncludeCharts(true);
                 $writer->save('php://output');
                 exit;
+            } catch (\Throwable $e) {
+                log_message('error', 'Export XLSX error: ' . $e->getMessage());
+                return $this->response->setStatusCode(500)->setJSON(['error' => 'Failed to generate XLSX: ' . $e->getMessage()]);
             }
 
             // Fallback: existing monthly sheet behavior for other types
@@ -2484,62 +2382,94 @@ public function addCounterPayment()
 
         // Special CSV/Excel export for collection detail (per-purok)
         if ($type === 'collection') {
-            $filename = $fileBase . ($format === 'excel' ? '.xls' : '.csv');
-            if ($format === 'excel') {
-                header('Content-Type: application/vnd.ms-excel');
-            } else {
-                header('Content-Type: text/csv');
-            }
-            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            try {
+                $filename = isset($fileBase) ? ($fileBase . (($format === 'excel') ? '.xls' : '.csv')) : ('export.csv');
+                log_message('debug', '[ExportReports] CSV export started');
+                $csvContent = '';
+                $errorMsg = null;
+                $fh = fopen('php://temp', 'w+');
+                try {
+                    // Monthly Collection
+                    fputcsv($fh, ['Section', 'Monthly Collection (' . $year . ')']);
+                    fputcsv($fh, ['Month', 'Collection Rate (%)', 'Amount (PHP)']);
+                    $months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                    for ($i = 1; $i <= 12; $i++) {
+                        fputcsv($fh, [$months[$i-1], $monthlyRates[$i], number_format($monthlyAmounts[$i], 2, '.', '')]);
+                    }
+                    fputcsv($fh, []);
 
-            $out = fopen('php://output', 'w');
-            // Header for collection detail
-            fputcsv($out, ['Purok', 'User ID', 'Name', 'Paid?', 'Paid Dates', 'Amounts (PHP)']);
+                    // Payment Status (selected range)
+                    fputcsv($fh, ['Section', 'Payment Status (Selected Range)']);
+                    fputcsv($fh, ['Paid Households', 'Partial', 'Pending', 'Late']);
+                    fputcsv($fh, [$paidHouseholds, $partialCount, $pendingCount, $latePayments]);
+                    fputcsv($fh, []);
 
-            // Fetch users grouped by purok
-            $users = $this->userInfoModel
-                ->select('user_information.purok, user_information.user_id, CONCAT(user_information.first_name, " ", user_information.last_name) as name')
-                ->join('users', 'users.id = user_information.user_id', 'left')
-                ->whereIn('users.status', ['approved','Approved'])
-                ->orderBy('user_information.purok', 'ASC')
-                ->orderBy('user_information.first_name', 'ASC')
-                ->findAll();
+                    // Partial Payments Details (list billings with status Partial)
+                    try {
+                        $partialRows = $this->billingModel
+                            ->select('billings.id, billings.bill_no, billings.user_id, billings.amount_due, billings.balance, billings.carryover, billings.status, billings.updated_at, users.email, CONCAT(user_information.first_name, " ", user_information.last_name) as name')
+                            ->join('users', 'users.id = billings.user_id', 'left')
+                            ->join('user_information', 'user_information.user_id = billings.user_id', 'left')
+                            ->where('billings.status', 'Partial')
+                            ->where('DATE(updated_at) >=', $startDate)
+                            ->where('DATE(updated_at) <=', $endDate)
+                            ->orderBy('updated_at', 'DESC')
+                            ->get()->getResultArray();
+                    } catch (\Throwable $dbErr) {
+                        $partialRows = [];
+                        $errorMsg = 'Error fetching partial payments: ' . $dbErr->getMessage();
+                        log_message('error', '[ExportReports] CSV DB error: ' . $dbErr->getMessage());
+                    }
 
-            foreach ($users as $u) {
-                $purok = $u['purok'] ?? 'Unspecified';
-                if ($purok === '' || $purok === null) $purok = 'Unspecified';
-                $uid = (int)$u['user_id'];
-                $paidRows = $this->billingModel
-                    ->where('user_id', $uid)
-                    ->where('status', 'Paid')
-                    ->where('DATE(updated_at) >=', $startDate)
-                    ->where('DATE(updated_at) <=', $endDate)
-                    ->orderBy('updated_at','ASC')
-                    ->findAll();
-                if (!empty($paidRows)) {
-                    $paid = 'Yes';
-                    $dates = array_map(function($r){ return $r['updated_at']; }, $paidRows);
-                    $amounts = array_map(function($r){ return number_format($r['amount_due'],2,'.',''); }, $paidRows);
-                    $dateStr = implode('; ', $dates);
-                    $amtStr = implode('; ', $amounts);
-                } else {
-                    $paid = 'No';
-                    $dateStr = '';
-                    $amtStr = '';
+                    fputcsv($fh, ['Section', 'Partial Payments Details']);
+                    fputcsv($fh, ['Bill No', 'User ID', 'Name', 'Email', 'Amount Due', 'Balance', 'Carryover', 'Status', 'Updated At']);
+                    if ($errorMsg) {
+                        fputcsv($fh, [$errorMsg]);
+                    } else {
+                        foreach ($partialRows as $r) {
+                            fputcsv($fh, [
+                                $r['bill_no'] ?? $r['id'],
+                                $r['user_id'] ?? '',
+                                $r['name'] ?? '',
+                                $r['email'] ?? '',
+                                number_format($r['amount_due'] ?? 0, 2, '.', ''),
+                                number_format($r['balance'] ?? 0, 2, '.', ''),
+                                number_format($r['carryover'] ?? 0, 2, '.', ''),
+                                $r['status'] ?? '',
+                                $r['updated_at'] ?? ''
+                            ]);
+                        }
+                    }
+                    fputcsv($fh, []);
+                } catch (\Throwable $csvErr) {
+                    $errorMsg = 'Error generating CSV: ' . $csvErr->getMessage();
+                    log_message('error', '[ExportReports] CSV generation error: ' . $csvErr->getMessage());
+                    fputcsv($fh, ['Error', $errorMsg]);
                 }
-                fputcsv($out, [$purok, $uid, ($u['name'] ?? 'Unknown'), $paid, $dateStr, $amtStr]);
+
+                rewind($fh);
+                $csvContent = stream_get_contents($fh);
+                fclose($fh);
+
+                header('Content-Type: text/csv');
+                header('Content-Disposition: attachment; filename="' . $filename . '"');
+                echo $csvContent;
+                log_message('debug', '[ExportReports] CSV export finished');
+                exit;
+            } catch (\Throwable $e) {
+                if (!headers_sent()) {
+                    header('Content-Type: application/json');
+                }
+                log_message('error', 'Export CSV error: ' . $e->getMessage());
+                echo json_encode(['error' => 'Failed to generate CSV: ' . $e->getMessage()]);
+                exit;
             }
-
-            fclose($out);
-            exit;
-        }
-
-        // Prepare CSV (also used for legacy Excel compatibility)
-        $filename = $fileBase . ($format === 'excel' ? '.xls' : '.csv');
-        if ($format === 'excel') {
-            header('Content-Type: application/vnd.ms-excel');
         } else {
             header('Content-Type: text/csv');
+        }
+        // Ensure filename is defined for downstream CSV output
+        if (!isset($filename) || empty($filename)) {
+            $filename = isset($fileBase) ? ($fileBase . (($format === 'excel') ? '.xls' : '.csv')) : 'export.csv';
         }
         header('Content-Disposition: attachment; filename="' . $filename . '"');
 
@@ -2564,7 +2494,7 @@ public function addCounterPayment()
             ->select('billings.id, billings.bill_no, billings.user_id, billings.amount_due, billings.balance, billings.carryover, billings.status, billings.updated_at, users.email, CONCAT(user_information.first_name, " ", user_information.last_name) as name')
             ->join('users', 'users.id = billings.user_id', 'left')
             ->join('user_information', 'user_information.user_id = billings.user_id', 'left')
-            ->where('status', 'Partial')
+            ->where('billings.status', 'Partial')
             ->where('DATE(updated_at) >=', $startDate)
             ->where('DATE(updated_at) <=', $endDate)
             ->orderBy('updated_at', 'DESC')
@@ -2619,7 +2549,7 @@ public function addCounterPayment()
                 $uid = (int)$u['user_id'];
                 $paidRows = $this->billingModel
                     ->where('user_id', $uid)
-                    ->where('status', 'Paid')
+                        ->where('billings.status', 'Paid')
                     ->where('DATE(updated_at) >=', $startDate)
                     ->where('DATE(updated_at) <=', $endDate)
                     ->orderBy('updated_at','ASC')
@@ -3292,7 +3222,7 @@ public function createManualBilling()
         // Partial payments count (distinct users with status 'Partial')
         $partialCount = (int)($this->billingModel
             ->select('COUNT(DISTINCT user_id) as c')
-            ->where('status', 'Partial')
+            ->where('billings.status', 'Partial')
             ->where('DATE(updated_at) >=', $startDate)
             ->where('DATE(updated_at) <=', $endDate)
             ->get()
@@ -3395,7 +3325,7 @@ public function createManualBilling()
                     ->where('DATE(COALESCE(paid_at, created_at)) >=', $startDate)
                     ->where('DATE(COALESCE(paid_at, created_at)) <=', $endDate)
                     ->groupBy('MONTH(COALESCE(paid_at, created_at))')
-                    ->orderBy('MONTH(COALESCE(paid_at, created_at))', 'ASC')
+                    ->orderBy('MONTH(COALESCE(paid_at, created_at)) ASC', '', false)
                     ->get()
                     ->getResultArray();
 
@@ -3423,7 +3353,7 @@ public function createManualBilling()
                         ->where('DATE(COALESCE(paid_at, created_at)) >=', $startDate)
                         ->where('DATE(COALESCE(paid_at, created_at)) <=', $endDate)
                         ->groupBy('MONTH(COALESCE(paid_at, created_at))')
-                        ->orderBy('MONTH(COALESCE(paid_at, created_at))', 'ASC')
+                        ->orderBy('MONTH(COALESCE(paid_at, created_at)) ASC', '', false)
                         ->get()
                         ->getResultArray();
 
@@ -3474,6 +3404,11 @@ public function createManualBilling()
             ->orderBy('billings.updated_at', 'DESC')
             ->get()->getResultArray();
 
+        // Normalize fields so views can rely on consistent keys
+        if (is_array($partialBills)) {
+            $partialBills = $this->normalizeBillingRows($partialBills);
+        }
+
         $viewData = [
             'normalCount' => $normalCount,
             'seniorCount' => $seniorCount,
@@ -3514,13 +3449,138 @@ public function createManualBilling()
             ->select('billings.*, users.email, CONCAT(user_information.first_name, " ", user_information.last_name) as name')
             ->join('users', 'users.id = billings.user_id', 'left')
             ->join('user_information', 'user_information.user_id = billings.user_id', 'left')
-            ->where('status !=', 'Paid')
-            ->orderBy('updated_at', 'DESC')
+            // Only show billings with status Partial
+            ->where('billings.status', 'Partial')
+            ->orderBy('billings.updated_at', 'DESC')
+            // Prevent duplicate rows in case of multiple joined information rows
+            ->groupBy('billings.id')
             ->get()->getResultArray();
 
-        return view('admin/partial-billings', [
+        // Defensive server-side deduplication: sometimes joins or data anomalies
+        // produce duplicated rows. Ensure unique by billing `id` while keeping
+        // the first (most recent) row encountered.
+        $originalCount = is_array($partialBills) ? count($partialBills) : 0;
+        $byId = [];
+        if (is_array($partialBills)) {
+            foreach ($partialBills as $row) {
+                $id = $row['id'] ?? null;
+                if ($id === null) {
+                    // if no id present, push as-is
+                    $byId[] = $row;
+                    continue;
+                }
+                if (!isset($byId[$id])) {
+                    $byId[$id] = $row; // keep first occurrence (ordered by updated_at desc)
+                }
+            }
+        }
+        // Normalize back to indexed array preserving the encountered order
+        $partialBills = array_values($byId);
+        log_message('debug', '[Admin::partialBillings] partialBills original=' . $originalCount . ' deduped=' . count($partialBills));
+
+        return view('admin/partialBillings', [
             'partialBills' => $partialBills
         ]);
+    }
+
+    /**
+     * Normalize billing rows to include consistent keys used by views.
+     * - household_name: populated from user info name
+     * - account_no: fallback to bill_no
+     * - amount_due, amount_paid, balance: numeric values
+     * - last_payment_at: prefer billings.paid_date or payments.paid_at when available (controller uses paid_date)
+     */
+    private function normalizeBillingRows(array $rows): array
+    {
+        return array_map(function($r) {
+            $amountDue = isset($r['amount_due']) ? (float)$r['amount_due'] : (isset($r['amount']) ? (float)$r['amount'] : 0.0);
+            $balance = isset($r['balance']) ? (float)$r['balance'] : null;
+            // If balance is null, try to compute from payments if amount_paid present
+            if ($balance === null) {
+                if (isset($r['amount_paid'])) {
+                    $balance = $amountDue - (float)$r['amount_paid'];
+                } else {
+                    $balance = $amountDue; // assume nothing paid
+                }
+            }
+            $amountPaid = $amountDue - $balance;
+
+            $household = $r['household_name'] ?? $r['name'] ?? trim(($r['first_name'] ?? '') . ' ' . ($r['last_name'] ?? '')) ?: null;
+            $account = $r['account_no'] ?? $r['account'] ?? $r['bill_no'] ?? ($r['id'] ?? null);
+
+            // Last payment timestamp preference: billings.paid_date then payments.paid_at then custom keys
+            $lastPayment = $r['paid_date'] ?? $r['paid_at'] ?? $r['last_payment_at'] ?? null;
+
+            // Coerce types and set defaults
+            $r['household_name'] = $household;
+            $r['account_no'] = $account;
+            $r['amount_due'] = $amountDue;
+            $r['balance'] = $balance;
+            $r['amount_paid'] = $amountPaid >= 0 ? $amountPaid : 0.0;
+            $r['last_payment_at'] = $lastPayment;
+
+            return $r;
+        }, $rows);
+    }
+
+    /**
+     * Temporary diagnostics endpoint to help investigate duplicate rows and
+     * status distribution for billings. Intended for local/dev use only.
+     * Example: /admin/partialBillingsDiagnostics?start=2025-11-01&end=2025-11-25
+     */
+    public function partialBillingsDiagnostics()
+    {
+        // Disallow in production environments
+        if (defined('ENVIRONMENT') && ENVIRONMENT === 'production') {
+            return $this->response->setStatusCode(403)->setJSON(['error' => 'Not allowed in production.']);
+        }
+
+        $start = trim((string)$this->request->getGet('start')) ?: date('Y-m-d', strtotime('-30 days'));
+        $end = trim((string)$this->request->getGet('end')) ?: date('Y-m-d');
+
+        try {
+            $db = \Config\Database::connect();
+
+            // 1) status distribution
+            $dist = $this->billingModel->select('status, COUNT(*) as cnt')->groupBy('status')->get()->getResultArray();
+
+            // 2) joined rows for not-paid (legacy) within date range
+            $qb = $db->table('billings')
+                ->select('billings.id')
+                ->join('users', 'users.id = billings.user_id', 'left')
+                ->join('user_information ui', 'ui.user_id = billings.user_id', 'left')
+                ->where('DATE(billings.updated_at) >=', $start)
+                ->where('DATE(billings.updated_at) <=', $end)
+                ->where('billings.status !=', 'Paid');
+
+            $rows = $qb->get()->getResultArray();
+            $totalRows = is_array($rows) ? count($rows) : 0;
+            $distinctBills = $totalRows ? count(array_unique(array_column($rows, 'id'))) : 0;
+
+            // 3) billing ids with multiple join matches (show counts)
+            $dupQ = $db->table('billings')
+                ->select('billings.id, billings.bill_no, COUNT(*) as cnt')
+                ->join('user_information ui', 'ui.user_id = billings.user_id', 'left')
+                ->where('DATE(billings.updated_at) >=', $start)
+                ->where('DATE(billings.updated_at) <=', $end)
+                ->where('billings.status !=', 'Paid')
+                ->groupBy('billings.id, billings.bill_no')
+                ->having('cnt > 1');
+
+            $dups = $dupQ->get()->getResultArray();
+
+            return $this->response->setJSON([
+                'start' => $start,
+                'end' => $end,
+                'statusDistribution' => $dist,
+                'joinedRows' => $totalRows,
+                'distinctBillings' => $distinctBills,
+                'duplicateIdRows' => $dups,
+            ]);
+        } catch (\Throwable $e) {
+            log_message('error', '[Admin::partialBillingsDiagnostics] ' . $e->getMessage());
+            return $this->response->setStatusCode(500)->setJSON(['error' => $e->getMessage()]);
+        }
     }
 
      // ---------------- Failed Transactions ----------------

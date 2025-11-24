@@ -144,6 +144,8 @@ $routes->get('getPaymentsData', 'Admin::getPaymentsData');// Get Payments Data f
 $routes->post('confirmGCashPayment', 'Admin::confirmGCashPayment');// Confirm GCash Payment
 $routes->get('exportPayments', 'Admin::exportPayments');// Export Payments Data
 $routes->get('exportReports', 'Admin::exportReports');// Export Reports (CSV/Excel)
+    // Partial billings (list partial/non-paid billings) — explicit route to avoid Billing catch-all
+    $routes->get('partialBillings', 'Admin::partialBillings');
     $routes->get('exportLogs', 'Admin::exportLogs'); // Export activity logs (admin-level)
 $routes->get('getUsersByPurok/(:any)', 'Admin::getUsersByPurok/$1'); // Get Users by Purok for Counter Payment
 $routes->get('getUsersByPurokForManualBilling/(:any)', 'Admin::getUsersByPurokForManualBilling/$1'); // Get Users by Purok for Manual Billing
