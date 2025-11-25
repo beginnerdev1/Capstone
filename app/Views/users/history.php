@@ -1240,11 +1240,33 @@
     }
 
     const element = document.getElementById('receiptContent' + id);
-    html2canvas(element, {
+
+    // Clone the receipt into an off-screen wrapper with no max-height/scrolling
+    // so html2canvas can capture the full content (useful on mobile where modal body scrolls).
+    const clone = element.cloneNode(true);
+    const wrapper = document.createElement('div');
+    wrapper.style.position = 'absolute';
+    wrapper.style.top = '-9999px';
+    wrapper.style.left = '0';
+    // use a reasonable width for rendering; prefer the element's scrollWidth if available
+    const preferredWidth = element.scrollWidth && element.scrollWidth > 0 ? element.scrollWidth : Math.min(window.innerWidth, 800);
+    wrapper.style.width = preferredWidth + 'px';
+    // Ensure clone is unbounded so full content is visible to html2canvas
+    clone.style.maxHeight = 'none';
+    clone.style.overflow = 'visible';
+    // Some receipt-item grids compress on narrow widths; keep natural flow
+    clone.querySelectorAll && clone.querySelectorAll('.receipt-item').forEach(it => {
+      it.style.gridTemplateColumns = '1fr';
+    });
+    wrapper.appendChild(clone);
+    document.body.appendChild(wrapper);
+
+    html2canvas(clone, {
       scale: 2,
       backgroundColor: '#ffffff',
       logging: false,
-      useCORS: true
+      useCORS: true,
+      windowWidth: preferredWidth
     }).then(canvas => {
       const link = document.createElement('a');
       link.download = 'AquaBill-Receipt-' + id + '.png';
@@ -1256,6 +1278,9 @@
         button.disabled = false;
       }
 
+      // remove the off-screen wrapper
+      document.body.removeChild(wrapper);
+
       showSuccessToast('Receipt downloaded successfully!');
     }).catch(error => {
       console.error('Error generating receipt:', error);
@@ -1263,6 +1288,8 @@
         button.innerHTML = originalContent;
         button.disabled = false;
       }
+      // ensure cleanup
+      try { document.body.removeChild(wrapper); } catch (e) {}
       showErrorToast('Failed to generate receipt. Please try again.');
     });
   }

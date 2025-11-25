@@ -307,6 +307,9 @@
     border-radius: var(--border-radius);
     box-shadow: 0 25px 80px rgba(0, 0, 0, 0.15);
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    max-height: 100vh;
   }
 
   .modal-header {
@@ -341,6 +344,10 @@
   .modal-body {
     padding: 35px 30px;
     background: linear-gradient(135deg, #f8f9fa, #ffffff);
+    /* Make modal content scrollable when it grows taller than viewport */
+    max-height: calc(100vh - 220px);
+    overflow-y: auto;
+    flex: 1 1 auto;
   }
 
   /* Enhanced Form Controls */
@@ -535,6 +542,24 @@
     .modal-content {
       height: 100%;
       border-radius: 0;
+      display: flex;
+      flex-direction: column;
+      max-height: 100vh;
+    }
+
+    /* Ensure modal body is scrollable on very small screens */
+    .modal-body {
+      padding: 1rem;
+      max-height: calc(100vh - 120px);
+      overflow-y: auto;
+      flex: 1 1 auto;
+    }
+
+    /* Keep footer visible and prevent it from being pushed off-screen */
+    .modal-footer {
+      flex: 0 0 auto;
+      position: relative;
+      z-index: 2;
     }
     
     .info-item {
@@ -579,6 +604,36 @@
   ::-webkit-scrollbar-thumb:hover {
     background: #667eea;
   }
+  /* Fixed-size modal variant: keep the profile edit modal a consistent size across devices */
+  .fixed-size-modal .modal-dialog {
+    max-width: 560px;
+    margin: 1.5rem auto;
+  }
+
+  .fixed-size-modal .modal-content {
+    border-radius: 16px;
+    height: auto;
+    max-height: 90vh;
+    overflow: hidden;
+  }
+
+  .fixed-size-modal .modal-body {
+    max-height: calc(90vh - 180px);
+    overflow-y: auto;
+    padding: 28px 30px;
+  }
+
+  @media (max-width: 576px) {
+    .fixed-size-modal .modal-dialog {
+      max-width: 520px;
+      margin: 1rem auto;
+    }
+
+    .fixed-size-modal .modal-content {
+      border-radius: 12px;
+    }
+  }
+
 </style>
 
 </head>
@@ -808,8 +863,8 @@
 </section>
 
 <!-- Enhanced Edit Personal Info Modal -->
-<div class="modal fade" id="editPersonalInfoModal" tabindex="-1" aria-labelledby="editPersonalInfoLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
-  <div class="modal-dialog modal-lg modal-dialog-centered">
+<div class="modal fade fixed-size-modal" id="editPersonalInfoModal" tabindex="-1" aria-labelledby="editPersonalInfoLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="editPersonalInfoLabel">

@@ -14,9 +14,13 @@
 .navbar-brand {
   font-weight: 600;
   color: #009970;
-  font-size: 1.4rem;
+  font-size: 1.15rem; /* reduced logo size */
   letter-spacing: 0.5px;
   transition: color 0.3s ease;
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .navbar-brand:hover {
@@ -78,6 +82,70 @@
 .navbar-toggler {
   border: none;
   font-size: 1.25rem;
+}
+
+/* Responsive adjustments: smaller logo and tighter layout on mobile */
+@media (max-width: 992px) {
+  .navbar {
+    height: 64px;
+    padding: 0.35rem 0.75rem;
+    margin: 8px 12px;
+    border-radius: 12px;
+  }
+  .navbar-brand {
+    font-size: 1rem;
+    max-width: 160px;
+  }
+  /* Make container a flex layout so we can align controls on the right */
+  .container-fluid {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .navbar-brand {
+    flex: 1 1 auto;
+  }
+
+  .navbar-toggler {
+    display: block;
+    margin-left: 6px; /* keep toggler close to logout */
+  }
+  .container-fluid {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+}
+
+@media (max-width: 576px) {
+  .navbar {
+    height: 58px;
+    padding: 0.25rem 0.5rem;
+    margin: 6px 8px;
+  }
+  .navbar-brand {
+    font-size: 0.95rem;
+    max-width: 140px;
+  }
+  /* Ensure the toggler is prominent and aligned on very small screens */
+  .navbar-toggler {
+    font-size: 1.15rem;
+    padding: 6px 8px;
+  }
+}
+
+/* Bring logout and toggler closer together on small screens */
+@media (max-width: 992px) {
+  form[action*="logout"] {
+    margin: 0; /* inline form spacing handled by flex gap */
+  }
+  .logout-button {
+    margin-left: 0 !important;
+    padding: 6px 12px;
+  }
+  .notification-wrapper { margin-left: 6px; }
+  /* group: ensure notification, logout and toggler stay on the right */
+  .nav-icons { display: flex; align-items: center; gap: 6px; }
 }
 
 .navbar-toggler:focus,
