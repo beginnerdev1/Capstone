@@ -177,10 +177,12 @@ public function getAccountStatus()
             $result = $userInfoModel->saveUserInfo($userId, $data);
 
             if (isset($result['success']) && $result['success'] === true) {
-                // Mark user as pending with complete profile
+                // Mark profile as complete. Do NOT change account status to pending when user edits their profile.
+                // Previously the code set 'status' => 'pending' here which forced the account back to pending
+                // after any profile edit. Commenting that out to preserve admin-set/approved status.
                 $userModel->update($userId, [
                     'profile_complete' => 1,
-                    'status' => 'pending'
+                    // 'status' => 'pending' // intentionally disabled
                 ]);
 
                 return $this->response->setJSON([

@@ -1,4 +1,4 @@
-
+<!-- 
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700;800&display=swap');
 
@@ -223,7 +223,7 @@ html,body { height:100%; margin:0; font-family: var(--font-sans); background: li
     </div>
 </div>
 
-<!-- User Modal -->
+ User Modal 
 <div class="modal" id="userModal" role="dialog" aria-modal="true" aria-labelledby="userModalTitle">
     <div class="modal-content" role="document">
         <div class="modal-header">
@@ -579,4 +579,4 @@ updatePendingStatus('Loading...');
 fetchPendingAccounts();
 startPendingInterval();
 window.addEventListener('beforeunload', stopPendingInterval);
-</script>
+</script> -->

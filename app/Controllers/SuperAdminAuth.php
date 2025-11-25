@@ -101,41 +101,47 @@ class SuperAdminAuth extends Controller
     // Show change-password page for superadmin
     public function changePassword()
     {
-        if (!session()->get('is_superadmin_logged_in')) return redirect()->to('/superadmin/login');
+        $email = $this->request->getPost('email');
         return view('superadmin/change_password');
     }
 
     // Process set password for superadmin
     public function setPassword()
     {
-        if (!session()->get('is_superadmin_logged_in')) return redirect()->to('/superadmin/login');
-        $id = session()->get('superadmin_id');
-        $pw = $this->request->getPost('password');
-        $confirm = $this->request->getPost('confirm_password');
-        if (!$pw || $pw !== $confirm || strlen($pw) < 8) {
-            return redirect()->back()->with('error', 'Passwords must match and be at least 8 characters.');
+        $admin = $model->where('email', $email)->first();
+
+        if (! $admin) {
+            // Do not reveal whether the account exists
+            return $this->response->setJSON(['message' => 'If that email exists we have sent reset instructions.']);
         }
-        $m = new SuperAdminModel();
-        $m->update($id, ['password' => password_hash($pw, PASSWORD_DEFAULT), 'must_change_password' => 0]);
-        session()->set('force_password_change', false);
-        return redirect()->to('/superadmin')->with('success', 'Password updated.');
-    }
 
+        // generate an OTP and email it
+        $otp = $this->superAdminModel->generateLoginOtp();
+        $adminId = $admin['id'];
 
-    public function createAccount()
-    {
-        $superAdminModel = new SuperAdminModel();
-        // Enforce single-superadmin policy: if any superadmin exists, block creating another
+        $update = [
+            'otp_hash' => password_hash($otp, PASSWORD_DEFAULT),
+            'otp_expires' => date('Y-m-d H:i:s', time() + 60 * 15),
+            'otp_failed_attempts' => 0,
+            'otp_locked_until' => null,
+        ];
+
+        $model->update($adminId, $update);
+
+        // attempt to email via Brevo; if that fails we still return generic response
         try {
-            $existing = (int) $superAdminModel->countAll();
-        } catch (\Throwable $e) {
-            $existing = 0;
+            $this->superAdminModel->emailOtpToAdmin($email, $otp);
+        } catch (\Exception $e) {
+            log_message('error', 'Failed to send admin OTP: ' . $e->getMessage());
         }
-        if ($existing > 0) {
-            return redirect()->back()->with('error', 'A SuperAdmin account already exists. Only one SuperAdmin is allowed.');
-        }
-        $newAdminCode    = $superAdminModel->generateAdminCode();
 
+        // Return a redirect when the account exists so the client can show the reset form
+        $redirect = site_url('superadmin/reset-password') . '?email=' . urlencode($email);
+
+        return $this->response->setJSON([
+            'message' => 'If that email exists we have sent reset instructions.',
+            'redirect' => $redirect,
+        ]);
         // Store only the hashed admin code in DB
         $hashedCode = password_hash($newAdminCode, PASSWORD_DEFAULT);
 
@@ -167,6 +173,144 @@ class SuperAdminAuth extends Controller
         }
 
         return redirect()->back()->with('success', 'SuperAdmin created successfully!');
+    }
+
+    /**
+     * Handle AJAX/POST from forgot password form: generate OTP and email reset code.
+     * Expects `email` POST param. Returns JSON.
+     */
+    public function forgot()
+    {
+        $email = $this->request->getPost('email');
+        if (! $email) {
+            return $this->response->setJSON(['error' => 'Email required']);
+        }
+
+        // Basic rate-limiting settings (tunable)
+        $maxPerIp = 20;         // max requests per IP in window
+        $ipWindow  = 3600;      // window for IP limit (seconds)
+        $maxPerEmail = 5;       // max requests per email in window
+        $emailWindow = 3600;    // window for email limit (seconds)
+        $accountLockSeconds = 900; // lock account for 15 minutes when abused
+
+        $ip = $this->request->getIPAddress();
+        $cache = \Config\Services::cache();
+
+        // Track per-IP rate
+        $ipKey = 'superadmin_forgot_ip_' . $ip;
+        $ipCount = (int) $cache->get($ipKey);
+        if ($ipCount >= $maxPerIp) {
+            return $this->response->setStatusCode(429)->setJSON(['error' => 'Too many requests. Try again later.']);
+        }
+        $cache->save($ipKey, $ipCount + 1, $ipWindow);
+
+        $model = new SuperAdminModel();
+        $row = $model->where('email', $email)->first();
+
+        // If account exists, enforce per-account rate limiting and lockout
+        $emailKey = 'superadmin_forgot_email_' . md5(strtolower(trim($email)));
+        if ($row) {
+            $lockedUntil = isset($row['otp_locked_until']) && $row['otp_locked_until'] ? strtotime($row['otp_locked_until']) : 0;
+            if ($lockedUntil > time()) {
+                return $this->response->setStatusCode(429)->setJSON(['error' => 'Too many attempts. Try again later.']);
+            }
+
+            $emailCount = (int) $cache->get($emailKey);
+            if ($emailCount >= $maxPerEmail) {
+                // Lock account in DB to prevent further OTP generation for a while
+                try {
+                    $model->update($row['id'], ['otp_locked_until' => date('Y-m-d H:i:s', time() + $accountLockSeconds)]);
+                } catch (\Throwable $_) { }
+                return $this->response->setStatusCode(429)->setJSON(['error' => 'Too many requests for this account. Try again later.']);
+            }
+            $cache->save($emailKey, $emailCount + 1, $emailWindow);
+        }
+
+        // If account not found, return generic response (no redirect)
+        if (! $row) {
+            return $this->response->setJSON(['success' => true, 'message' => 'If that email exists we will send reset instructions.']);
+        }
+
+        // Generate OTP and store hashed value
+        $plain = $model->generateLoginOtp();
+        $hash = password_hash($plain, PASSWORD_DEFAULT);
+        $expires = date('Y-m-d H:i:s', strtotime('+15 minutes'));
+
+        try {
+            $model->update($row['id'], ['otp_hash' => $hash, 'otp_expires' => $expires, 'otp_failed_attempts' => 0, 'otp_locked_until' => null]);
+        } catch (\Throwable $e) {
+            log_message('error', 'SuperAdmin forgot: failed to store otp: ' . $e->getMessage());
+            return $this->response->setStatusCode(500)->setJSON(['error' => 'Unable to process request']);
+        }
+
+        // Send via Brevo transactional email if configured
+        if (!empty($row['email'])) {
+            try {
+                require ROOTPATH . 'vendor/autoload.php';
+                $config = Configuration::getDefaultConfiguration()->setApiKey('api-key', getenv('BREVO_API_KEY'));
+                $api = new TransactionalEmailsApi(new GuzzleClient(), $config);
+                $fromEmail = getenv('SMTP_FROM') ?: (getenv('SMTP_USER') ?: 'no-reply@localhost');
+                $html = '<p>Your Super Admin password reset code is: <b>' . esc($plain) . '</b>. It expires in 15 minutes.</p>';
+                $payload = new SendSmtpEmail([
+                    'subject' => 'Super Admin Password Reset Code',
+                    'sender' => ['name' => 'Super Admin', 'email' => $fromEmail],
+                    'to' => [[ 'email' => $row['email'] ]],
+                    'htmlContent' => $html,
+                ]);
+                $api->sendTransacEmail($payload);
+            } catch (\Throwable $e) {
+                log_message('error', 'SuperAdmin forgot: email send failed: ' . $e->getMessage());
+                // don't treat as fatal — still return generic success
+            }
+        }
+
+        // Reset per-email counter on successful handling to avoid accidental lock after legitimate use
+        try { $cache->delete($emailKey); } catch (\Throwable $_) { }
+
+        // For convenience: return a redirect instruction when the email exists
+        $redirectUrl = base_url('superadmin/reset-password') . '?email=' . urlencode($row['email']);
+        return $this->response->setJSON(['success' => true, 'message' => 'Reset instructions sent', 'redirect' => $redirectUrl]);
+    }
+
+    // Show reset form (enter email, code, new password)
+    public function resetForm()
+    {
+        return view('superadmin/reset_password');
+    }
+
+    // Process password reset: expects email, code, password, confirm_password
+    public function resetPassword()
+    {
+        $email = $this->request->getPost('email');
+        $code = $this->request->getPost('code');
+        $pw = $this->request->getPost('password');
+        $confirm = $this->request->getPost('confirm_password');
+
+        if (! $email || ! $code || ! $pw || $pw !== $confirm || strlen($pw) < 8) {
+            return redirect()->back()->with('error', 'Invalid input or passwords do not match (min 8 chars)');
+        }
+
+        $model = new SuperAdminModel();
+        $row = $model->where('email', $email)->first();
+        if (! $row) {
+            return redirect()->back()->with('error', 'Invalid code or email');
+        }
+
+        $otpHash = $row['otp_hash'] ?? null;
+        $otpExpires = !empty($row['otp_expires']) ? strtotime($row['otp_expires']) : 0;
+        if (! $otpHash || $otpExpires < time() || ! password_verify((string)$code, $otpHash)) {
+            return redirect()->back()->with('error', 'Invalid or expired code');
+        }
+
+        // OK — update password and clear OTP fields
+        try {
+            $model->update($row['id'], ['password' => password_hash($pw, PASSWORD_DEFAULT), 'otp_hash' => null, 'otp_expires' => null]);
+        } catch (\Throwable $e) {
+            log_message('error', 'SuperAdmin resetPassword failed: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Unable to update password');
+        }
+
+        return redirect()->to('/superadmin/login')->with('success', 'Password updated. Please login.');
     }
 
     public function checkCodeForm()

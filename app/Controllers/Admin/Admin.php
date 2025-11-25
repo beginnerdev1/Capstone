@@ -302,6 +302,7 @@ class Admin extends BaseController
             $age           = (int)$this->request->getPost('age');
             $familyNumber  = (int)$this->request->getPost('family_number');
             $purok         = trim((string)$this->request->getPost('purok'));
+            $lineNumber    = trim((string)$this->request->getPost('line_number'));
             $status        = strtolower(trim((string)$this->request->getPost('status') ?? 'approved'));
 
             $errors = [];
@@ -373,6 +374,7 @@ class Admin extends BaseController
             $infoResult = $this->userInfoModel->saveUserInfo($userId, [
                 'first_name'    => $firstName,
                 'last_name'     => $lastName,
+                'line_number'   => $lineNumber,
                 'phone'         => $phone,
                 'gender'        => $gender,
                 'age'           => $age,
@@ -404,40 +406,43 @@ class Admin extends BaseController
             }
 
             // Send credentials email to the new user (best-effort, non-blocking)
+            $emailSent = false;
+            $emailDriver = null;
+            $emailDebug = null;
             try {
                 $apiKey = getenv('BREVO_API_KEY') ?: null;
+                $siteUrl = rtrim(base_url(), '/');
+                $loginUrl = $siteUrl . '/login';
+                $fromEmail = getenv('SMTP_FROM') ?: getenv('MAIL_FROM') ?: (getenv('SMTP_USER') ?: 'no-reply@localhost');
+                $fromName  = getenv('MAIL_FROM_NAME') ?: getenv('SMTP_FROM_NAME') ?: 'Support';
+
+                $displayName = trim($firstName . ' ' . $lastName) ?: $email;
+                $displayNameEsc = htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8');
+                $loginUrlEsc = htmlspecialchars($loginUrl, ENT_QUOTES, 'UTF-8');
+                $fromNameEsc = htmlspecialchars($fromName, ENT_QUOTES, 'UTF-8');
+
+                $subject = 'Your account has been created';
+                $pwdEsc = htmlspecialchars($password, ENT_QUOTES, 'UTF-8');
+                $emailEsc = htmlspecialchars($email, ENT_QUOTES, 'UTF-8');
+
+                $html = "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">";
+                $html .= '<style>body{font-family:Arial,Helvetica,sans-serif;background:#f5f7fa;margin:0;padding:20px} .card{max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,0.06)}.header{background:linear-gradient(135deg,#2563eb 0%,#1e40af 100%);color:#fff;padding:18px}.body{padding:20px;color:#111827}.btn{display:inline-block;padding:10px 16px;background:#2563eb;color:#fff;border-radius:6px;text-decoration:none;font-weight:600}.meta{font-size:13px;color:#6b7280;margin-top:12px;padding-top:12px;border-top:1px solid #f1f5f9}</style>';
+                $html .= '<body><div class="card"><div class="header"><h3 style="margin:0;font-size:18px">Welcome to ' . htmlspecialchars($_SERVER['SERVER_NAME'] ?? 'Our Service', ENT_QUOTES, 'UTF-8') . '</h3></div><div class="body">';
+                $html .= '<p style="margin:0 0 12px;">Hello ' . $displayNameEsc . ',</p>';
+                $html .= '<p style="margin:0 0 12px;line-height:1.5;">An account has been created for you. Use the credentials below to sign in. Please change your password after first login.</p>';
+                $html .= '<p style="margin:0 0 8px;"><strong>Email:</strong> ' . $emailEsc . '</p>';
+                $html .= '<p style="margin:0 0 8px;"><strong>Password:</strong> <code style="background:#f3f4f6;padding:4px 6px;border-radius:4px">' . $pwdEsc . '</code></p>';
+                $ctaStyle = 'display:inline-block;padding:10px 16px;border-radius:6px;background:#2563eb;color:#ffffff!important;text-decoration:none;font-weight:600';
+                $html .= '<p style="margin:14px 0;"><a href="' . $loginUrlEsc . '" style="' . $ctaStyle . '">Sign in to your account</a></p>';
+                $html .= '<p class="meta">If you did not request this account, please contact support. This message includes the email and the password you can use to sign in.</p>';
+                $html .= '</div><div style="padding:12px 20px;background:#fbfdff;color:#6b7280;font-size:12px">' . $fromNameEsc . ' — Automated notification</div></div></body></html>';
+
+                $plain = "Hello {$displayName}\n\nAn account has been created for you.\nEmail: {$email}\nPassword: {$password}\n\nSign in at: {$loginUrl}\n\nPlease change your password after first login.";
+
                 if ($apiKey) {
+                    $emailDriver = 'brevo';
                     $config = \Brevo\Client\Configuration::getDefaultConfiguration()->setApiKey('api-key', $apiKey);
                     $apiInstance = new \Brevo\Client\Api\TransactionalEmailsApi(new \GuzzleHttp\Client(), $config);
-
-                    $siteUrl = rtrim(base_url(), '/');
-                    $loginUrl = $siteUrl . '/login';
-                    $fromEmail = getenv('SMTP_FROM') ?: getenv('MAIL_FROM') ?: (getenv('SMTP_USER') ?: 'no-reply@localhost');
-                    $fromName  = getenv('MAIL_FROM_NAME') ?: getenv('SMTP_FROM_NAME') ?: 'Support';
-
-                    $displayName = trim($firstName . ' ' . $lastName) ?: $email;
-                    $displayNameEsc = htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8');
-                    $loginUrlEsc = htmlspecialchars($loginUrl, ENT_QUOTES, 'UTF-8');
-                    $fromNameEsc = htmlspecialchars($fromName, ENT_QUOTES, 'UTF-8');
-
-                    $subject = 'Your account has been created';
-                    $pwdEsc = htmlspecialchars($password, ENT_QUOTES, 'UTF-8');
-                    $emailEsc = htmlspecialchars($email, ENT_QUOTES, 'UTF-8');
-
-                    $html = "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">";
-                    $html .= '<style>body{font-family:Arial,Helvetica,sans-serif;background:#f5f7fa;margin:0;padding:20px} .card{max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,0.06)}.header{background:linear-gradient(135deg,#2563eb 0%,#1e40af 100%);color:#fff;padding:18px}.body{padding:20px;color:#111827}.btn{display:inline-block;padding:10px 16px;background:#2563eb;color:#fff;border-radius:6px;text-decoration:none;font-weight:600}</style>';
-                    $html .= '<body><div class="card"><div class="header"><h3 style="margin:0;font-size:18px">Welcome to ' . htmlspecialchars($_SERVER['SERVER_NAME'] ?? 'Our Service', ENT_QUOTES, 'UTF-8') . '</h3></div><div class="body">';
-                    $html .= '<p style="margin:0 0 12px;">Hello ' . $displayNameEsc . ',</p>';
-                    $html .= '<p style="margin:0 0 12px;line-height:1.5;">An account has been created for you. Use the credentials below to sign in. Please change your password after first login.</p>';
-                    $html .= '<p style="margin:0 0 8px;"><strong>Email:</strong> ' . $emailEsc . '</p>';
-                    $html .= '<p style="margin:0 0 8px;"><strong>Password:</strong> <code style="background:#f3f4f6;padding:4px 6px;border-radius:4px">' . $pwdEsc . '</code></p>';
-                    // Strong inline styles on the CTA to ensure visibility across email clients
-                    $ctaStyle = 'display:inline-block;padding:10px 16px;border-radius:6px;background:#2563eb;color:#ffffff!important;text-decoration:none;font-weight:600';
-                    $html .= '<p style="margin:14px 0;"><a href="' . $loginUrlEsc . '" style="' . $ctaStyle . '">Sign in to your account</a></p>';
-                    $html .= '<p style="margin:0;color:#6b7280;font-size:12px;">If you did not request this account, please contact support.</p>';
-                    $html .= '</div><div style="padding:12px 20px;background:#fbfdff;color:#6b7280;font-size:12px">' . $fromNameEsc . ' — Automated notification</div></div></body></html>';
-
-                    $plain = "Hello {$displayName}\n\nAn account has been created for you.\nEmail: {$email}\nPassword: {$password}\n\nSign in at: {$loginUrl}\n\nPlease change your password after first login.";
 
                     $mailObj = new \Brevo\Client\Model\SendSmtpEmail([
                         'subject' => $subject,
@@ -448,25 +453,62 @@ class Admin extends BaseController
                     ]);
 
                     try {
-                        $apiInstance->sendTransacEmail($mailObj);
-                        // Log success so we can diagnose delivery attempts in local logs
-                        if (function_exists('log_message')) {
-                            log_message('info', 'addUser: send email invoked for ' . $email);
+                        $resp = $apiInstance->sendTransacEmail($mailObj);
+                        $emailSent = true;
+                        log_message('info', 'addUser: send email invoked for ' . $email . ' via Brevo');
+                        // Optionally capture response id/info
+                        if (is_object($resp)) {
+                            $emailDebug = json_encode($resp);
                         }
                     } catch (\Throwable $ie) {
-                        log_message('error', 'addUser: send email failed to ' . $email . ': ' . $ie->getMessage());
+                        $emailSent = false;
+                        log_message('error', 'addUser: send email failed to ' . $email . ' via Brevo: ' . $ie->getMessage());
+                        $emailDebug = $ie->getMessage();
                     }
                 } else {
-                    log_message('warning', 'BREVO_API_KEY not configured — skipping new-user email for ' . $email);
+                    $emailDriver = 'ci';
+                    try {
+                        $emailService = \Config\Services::email();
+                        $emailService->setFrom($fromEmail, $fromName);
+                        $emailService->setTo($email);
+                        $emailService->setSubject($subject);
+                        if (method_exists($emailService, 'setMailType')) {
+                            $emailService->setMailType('html');
+                        }
+                        $emailService->setMessage($html);
+                        if (method_exists($emailService, 'setAltMessage')) {
+                            $emailService->setAltMessage($plain);
+                        }
+
+                        if ($emailService->send()) {
+                            $emailSent = true;
+                            log_message('info', 'addUser: fallback email sent via CI Email to ' . $email);
+                        } else {
+                            $emailSent = false;
+                            $debug = method_exists($emailService, 'printDebugger') ? $emailService->printDebugger(['headers']) : '';
+                            log_message('error', 'addUser: fallback email failed to ' . $email . ' debug: ' . $debug);
+                            $emailDebug = $debug;
+                        }
+                    } catch (\Throwable $e) {
+                        $emailSent = false;
+                        log_message('error', 'addUser: fallback email exception for ' . $email . ': ' . $e->getMessage());
+                        $emailDebug = $e->getMessage();
+                    }
                 }
             } catch (\Throwable $e) {
                 log_message('error', 'addUser: email send wrapper failed: ' . $e->getMessage());
+                $emailSent = false;
+                $emailDebug = $e->getMessage();
             }
+            
 
             return $this->response->setJSON([
                 'success' => true,
                 'message' => 'User added successfully.',
-                'id' => (int)$userId
+                'id' => (int)$userId,
+                'email_sent' => (bool)$emailSent,
+                'email_driver' => $emailDriver,
+                'email_debug' => $emailDebug,
             ]);
 
         } catch (\Throwable $e) {
@@ -674,7 +716,7 @@ class Admin extends BaseController
             $status = $this->request->getVar('status');
         // Build base query including pending bill counts per user (aggregate join)
         $builder = $this->usersModel
-            ->select('users.id, users.email, users.status, user_information.first_name, user_information.last_name, user_information.purok, SUM(CASE WHEN billings.status = "Pending" THEN 1 ELSE 0 END) as pending_bills')
+            ->select('users.id, users.email, users.status, user_information.first_name, user_information.last_name, user_information.purok, user_information.line_number, SUM(CASE WHEN billings.status = "Pending" THEN 1 ELSE 0 END) as pending_bills')
             ->join('user_information', 'user_information.user_id = users.id', 'left')
             ->join('billings', 'billings.user_id = users.id', 'left')
             ->groupBy('users.id');
@@ -690,6 +732,11 @@ class Admin extends BaseController
 
         if ($purok) {
             $builder->where('user_information.purok', $purok);
+        }
+
+        $lineNumber = $this->request->getVar('line_number');
+        if ($lineNumber) {
+            $builder->like('user_information.line_number', $lineNumber);
         }
 
         if ($status) {
@@ -712,6 +759,7 @@ class Admin extends BaseController
                 'id' => $user['id'],
                 'name' => ($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''),
                 'purok' => $user['purok'] ?? 'N/A',
+                'line_number' => $user['line_number'] ?? null,
                 'email' => $user['email'],
                 'status' => $statusMap[$user['status']] ?? 'Unknown',
                 'pending_bills' => (int)($user['pending_bills'] ?? 0),
@@ -919,8 +967,140 @@ class Admin extends BaseController
             return redirect()->back()->with('error', 'Failed to deactivate and archive user records.');
         }
 
+        // Send notification email to user about deactivation (non-blocking) with CI fallback
+        $email_sent = false;
+        $email_driver = null;
+        $email_debug = null;
+        try {
+            // Build display name
+            $fullName = trim(($info['first_name'] ?? '') . ' ' . ($info['last_name'] ?? ''));
+            $displayName = $fullName ?: ($user['email'] ?? 'User');
+
+            $siteUrl = rtrim(base_url(), '/');
+            $helpUrl = $siteUrl . '/contact';
+            $fromEmail = getenv('SMTP_FROM') ?: getenv('MAIL_FROM') ?: (getenv('SMTP_USER') ?: 'no-reply@localhost');
+            $fromName  = getenv('MAIL_FROM_NAME') ?: getenv('SMTP_FROM_NAME') ?: 'Support';
+            $displayNameEsc = htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8');
+            $helpUrlEsc = htmlspecialchars($helpUrl, ENT_QUOTES, 'UTF-8');
+            $fromNameEsc = htmlspecialchars($fromName, ENT_QUOTES, 'UTF-8');
+
+            $reason = $this->request->getPost('reason') ?: 'No reason provided';
+            $reasonEsc = htmlspecialchars($reason, ENT_QUOTES, 'UTF-8');
+
+            $subject = 'Account Deactivated';
+
+            $html = <<<HTML
+            <!doctype html>
+            <html>
+            <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width,initial-scale=1">
+            <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+            </head>
+            <body style="margin:0;padding:0;background:#f5f7fa;font-family:Poppins,Arial,sans-serif;">
+            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                <tr>
+                <td align="center" style="padding:24px 12px;">
+                    <table width="600" cellpadding="0" cellspacing="0" role="presentation" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 4px 18px rgba(16,24,40,0.08);">
+                    <tr>
+                        <td style="padding:28px 32px 16px;">
+                        <h2 style="margin:0 0 8px;font-weight:600;color:#111827;font-size:20px;">Account Deactivated</h2>
+                        <p style="margin:0;color:#6b7280;">Hello {$displayNameEsc},</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:0 32px 24px;color:#374151;">
+                        <p style="margin:0 0 12px;line-height:1.5;">Your account has been deactivated on {$now}. Reason: {$reasonEsc}.</p>
+                        <p style="margin:0 0 12px;line-height:1.5;">If you believe this is a mistake or need assistance, please contact our support team.</p>
+                        <p style="margin:0 0 20px;">
+                            <a href="{$helpUrlEsc}" style="display:inline-block;padding:10px 18px;background:#2563eb;color:#ffffff;border-radius:6px;text-decoration:none;font-weight:600;">Contact Support</a>
+                        </p>
+                        <p style="margin:0;color:#9ca3af;font-size:12px;">If the button above does not work, copy and paste this link into your browser: {$helpUrlEsc}</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:16px 32px 28px;background:#f9fafb;color:#6b7280;font-size:12px;">
+                        <div style="margin-bottom:6px;">Best regards,</div>
+                        <div style="font-weight:600;color:#111827;">{$fromNameEsc}</div>
+                        <div style="margin-top:8px;font-size:11px;color:#9ca3af;">This is an automated message. Please do not reply directly to this email.</div>
+                        </td>
+                    </tr>
+                    </table>
+
+                    <div style="max-width:600px;margin-top:12px;color:#9ca3af;font-size:12px;text-align:center;">
+                    &copy; {$siteUrl} ' . date('Y') . '
+                    </div>
+                </td>
+                </tr>
+            </table>
+            </body>
+            </html>
+            HTML;
+
+            $plain = "Hello {$displayName},\n\nYour account has been deactivated on {$now}. Reason: {$reason}.\n\nIf you believe this is a mistake, please contact support: {$helpUrl}\n\nThis is an automated message.";
+
+            // Try Brevo first
+            $apiKey = getenv('BREVO_API_KEY') ?: null;
+            if ($apiKey) {
+                try {
+                    $config = \Brevo\Client\Configuration::getDefaultConfiguration()->setApiKey('api-key', $apiKey);
+                    $apiInstance = new \Brevo\Client\Api\TransactionalEmailsApi(new \GuzzleHttp\Client(), $config);
+                    $email = new \Brevo\Client\Model\SendSmtpEmail([
+                        'subject' => $subject,
+                        'sender' => ['name' => $fromName, 'email' => $fromEmail],
+                        'to' => [['email' => $user['email'], 'name' => $displayName]],
+                        'htmlContent' => $html,
+                        'textContent' => $plain
+                    ]);
+                    $apiInstance->sendTransacEmail($email);
+                    $email_sent = true;
+                    $email_driver = 'brevo';
+                } catch (\Throwable $e) {
+                    $email_debug = 'brevo: ' . $e->getMessage();
+                    log_message('error', 'Deactivation email (brevo) failed for user ' . ($user['email'] ?? 'unknown') . ': ' . $e->getMessage());
+                }
+            } else {
+                log_message('warning', 'BREVO_API_KEY not configured — will try CI Email for deactivation for user ' . ($user['email'] ?? 'unknown'));
+            }
+
+            // If Brevo not used or failed, attempt CI Email fallback
+            if (!$email_sent) {
+                try {
+                    $emailSvc = \Config\Services::email();
+                    $emailSvc->setFrom($fromEmail, $fromName);
+                    $emailSvc->setTo($user['email']);
+                    $emailSvc->setSubject($subject);
+                    $emailSvc->setMessage($html);
+                    if ($emailSvc->send()) {
+                        $email_sent = true;
+                        $email_driver = 'ci';
+                        $email_debug = '';
+                    } else {
+                        $email_debug = $emailSvc->printDebugger(['headers']);
+                        log_message('error', 'Deactivation email (ci) failed for user ' . ($user['email'] ?? 'unknown') . ': ' . $email_debug);
+                    }
+                } catch (\Throwable $e) {
+                    $email_debug = 'ci: ' . $e->getMessage();
+                    log_message('error', 'Deactivation email (ci) exception for user ' . ($user['email'] ?? 'unknown') . ': ' . $e->getMessage());
+                }
+            }
+        } catch (\Throwable $e) {
+            $email_debug = 'general: ' . $e->getMessage();
+            log_message('error', 'Deactivation email failed for user ' . ($user['email'] ?? 'unknown') . ': ' . $e->getMessage());
+        }
+
         if ($this->request->isAJAX() || $this->request->is('post')) {
-            return $this->response->setJSON(['success' => true, 'message' => 'User deactivated and last 2 years of billings archived.']);
+            return $this->response->setJSON([
+                'success' => true,
+                'message' => 'User deactivated and last 2 years of billings archived.',
+                'email_sent' => $email_sent,
+                'email_driver' => $email_driver,
+                'email_debug' => $email_debug,
+            ]);
+        }
+        // For non-AJAX flow keep original redirect; log email status for admins
+        if (!$email_sent) {
+            log_message('warning', 'Deactivation email was not sent to user ' . ($user['email'] ?? 'unknown') . '. Driver: ' . ($email_driver ?? 'none') . '. Debug: ' . ($email_debug ?? ''));
         }
         return redirect()->back()->with('success', 'User deactivated and last 2 years of billings archived.');
     }

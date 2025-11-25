@@ -291,6 +291,10 @@ html,body { height:100%; margin:0; font-family: var(--font-sans); background: li
                 </div>
 
                 <div style="min-width:160px;">
+                    <input id="filterLine" class="form-control" type="text" placeholder="Filter by Line #" style="border-radius:8px; padding:8px;">
+                </div>
+
+                <div style="min-width:160px;">
                     <select id="filterStatus" class="form-select" aria-label="Filter by status" style="border-radius:8px; padding:8px;">
                         <option value="">All Status</option>
                         <option value="approved">Approved</option>
@@ -311,7 +315,8 @@ html,body { height:100%; margin:0; font-family: var(--font-sans); background: li
                         <tr>
                             <th style="width:6%;">#</th>
                             <th style="width:28%;">Name</th>
-                            <th style="width:28%;">Email</th>
+                            <th style="width:22%;">Email</th>
+                            <th style="width:10%;">Line #</th>
                             <th style="width:10%;">Purok</th>
                             <th style="width:12%;">Status</th>
                             <th style="width:16%; text-align:right;">Actions</th>
@@ -436,12 +441,23 @@ html,body { height:100%; margin:0; font-family: var(--font-sans); background: li
 
                     <div class="row mb-3">
                         <div class="col-md-6">
+                            <label class="form-label">Water Line Number</label>
+                            <input type="text" class="form-control" name="line_number" maxlength="32" placeholder="e.g., 001">
+                            <div class="form-text">Optional: specify the water line identifier for this user.</div>
+                        </div>
+                        <div class="col-md-6">
                             <label class="form-label">Barangay</label>
                             <input type="text" class="form-control" value="Borlongan" readonly disabled>
                         </div>
+                    </div>
+
+                    <div class="row mb-3">
                         <div class="col-md-6">
                             <label class="form-label">Municipality</label>
                             <input type="text" class="form-control" value="Dipaculao" readonly disabled>
+                        </div>
+                        <div class="col-md-6">
+                            <!-- placeholder to keep layout consistent -->
                         </div>
                     </div>
 
@@ -514,13 +530,13 @@ function initRegisteredUsersPage() {
         $.ajax({
             url: baseUrl+'/admin/filterUsers',
             type:'GET',
-            data:{search,purok,status},
+            data:{search,purok,status,line_number: $('#filterLine').length ? $('#filterLine').val() : ''},
             dataType:'json',
             success:function(users){
                 console.log("✅ Loaded users:", users);
                 const tbody = $('#usersTable tbody'); tbody.empty();
                 if(!users || users.length===0){
-                    tbody.html(`<tr><td colspan="6" class="text-center">No users found</td></tr>`);
+                    tbody.html(`<tr><td colspan="7" class="text-center">No users found</td></tr>`);
                     setUsersCount(0);
                     return;
                 }
@@ -537,22 +553,20 @@ function initRegisteredUsersPage() {
                     const deactivateTitle = !canDeactivate
                         ? (pendingBills > 0 ? 'Cannot deactivate: pending bill(s) exist' : 'Only approved users can be deactivated')
                         : 'Deactivate user';
-                    const deactivateBtn = `
-                        <button class="btn btn-sm btn-outline-danger deactivateUserBtn ${canDeactivate ? '' : 'opacity-50'}" data-id="${user.id}" data-name="${fullName}" ${canDeactivate ? '' : 'data-disabled="1"'} title="${deactivateTitle}">
-                            <i class="fas fa-user-slash"></i> Deactivate
-                        </button>`;
+                    // Move deactivate action into the View modal (render view button only here)
                     const row = `
                         <tr>
                             <td data-label="#">${index+1}</td>
                             <td data-label="Name">${fullName}</td>
                             <td data-label="Email">${user.email || '-'}</td>
+                            <td data-label="Line">${user.line_number || '-'}</td>
                             <td data-label="Purok">${user.purok || '-'}</td>
                             <td data-label="Status"><span class="badge bg-${badgeClass}">${user.status||'-'}</span></td>
                             <td data-label="Actions" class="actions">
                                 <button class="btn btn-sm btn-primary viewUserBtn" data-id="${user.id}" title="View user details">
                                     <i class="fas fa-eye"></i> View
                                 </button>
-                                ${deactivateBtn}
+                                <!-- Deactivate moved into View modal to avoid accidental clicks -->
                             </td>
                         </tr>
                     `;
@@ -589,10 +603,16 @@ function initRegisteredUsersPage() {
         loadUsers($('#filterInput').val(), $('#filterPurok').val(), $(this).val());
     });
 
+    // Line filter
+    $(document).on('input', '#filterLine', function(){
+        loadUsers($('#filterInput').val(), $('#filterPurok').val(), $('#filterStatus').val());
+    });
+
     // Reset filters
     $('#resetFilters').on('click', function(){
         $('#filterInput').val('');
         $('#filterPurok').val('');
+        $('#filterLine').val('');
         $('#filterStatus').val('');
         loadUsers();
     });
@@ -609,6 +629,13 @@ function initRegisteredUsersPage() {
                 let profileImg = user.profile_picture
                     ? `<img src="<?= base_url('uploads/profile_pictures') ?>/${user.profile_picture}" class="rounded-circle mb-3" width="100" height="100">`
                     : `<i class="fas fa-user-circle fa-5x text-muted mb-3"></i>`;
+
+                const pendingBills = parseInt(user.pending_bills || 0, 10);
+                const canDeactivate = (user.status||'').toLowerCase() === 'approved' && pendingBills === 0;
+                const deactivateTitle = !canDeactivate
+                    ? (pendingBills > 0 ? 'Cannot deactivate: pending bill(s) exist' : 'Only approved users can be deactivated')
+                    : 'Deactivate user';
+
                 $("#userDetailsContent").html(`
                     <div class="text-center">${profileImg}</div>
                     <h5 class="text-center mb-3">${user.first_name||''} ${user.last_name||''}</h5>
@@ -628,6 +655,11 @@ function initRegisteredUsersPage() {
                             <p><strong>Zip Code:</strong> ${user.zipcode||'-'}</p>
                             <p><strong>Status:</strong> <span class="badge bg-info">${user.status||'-'}</span></p>
                         </div>
+                    </div>
+                    <div class="text-end mt-3">
+                        <button class="btn btn-danger deactivateUserBtn" data-id="${user.id}" data-name="${(user.first_name||'') + ' ' + (user.last_name||'') }" ${canDeactivate ? '' : 'data-disabled="1" title="' + deactivateTitle + '"'}>
+                            <i class="fas fa-user-slash me-1"></i> Deactivate
+                        </button>
                     </div>
                 `);
                 $("#viewUserModal").modal("show");
@@ -694,12 +726,22 @@ function initRegisteredUsersPage() {
             data: formData,
             dataType:'json',
             success:function(res){
+                console.log('addUser response', res);
                 if(res.success){
                     const successAlert = $('<div class="alert alert-success alert-dismissible fade show" role="alert">' +
                         '<i class="fas fa-check-circle me-2"></i>' + res.message +
                         '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
                         '</div>');
                     $('.container-fluid').prepend(successAlert);
+                    // If server reports email delivery problems, show a helpful warning
+                    if (res.email_sent === false) {
+                        const warn = $('<div class="alert alert-warning alert-dismissible fade show" role="alert">' +
+                            '<i class="fas fa-exclamation-triangle me-2"></i>Email not delivered automatically. Check mail server configuration or logs.' +
+                            '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                            '</div>');
+                        $('.container-fluid').prepend(warn);
+                        console.warn('addUser email delivery issue', res.email_driver, res.email_debug);
+                    }
                     setTimeout(function(){ successAlert.fadeOut(); }, 5000);
                     $('#addUserForm')[0].reset();
                     $('#addUserForm').removeClass('was-validated');
@@ -775,6 +817,15 @@ function initRegisteredUsersPage() {
                         '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
                         '</div>');
                     $('.container-fluid').prepend(successAlert);
+                    // If server reports email delivery problems, surface a warning and log details
+                    if (res.email_sent === false) {
+                        const warn = $('<div class="alert alert-warning alert-dismissible fade show" role="alert">' +
+                            '<i class="fas fa-exclamation-triangle me-2"></i>Email to user was not delivered automatically. Check mail server configuration or logs.' +
+                            '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                            '</div>');
+                        $('.container-fluid').prepend(warn);
+                        console.warn('deactivateUser email delivery issue', res.email_driver, res.email_debug);
+                    }
                     $('#deactivateUserModal').modal('hide');
                     loadUsers($('#filterInput').val(), $('#filterPurok').val(), $('#filterStatus').val());
                 } else {
@@ -871,11 +922,6 @@ $(document).ready(function(){ initRegisteredUsersPage(); });
             </div>
         </div>`;
         document.body.insertAdjacentHTML('beforeend', html);
-    }
-})();
-
-// Responsive class fallback
-(function(){
     const container = document.querySelector('.container-fluid');
     if (!container) return;
     const THRESHOLD = 992;

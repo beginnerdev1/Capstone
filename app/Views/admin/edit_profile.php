@@ -735,11 +735,28 @@ body {
       </div>
 
       <!-- Change Password (OTP Secured) -->
+      <style>
+        /* Password change numbered steps */
+        .pwd-steps { list-style: none; padding: 0; margin: 0 0 12px 0; display:flex; gap:12px; flex-wrap:wrap; }
+        .pwd-steps li { counter-increment: step; background:#f3f4f6; padding:8px 12px; border-radius:8px; display:flex; align-items:center; gap:8px; color:#374151; }
+        .pwd-steps li::before { content: counter(step); counter-reset: none; display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:50%; background:#e5e7eb; color:#111827; font-weight:700; margin-right:6px; }
+        .pwd-steps li.active { background: linear-gradient(90deg,#10b981,#059669); color:white; }
+        .pwd-steps li.active::before { background: rgba(255,255,255,0.2); color:white; }
+      </style>
+
       <div class="form-section" id="passwordChangeSection">
         <h2 class="section-title">
           <span class="section-icon">🔐</span>
           Change Password (OTP Secured)
         </h2>
+        <ol class="pwd-steps" id="pwdSteps">
+          <li id="step1">Enter current password</li>
+          <li id="step2">Click Send OTP</li>
+          <li id="step3">Input OTP from email</li>
+          <li id="step4">Enter new password</li>
+          <li id="step5">Click Change Password</li>
+        </ol>
+
         <div class="form-grid">
           <div class="form-group">
             <label class="form-label">Current Password <span class="form-required">*</span></label>
@@ -872,6 +889,7 @@ form.addEventListener('submit', async (e) => {
 
 // Load profile data from PHP
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('edit_profile script loaded at', new Date().toISOString());
   const adminData = <?= json_encode($admin ?? []) ?>;
   
   if (adminData) {
@@ -919,19 +937,33 @@ sendOtpBtn.addEventListener('click', async () => {
   fd.append('current_password', currentPwd);
   try {
     const res = await fetch('<?= base_url('admin/requestPasswordOtp') ?>', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }, body: fd });
-    const data = await res.json();
+    // Log response status for debugging
+    console.log('sendOtp fetch response', { status: res.status, statusText: res.statusText, redirected: res.redirected, url: res.url });
+    let data = null;
+    try {
+      data = await res.json();
+    } catch (parseErr) {
+      console.error('sendOtp: failed to parse JSON', parseErr);
+      // fallback: read text for inspection
+      try { const t = await res.text(); console.log('sendOtp response text:', t); } catch (tErr) { console.error('sendOtp: failed to read text', tErr); }
+      data = null;
+    }
     if (data.success) {
       otpStatus.textContent = 'OTP sent. Check your delivery channel.';
       newPasswordInput.disabled = false;
       confirmPasswordInput.disabled = false;
       otpInput.disabled = false;
+      window.otpRequested = true;
       // Do not enable change button yet; wait for requirements to pass
       updatePasswordUI();
       showPwdMessage(data.message, 'success');
     } else {
+      window.otpRequested = false;
+      updateSteps();
       showPwdMessage(data.message || 'Failed to send OTP.', 'error');
     }
   } catch (e) {
+    console.error('sendOtp error', e);
     showPwdMessage('Network error sending OTP.', 'error');
   } finally {
     sendOtpBtn.disabled = false; sendOtpBtn.textContent = '📩 Send OTP';
@@ -939,6 +971,18 @@ sendOtpBtn.addEventListener('click', async () => {
 });
 
 changePasswordBtn.addEventListener('click', async () => {
+  // Visible debug: add small banner so we can confirm the handler ran without relying on console
+  try {
+    let dbg = document.getElementById('ep-debug-banner');
+    if (!dbg) {
+      dbg = document.createElement('div'); dbg.id = 'ep-debug-banner';
+      dbg.style.position = 'fixed'; dbg.style.right = '12px'; dbg.style.bottom = '12px'; dbg.style.background = 'rgba(0,0,0,0.7)'; dbg.style.color = 'white'; dbg.style.padding = '8px 10px'; dbg.style.borderRadius = '6px'; dbg.style.zIndex = '99999'; dbg.style.fontSize = '12px';
+      document.body.appendChild(dbg);
+    }
+    dbg.textContent = 'changePassword clicked at ' + new Date().toLocaleTimeString();
+  } catch (dbgErr) { console.warn('ep-debug-banner failed', dbgErr); }
+
+  console.log('changePassword: handler invoked at', new Date().toISOString());
   const otp = otpInput.value.trim();
   const newPwd = newPasswordInput.value.trim();
   const confirmPwd = confirmPasswordInput.value.trim();
@@ -952,8 +996,32 @@ changePasswordBtn.addEventListener('click', async () => {
   changePasswordBtn.disabled = true; changePasswordBtn.textContent = '⏳ Changing...';
   try {
     const res = await fetch('<?= base_url('admin/changePassword') ?>', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }, body: fd });
-    const data = await res.json();
-    if (data.success) {
+    // Read response text first to avoid json() parse errors when server returns HTML/redirects
+    console.log('changePassword: fetch completed', { status: res.status, statusText: res.statusText, redirected: res.redirected, url: res.url });
+    const text = await res.text();
+    console.log('changePassword: response text (truncated 200 chars):', (text || '').substring(0,200));
+    let data = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch (parseErr) {
+      // Not JSON — likely an HTML page or redirect. Log for debugging and navigate if appropriate.
+      console.error('changePassword: JSON parse error', parseErr, { status: res.status, textSample: (text||'').substring(0,200) });
+      if (res.redirected || /<\/?html|<!doctype/i.test(text || '')) {
+        console.log('changePassword: non-JSON HTML/redirect response detected, navigating to', res.url || '<?= base_url('admin') ?>');
+        window.location.href = res.url || '<?= base_url('admin') ?>';
+        return;
+      }
+      showPwdMessage('Unexpected server response.', 'error');
+      return;
+    }
+
+    if (!res.ok) {
+      console.warn('changePassword: response not ok', { status: res.status, statusText: res.statusText, data });
+      showPwdMessage((data && data.message) ? data.message : ('Server error: ' + (res.statusText || res.status)), 'error');
+      return;
+    }
+
+    if (data && data.success) {
       showPwdMessage('Password changed successfully.', 'success');
       currentPasswordInput.value='';
       newPasswordInput.value='';
@@ -964,15 +1032,19 @@ changePasswordBtn.addEventListener('click', async () => {
       otpInput.disabled = true;
       changePasswordBtn.disabled = true;
       otpStatus.textContent = 'Request a new OTP to change again';
-      // Follow redirect instruction from server (clear forced change)
+      window.otpRequested = false;
+      updateSteps();
+      // If server returned a redirect, navigate there so the admin is taken to the dashboard.
       if (data.redirect) {
         setTimeout(function(){ window.location.href = data.redirect; }, 800);
         return;
       }
     } else {
-      showPwdMessage(data.message || 'Failed to change password.', 'error');
+      console.warn('changePassword: change failed', data);
+      showPwdMessage((data && data.message) ? data.message : 'Failed to change password.', 'error');
     }
   } catch (e) {
+    console.error('changePassword: caught error', e);
     showPwdMessage('Network error changing password.', 'error');
   } finally {
     changePasswordBtn.disabled = false; changePasswordBtn.textContent = '✅ Change Password';
@@ -1015,4 +1087,75 @@ newPasswordInput.addEventListener('input', updatePasswordUI);
 confirmPasswordInput.addEventListener('input', updatePasswordUI);
 otpInput.addEventListener('input', updatePasswordUI);
 </script>
+<!-- Force-password-change modal -->
+<div class="modal fade" id="forceChangeModal" tabindex="-1" aria-labelledby="forceChangeLabel" aria-hidden="true" style="display:none;">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="forceChangeLabel">Default password detected</h5>
+      </div>
+      <div class="modal-body">
+        <p>Your account appears to be using the default password. For security, please change your password now.</p>
+        <ol>
+          <li>Enter your current password (if it's the default one: <code>123456</code>).</li>
+          <li>Click <strong>Send OTP</strong>.</li>
+          <li>Input the OTP sent to your email.</li>
+          <li>Enter your new password (follow the requirements).</li>
+          <li>Click <strong>Change Password</strong>.</li>
+        </ol>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Show modal when server indicates forced password change
+  document.addEventListener('DOMContentLoaded', function(){
+    var forceChange = <?= (session()->getFlashdata('force_password_change') || session()->get('force_password_change')) ? 'true' : 'false' ?>;
+    if (forceChange) {
+      try { var m = new bootstrap.Modal(document.getElementById('forceChangeModal')); m.show(); } catch (e) { console.warn('Bootstrap modal failed to show', e); }
+    }
+
+    // Step UI logic
+    window.otpRequested = false;
+    // Expose updateSteps globally so other handlers can call it
+    window.updateSteps = function(){
+      var step1 = document.getElementById('step1');
+      var step2 = document.getElementById('step2');
+      var step3 = document.getElementById('step3');
+      var step4 = document.getElementById('step4');
+      var step5 = document.getElementById('step5');
+      if (!step1) return;
+      step1.classList.toggle('active', (currentPasswordInput.value || '').length > 0);
+      step2.classList.toggle('active', window.otpRequested === true);
+      step3.classList.toggle('active', (otpInput.value || '').length >= 6);
+      // password valid check mirrors updatePasswordUI's criteria
+      var pwd = newPasswordInput.value || '';
+      var confirm = confirmPasswordInput.value || '';
+      var lenOK = pwd.length >= 6;
+      var upperOK = /[A-Z]/.test(pwd);
+      var numOK = /\d/.test(pwd);
+      var specialOK = /[!@#$%^&*()_\-+=\[\]{};:'",.<>\/\\?\\|`~]/.test(pwd);
+      var matchOK = confirm.length > 0 && pwd === confirm;
+      step4.classList.toggle('active', lenOK && upperOK && numOK && specialOK && matchOK);
+      step5.classList.toggle('active', !changePasswordBtn.disabled);
+    }
+
+    // Hook into existing events
+    currentPasswordInput && currentPasswordInput.addEventListener('input', updateSteps);
+    otpInput && otpInput.addEventListener('input', updateSteps);
+    newPasswordInput && newPasswordInput.addEventListener('input', updateSteps);
+    confirmPasswordInput && confirmPasswordInput.addEventListener('input', updateSteps);
+
+    // When OTP is successfully requested set flag and update steps
+    var origSendHandler = sendOtpBtn && sendOtpBtn.onclick;
+    // Patch sendOtpBtn click handler by listening for clicks — existing async handler will still run
+    sendOtpBtn && sendOtpBtn.addEventListener('click', function(){ setTimeout(function(){ updateSteps(); }, 200); });
+
+    // Monitor change button enable/disable
+    setInterval(updateSteps, 500);
+  });
 </script>
