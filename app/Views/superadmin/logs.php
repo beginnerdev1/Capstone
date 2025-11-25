@@ -1,9 +1,9 @@
 <div class="container-fluid px-4">
   <div class="card shadow-sm">
-    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center flex-wrap">
       <h5 class="mb-0">System Activity Logs</h5>
-      <div>
-        <select id="limit" class="form-select form-select-sm d-inline-block" style="width:auto">
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <select id="limit" class="form-select form-select-sm d-inline-block w-auto">
           <option value="200">Last 200</option>
           <option value="500" selected>Last 500</option>
           <option value="1000">Last 1000</option>
@@ -15,14 +15,14 @@
       <div class="row g-2 mb-3">
         <div class="col-6 col-md-2"><input type="date" id="start" class="form-control form-control-sm" /></div>
         <div class="col-6 col-md-2"><input type="date" id="end" class="form-control form-control-sm" /></div>
-        <div class="col-6 col-md-2">
+        <div class="col-6 col-md-1">
           <select id="actor_type" class="form-select form-select-sm">
             <option value="">Any Actor</option>
             <option value="admin">Admin</option>
             <option value="superadmin">SuperAdmin</option>
           </select>
         </div>
-        <div class="col-6 col-md-2">
+        <div class="col-6 col-md-1">
           <select id="action" class="form-select form-select-sm">
             <option value="">Any Action</option>
             <option>login</option>
@@ -33,7 +33,7 @@
             <option>deactivate</option>
           </select>
         </div>
-        <div class="col-6 col-md-2">
+        <div class="col-6 col-md-1">
           <select id="method" class="form-select form-select-sm">
             <option value="">Any Method</option>
             <option>POST</option>
@@ -302,7 +302,7 @@
 </script>
 <!-- Log Details Modal -->
 <div class="modal fade" id="logDetailsModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header"><h5 class="modal-title">Log Details</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
       <div class="modal-body" id="logDetailsBody"></div>
@@ -316,7 +316,7 @@
 
 <!-- Export Confirmation Modal -->
 <div class="modal fade" id="exportConfirmModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">Export System Activity Logs</h5>

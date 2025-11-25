@@ -1,0 +1,2 @@
+id,user_id,email,first_name,last_name,phone,purok,barangay,municipality,province,zipcode,inactivated_at,inactivated_by,reason,created_at,updated_at
+1,2,mikevidal689@gmail.com,"Mike Lorenz",Vidal,09600947741,3,Borlongan,Dipaculao,Aurora,3203,"2025-11-25 21:25:02",1,,"2025-11-25 21:25:02","2025-11-25 21:25:02"

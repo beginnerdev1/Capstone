@@ -196,8 +196,9 @@ class SuperAdminAuth extends Controller
         $ip = $this->request->getIPAddress();
         $cache = \Config\Services::cache();
 
-        // Track per-IP rate
-        $ipKey = 'superadmin_forgot_ip_' . $ip;
+        // Track per-IP rate. Hash the IP to avoid reserved characters in cache keys
+        $ipHash = md5($ip);
+        $ipKey = 'superadmin_forgot_ip_' . $ipHash;
         $ipCount = (int) $cache->get($ipKey);
         if ($ipCount >= $maxPerIp) {
             return $this->response->setStatusCode(429)->setJSON(['error' => 'Too many requests. Try again later.']);

@@ -1,0 +1,2 @@
+id,first_name,middle_name,last_name,profile_picture,username,email,password,position,is_verified,otp_code,otp_expire,created_at,updated_at,must_change_password
+1,"Mike Lorenz",Verial,Vidal,,Mike,mikevidal689@gmail.com,$2y$10$4uVMTymsMKH/w0vRLAV8OOt7XDcxpJwW8u0HEmzBNYxP9r01TWM.a,President,1,,,"2025-11-25 20:15:51","2025-11-25 22:42:07",0

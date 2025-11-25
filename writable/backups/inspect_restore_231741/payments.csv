@@ -1,0 +1,2 @@
+id,user_id,billing_id,payment_intent_id,payment_method_id,method,reference_number,admin_reference,receipt_image,amount,currency,status,expires_at,attempt_number,paid_at,created_at,updated_at,deleted_at
+1,2,1,manual_6925bfcb918fc,,manual,123456,123456,uploads/receipts/123456_20251125_224011.jpg,50,PHP,partial,,1,"2025-11-25 22:42:49","2025-11-25 22:40:11","2025-11-25 22:42:49",

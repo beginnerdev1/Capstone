@@ -1,0 +1,2 @@
+info_id,user_id,first_name,last_name,gender,age,family_number,phone,line_number,purok,barangay,municipality,province,zipcode,profile_picture,created_at,updated_at
+2,2,"Mike Lorenz",Vidal,Male,23,6,09600947741,C0101,3,Borlongan,Dipaculao,Aurora,3203,1764077328_6925af10a69f4.jpg,"2025-11-25 21:15:16","2025-11-25 21:28:48"

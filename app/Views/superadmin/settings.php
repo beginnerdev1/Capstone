@@ -12,7 +12,7 @@
               <div class="form-text">Upload a previously generated backup ZIP to restore. This action can modify the database.</div>
             </div>
             <div class="d-flex gap-2">
-              <button id="btnUploadRestore" type="submit" class="btn btn-warning btn-sm">Upload for Restore</button>
+              <button id="btnUploadRestore" type="button" class="btn btn-warning btn-sm">Upload for Restore</button>
               <button id="btnApplyRestore" type="button" class="btn btn-danger btn-sm" disabled>Apply Restore (Danger)</button>
             </div>
             <div id="restoreMessage" class="small text-muted mt-2"></div>
@@ -43,15 +43,17 @@
       <div class="card">
         <div class="card-header">System & Database</div>
         <div class="card-body">
-          <table class="table table-sm">
-            <tbody>
-              <tr><th>PHP Version</th><td id="sysPhp">—</td></tr>
-              <tr><th>OS</th><td id="sysOs">—</td></tr>
-              <tr><th>DB Version</th><td id="sysDb">—</td></tr>
-              <tr><th>DB Size</th><td id="sysDbSize">—</td></tr>
-              <tr><th>Disk Free</th><td id="sysDisk">—</td></tr>
-            </tbody>
-          </table>
+          <div class="table-responsive">
+            <table class="table table-sm">
+              <tbody>
+                <tr><th>PHP Version</th><td id="sysPhp">—</td></tr>
+                <tr><th>OS</th><td id="sysOs">—</td></tr>
+                <tr><th>DB Version</th><td id="sysDb">—</td></tr>
+                <tr><th>DB Size</th><td id="sysDbSize">—</td></tr>
+                <tr><th>Disk Free</th><td id="sysDisk">—</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -124,28 +126,30 @@
   // Restore upload & apply handlers
   let uploadedRestoreFile = null;
 
-  $(document).on('submit', '#restoreForm', function(e){
+  // Prefer click handler on the upload button (more reliable than submit interception)
+  $(document).on('click', '#btnUploadRestore', function(e){
     e.preventDefault();
     const fileEl = document.getElementById('restoreFile');
     if (!fileEl || !fileEl.files || !fileEl.files[0]) { alert('Please select a ZIP file to upload'); return; }
     const f = fileEl.files[0];
     const fd = new FormData();
     fd.append('restore_zip', f);
-    // include CSRF token
-    const csrf = $(this).find("input[name^='csrf_']").first();
+    // include CSRF token from the form if present
+    const csrf = $('#restoreForm').find("input[name^='csrf_']").first();
     if (csrf && csrf.length) fd.append(csrf.attr('name'), csrf.val());
 
     $('#btnUploadRestore').prop('disabled', true).text('Uploading...');
     $('#restoreMessage').text('Uploading backup...');
 
-    $.ajax({
-      url: '<?= site_url('superadmin/uploadRestore') ?>',
+    // Use fetch as a robust fallback and provide console logs for debugging
+    fetch('<?= site_url('superadmin/uploadRestore') ?>', {
       method: 'POST',
-      data: fd,
-      processData: false,
-      contentType: false,
-      dataType: 'json'
-    }).done(function(res){
+      body: fd,
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    }).then(function(res){
+      return res.json().catch(function(){ return { status: 'error', message: 'Invalid JSON response' }; });
+    }).then(function(res){
       if (res && res.status === 'success' && res.filename) {
         uploadedRestoreFile = res.filename;
         $('#restoreMessage').text('Uploaded: ' + res.filename + '. Tables found: ' + (res.tables || []).join(', '));
@@ -154,13 +158,18 @@
       } else {
         $('#restoreMessage').text('Upload failed: ' + (res && res.message ? res.message : 'Unknown'));
       }
-    }).fail(function(jq){
-      let msg = 'Upload failed';
-      try { if (jq && jq.responseJSON && jq.responseJSON.message) msg = jq.responseJSON.message; } catch(e){}
-      $('#restoreMessage').text(msg);
-    }).always(function(){
+    }).catch(function(err){
+      console.error('uploadRestore failed', err);
+      $('#restoreMessage').text('Upload request failed. See console for details.');
+    }).finally(function(){
       $('#btnUploadRestore').prop('disabled', false).text('Upload for Restore');
     });
+  });
+
+  // Keep original form submit as a fallback in case the button type is changed elsewhere
+  $(document).on('submit', '#restoreForm', function(e){
+    e.preventDefault();
+    $('#btnUploadRestore').trigger('click');
   });
 
   $(document).on('click', '#btnApplyRestore', function(e){
@@ -178,14 +187,14 @@
     if (csrf && csrf.length) fd.append(csrf.attr('name'), csrf.val());
     fd.append('confirm', 'RESTORE');
 
-    $.ajax({
-      url: '<?= site_url('superadmin/applyRestore') ?>',
+    fetch('<?= site_url('superadmin/applyRestore') ?>', {
       method: 'POST',
-      data: fd,
-      processData: false,
-      contentType: false,
-      dataType: 'json'
-    }).done(function(res){
+      body: fd,
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    }).then(function(res){
+      return res.json().catch(function(){ return { status: 'error', message: 'Invalid response' }; });
+    }).then(function(res){
       if (res && res.status === 'success') {
         $('#restoreMessage').text('Restore applied successfully: ' + (res.message || 'Completed'));
         uploadedRestoreFile = null;
@@ -194,11 +203,10 @@
       } else {
         $('#restoreMessage').text('Restore failed: ' + (res && res.message ? res.message : 'Unknown'));
       }
-    }).fail(function(jq){
-      let msg = 'Restore request failed';
-      try { if (jq && jq.responseJSON && jq.responseJSON.message) msg = jq.responseJSON.message; } catch(e){}
-      $('#restoreMessage').text(msg);
-    }).always(function(){
+    }).catch(function(err){
+      console.error('applyRestore failed', err);
+      $('#restoreMessage').text('Restore request failed. See console for details.');
+    }).finally(function(){
       $('#btnApplyRestore').prop('disabled', false).text('Apply Restore (Danger)');
     });
   });

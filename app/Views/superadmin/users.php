@@ -35,7 +35,7 @@
 
 <!-- New Admin Modal -->
 <div class="modal fade" id="newAdminModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">Create Admin Account</h5>
@@ -203,7 +203,7 @@
 
 <!-- Retire Confirmation Modal -->
 <div class="modal fade" id="retireModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
+  <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">Retire Admin</h5>

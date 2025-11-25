@@ -1,0 +1,2 @@
+id,admin_code,email,password,created_at,updated_at,first_name,middle_name,last_name,otp_hash,otp_expires,is_primary,otp_failed_attempts,otp_locked_until,admin_code_used_at,must_change_password
+1,$2y$10$QVnCnHgGhWPnShONvuwl.eVWV95lY7bMLOFbWu9F2ygU.jIvFS1wO,mikevidal689@gmail.com,$2y$10$xX6UiwnSTulDHOhqORwlk.py9V/L8IubTqf9b/ByRYxkJRF3NduDu,"2025-11-25 22:54:03","2025-11-25 22:54:48",,,,,,0,0,,,0

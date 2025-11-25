@@ -1,0 +1,2 @@
+id,user_id,description,bill_no,amount_due,carryover,balance,status,billing_month,due_date,paid_date,remarks,created_at,updated_at
+1,2,,BILL-20251125-0002,60.00,0.00,10.00,Partial,2025-11-01,2025-12-02,,,"2025-11-25 22:33:25","2025-11-25 22:33:25"

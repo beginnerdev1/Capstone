@@ -1,0 +1,2 @@
+id,email,password,active,status,is_verified,profile_complete,otp_code,otp_expires,created_at,updated_at
+2,mikevidal689@gmail.com,$2y$10$S0Qkf6m31fWSGGuGKBRd3uya/39nJJ6CP/SiC53plVGthEJ.TZeN.,2,approved,1,1,,,"2025-11-25 21:15:15","2025-11-25 22:43:37"

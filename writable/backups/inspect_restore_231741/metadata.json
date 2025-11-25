@@ -1,0 +1,26 @@
+{
+    "created_at": "2025-11-25 23:17:19",
+    "requestor_id": "1",
+    "requestor_email": "mikevidal689@gmail.com",
+    "counts": {
+        "admin": 1,
+        "admin_activity_logs": 3,
+        "admin_archived": 0,
+        "admin_chats": 0,
+        "archived_billings": 0,
+        "billings": 1,
+        "chat_messages": 0,
+        "gcash_settings": 0,
+        "inactive_users": 1,
+        "migrations": 26,
+        "password_resets": 0,
+        "payment_settings": 0,
+        "payments": 1,
+        "service_reports": 0,
+        "super_admin": 1,
+        "superadmin_actions": 0,
+        "user_information": 1,
+        "users": 1,
+        "backup_sql": 21495
+    }
+}

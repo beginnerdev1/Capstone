@@ -21,6 +21,7 @@ use PhpOffice\PhpSpreadsheet\Chart\DataSeriesValues;
 use PhpOffice\PhpSpreadsheet\Chart\PlotArea;
 use PhpOffice\PhpSpreadsheet\Chart\Title;
 use PhpOffice\PhpSpreadsheet\Chart\Legend;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 
 
 class Admin extends BaseController
@@ -38,6 +39,28 @@ class Admin extends BaseController
         $this->billingModel = new BillingModel();
         $this->adminModel = new AdminModel();
         $this->paymentsModel = new PaymentsModel();
+    }
+
+    /**
+     * Sanitize a value for export: transliterate to ASCII and remove special/control characters.
+     */
+    private function sanitizeForExport($val)
+    {
+        if ($val === null) return '';
+        if (is_array($val)) $val = implode('; ', $val);
+        $s = (string)$val;
+        // Try transliteration to ASCII where possible
+        if (function_exists('iconv')) {
+            $tmp = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $s);
+            if ($tmp !== false && $tmp !== null) $s = $tmp;
+        }
+        // Remove C0/C1 control chars
+        $s = preg_replace('/[\x00-\x1F\x7F]/u', '', $s);
+        // Remove any remaining non-printable characters, keep basic printable ASCII
+        $s = preg_replace('/[^\x20-\x7E]/', '', $s);
+        // Trim excessive whitespace
+        $s = preg_replace('/\s+/', ' ', trim($s));
+        return $s;
     }
 
     /**
@@ -2192,14 +2215,14 @@ public function addCounterPayment()
 
         foreach ($payments as $payment) {
             fputcsv($output, [
-                $payment['user_name'] ?? 'Unknown',
-                $payment['email'] ?? 'N/A',
+                $this->sanitizeForExport($payment['user_name'] ?? 'Unknown'),
+                $this->sanitizeForExport($payment['email'] ?? 'N/A'),
                 number_format($payment['amount'] ?? 0, 2),
-                $payment['method'] ?? 'Unknown',
-                $payment['status'] ?? 'Pending',
-                $payment['reference_number'] ?? 'N/A',
-                $payment['admin_reference'] ?? 'N/A',
-                date('Y-m-d', strtotime($payment['created_at'] ?? 'now'))
+                $this->sanitizeForExport($payment['method'] ?? 'Unknown'),
+                $this->sanitizeForExport($payment['status'] ?? 'Pending'),
+                $this->sanitizeForExport($payment['reference_number'] ?? 'N/A'),
+                $this->sanitizeForExport($payment['admin_reference'] ?? 'N/A'),
+                $this->sanitizeForExport(date('Y-m-d', strtotime($payment['created_at'] ?? 'now')))
             ]);
         }
 
@@ -2552,7 +2575,7 @@ public function addCounterPayment()
                 $months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
                 for ($i = 1; $i <= 12; $i++) {
                     $row = $i + 1;
-                    $sheet->setCellValue('A' . $row, $months[$i-1]);
+                    $sheet->setCellValue('A' . $row, $this->sanitizeForExport($months[$i-1]));
                     $sheet->setCellValue('B' . $row, (float)($monthlyRates[$i] ?? 0));
                     $sheet->setCellValue('C' . $row, (float)($monthlyAmounts[$i] ?? 0));
                 }
@@ -2585,15 +2608,15 @@ public function addCounterPayment()
                     ], null, 'A1');
                     $r = 2;
                     foreach ($partialRows as $pr) {
-                        $partialSheet->setCellValue('A' . $r, $pr['bill_no'] ?? $pr['id']);
-                        $partialSheet->setCellValue('B' . $r, $pr['user_id'] ?? '');
-                        $partialSheet->setCellValue('C' . $r, $pr['name'] ?? '');
-                        $partialSheet->setCellValue('D' . $r, $pr['email'] ?? '');
+                        $partialSheet->setCellValue('A' . $r, $this->sanitizeForExport($pr['bill_no'] ?? $pr['id']));
+                        $partialSheet->setCellValue('B' . $r, $this->sanitizeForExport($pr['user_id'] ?? ''));
+                        $partialSheet->setCellValue('C' . $r, $this->sanitizeForExport($pr['name'] ?? ''));
+                        $partialSheet->setCellValue('D' . $r, $this->sanitizeForExport($pr['email'] ?? ''));
                         $partialSheet->setCellValue('E' . $r, (float)($pr['amount_due'] ?? 0));
                         $partialSheet->setCellValue('F' . $r, (float)($pr['balance'] ?? 0));
                         $partialSheet->setCellValue('G' . $r, (float)($pr['carryover'] ?? 0));
-                        $partialSheet->setCellValue('H' . $r, $pr['status'] ?? '');
-                        $partialSheet->setCellValue('I' . $r, $pr['updated_at'] ?? '');
+                        $partialSheet->setCellValue('H' . $r, $this->sanitizeForExport($pr['status'] ?? ''));
+                        $partialSheet->setCellValue('I' . $r, $this->sanitizeForExport($pr['updated_at'] ?? ''));
                         $r++;
                     }
 
@@ -2626,14 +2649,23 @@ public function addCounterPayment()
                                 $amtStr = '';
                             }
                             $ws->setCellValue('A' . $rr, $uid);
-                            $ws->setCellValue('B' . $rr, $u['name'] ?? '');
-                            $ws->setCellValue('C' . $rr, $paid);
-                            $ws->setCellValue('D' . $rr, $dateStr);
-                            $ws->setCellValue('E' . $rr, $amtStr);
+                            $ws->setCellValue('B' . $rr, $this->sanitizeForExport($u['name'] ?? ''));
+                            $ws->setCellValue('C' . $rr, $this->sanitizeForExport($paid));
+                            $ws->setCellValue('D' . $rr, $this->sanitizeForExport($dateStr));
+                            $ws->setCellValue('E' . $rr, $this->sanitizeForExport($amtStr));
                             $rr++;
                         }
                     }
                 }
+                // Auto-size all columns on every sheet so widths match text content
+                foreach ($spreadsheet->getAllSheets() as $s) {
+                    $highest = $s->getHighestColumn();
+                    $highestIndex = Coordinate::columnIndexFromString($highest);
+                    for ($c = 1; $c <= $highestIndex; $c++) {
+                        $s->getColumnDimension(Coordinate::stringFromColumnIndex($c))->setAutoSize(true);
+                    }
+                }
+
                 $filename = $fileBase . '.xlsx';
                 header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
                 header('Content-Disposition: attachment; filename="' . $filename . '"');
@@ -2659,7 +2691,7 @@ public function addCounterPayment()
             $months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
             for ($i = 1; $i <= 12; $i++) {
                 $row = $i + 1;
-                $sheet->setCellValue('A' . $row, $months[$i-1]);
+                $sheet->setCellValue('A' . $row, $this->sanitizeForExport($months[$i-1]));
                 $sheet->setCellValue('B' . $row, (float)$monthlyRates[$i]);
                 $sheet->setCellValue('C' . $row, (float)$monthlyAmounts[$i]);
             }
@@ -2687,6 +2719,15 @@ public function addCounterPayment()
             header('Content-Disposition: attachment; filename="' . $filename . '"');
             header('Cache-Control: max-age=0');
 
+            // Auto-size columns on all sheets before output
+            foreach ($spreadsheet->getAllSheets() as $s) {
+                $highest = $s->getHighestColumn();
+                $highestIndex = Coordinate::columnIndexFromString($highest);
+                for ($c = 1; $c <= $highestIndex; $c++) {
+                    $s->getColumnDimension(Coordinate::stringFromColumnIndex($c))->setAutoSize(true);
+                }
+            }
+
             $writer = new Xlsx($spreadsheet);
             $writer->setIncludeCharts(true);
             $writer->save('php://output');
@@ -2707,7 +2748,7 @@ public function addCounterPayment()
                     fputcsv($fh, ['Month', 'Collection Rate (%)', 'Amount (PHP)']);
                     $months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
                     for ($i = 1; $i <= 12; $i++) {
-                        fputcsv($fh, [$months[$i-1], $monthlyRates[$i], number_format($monthlyAmounts[$i], 2, '.', '')]);
+                        fputcsv($fh, [$this->sanitizeForExport($months[$i-1]), $monthlyRates[$i], number_format($monthlyAmounts[$i], 2, '.', '')]);
                     }
                     fputcsv($fh, []);
 
@@ -2741,15 +2782,15 @@ public function addCounterPayment()
                     } else {
                         foreach ($partialRows as $r) {
                             fputcsv($fh, [
-                                $r['bill_no'] ?? $r['id'],
-                                $r['user_id'] ?? '',
-                                $r['name'] ?? '',
-                                $r['email'] ?? '',
+                                $this->sanitizeForExport($r['bill_no'] ?? $r['id']),
+                                $this->sanitizeForExport($r['user_id'] ?? ''),
+                                $this->sanitizeForExport($r['name'] ?? ''),
+                                $this->sanitizeForExport($r['email'] ?? ''),
                                 number_format($r['amount_due'] ?? 0, 2, '.', ''),
                                 number_format($r['balance'] ?? 0, 2, '.', ''),
                                 number_format($r['carryover'] ?? 0, 2, '.', ''),
-                                $r['status'] ?? '',
-                                $r['updated_at'] ?? ''
+                                $this->sanitizeForExport($r['status'] ?? ''),
+                                $this->sanitizeForExport($r['updated_at'] ?? '')
                             ]);
                         }
                     }
@@ -2795,7 +2836,7 @@ public function addCounterPayment()
         fputcsv($outStream, ['Month', 'Collection Rate (%)', 'Amount (PHP)']);
         $months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
         for ($i = 1; $i <= 12; $i++) {
-            fputcsv($outStream, [$months[$i-1], $monthlyRates[$i], number_format($monthlyAmounts[$i], 2, '.', '')]);
+            fputcsv($outStream, [$this->sanitizeForExport($months[$i-1]), $monthlyRates[$i], number_format($monthlyAmounts[$i], 2, '.', '')]);
         }
         fputcsv($outStream, []);
 
@@ -2820,15 +2861,15 @@ public function addCounterPayment()
         fputcsv($outStream, ['Bill No', 'User ID', 'Name', 'Email', 'Amount Due', 'Balance', 'Carryover', 'Status', 'Updated At']);
         foreach ($partialRows as $r) {
             fputcsv($outStream, [
-                $r['bill_no'] ?? $r['id'],
-                $r['user_id'] ?? '',
-                $r['name'] ?? '',
-                $r['email'] ?? '',
+                $this->sanitizeForExport($r['bill_no'] ?? $r['id']),
+                $this->sanitizeForExport($r['user_id'] ?? ''),
+                $this->sanitizeForExport($r['name'] ?? ''),
+                $this->sanitizeForExport($r['email'] ?? ''),
                 number_format($r['amount_due'] ?? 0, 2, '.', ''),
                 number_format($r['balance'] ?? 0, 2, '.', ''),
                 number_format($r['carryover'] ?? 0, 2, '.', ''),
-                $r['status'] ?? '',
-                $r['updated_at'] ?? ''
+                $this->sanitizeForExport($r['status'] ?? ''),
+                $this->sanitizeForExport($r['updated_at'] ?? '')
             ]);
         }
         fputcsv($outStream, []);
@@ -2881,7 +2922,14 @@ public function addCounterPayment()
                     $dateStr = '';
                     $amtStr = '';
                 }
-                fputcsv($outStream, [$purok, $uid, ($u['name'] ?? 'Unknown'), $paid, $dateStr, $amtStr]);
+                fputcsv($outStream, [
+                    $this->sanitizeForExport($purok),
+                    $this->sanitizeForExport($uid),
+                    $this->sanitizeForExport($u['name'] ?? 'Unknown'),
+                    $this->sanitizeForExport($paid),
+                    $this->sanitizeForExport($dateStr),
+                    $this->sanitizeForExport($amtStr)
+                ]);
             }
         }
 
