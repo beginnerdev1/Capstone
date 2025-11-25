@@ -627,7 +627,7 @@ function initRegisteredUsersPage() {
             success:function(user){
                 if(!user.id){ $("#userDetailsContent").html(`<p class="text-danger">User not found.</p>`); return; }
                 let profileImg = user.profile_picture
-                    ? `<img src="<?= base_url('uploads/profile_pictures') ?>/${user.profile_picture}" class="rounded-circle mb-3" width="100" height="100">`
+                    ? `<img src="${user.profile_picture}" class="rounded-circle mb-3" width="100" height="100">`
                     : `<i class="fas fa-user-circle fa-5x text-muted mb-3"></i>`;
 
                 const pendingBills = parseInt(user.pending_bills || 0, 10);

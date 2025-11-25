@@ -31,8 +31,8 @@ class Reports extends BaseController
 
         $monthlyTotal = $this->billingModel
             ->whereIn('status', ['Paid', 'Over the Counter'])
-            ->where('MONTH(updated_at)', date('m'))
-            ->where('YEAR(updated_at)', date('Y'))
+            ->where('MONTH(billings.updated_at)', date('m'))
+            ->where('YEAR(billings.updated_at)', date('Y'))
             ->selectSum('amount_due')
             ->get()->getRow()->amount_due ?? 0;
 
@@ -44,10 +44,10 @@ class Reports extends BaseController
 
         // === Monthly paid bills ===
         $bills = $this->billingModel
-            ->select("MONTHNAME(updated_at) as month, SUM(amount_due) as total")
+            ->select("MONTHNAME(billings.updated_at) as month, SUM(amount_due) as total")
             ->whereIn('status', ['Paid', 'Over the Counter'])
-            ->groupBy('MONTH(updated_at)')
-            ->orderBy('MONTH(updated_at)', 'ASC')
+            ->groupBy('MONTH(billings.updated_at)')
+            ->orderBy('MONTH(billings.updated_at)', 'ASC')
             ->findAll();
 
         $months = [];
