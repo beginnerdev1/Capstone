@@ -23,47 +23,55 @@ public function index()
 
 
 
-    // Show billing history page - Done
-    public function history()
-    {
-        $session = session();
-        $userId = $session->get('user_id'); // Get logged-in user's ID
+        // Show billing history page - Done
+        public function history()
+        {
+            $session = session();
+            $userId = $session->get('user_id'); // Get logged-in user's ID
 
-        if (!$userId) {
-            // Redirect to login if user is not logged in
-            return redirect()->to('/login');
-        }
-
-        $paymentsModel = new PaymentsModel();
-
-        // Fetch all payments for this user, latest first
-        $data['payments'] = $paymentsModel
-            ->select('payments.*, payments.payment_intent_id, billings.bill_no, billings.due_date')
-            ->join('billings', 'billings.id = payments.billing_id', 'left')
-            ->where('payments.user_id', $userId)
-            ->orderBy('payments.created_at', 'DESC')
-            ->findAll();
-
-        // Ensure the view's `reference_number` shows the payment_intent_id for gateway payments
-        $data['payments'] = array_map(function($p) {
-            $method = strtolower($p['method'] ?? '');
-            $reference = '-';
-
-            if ($method === 'gateway' && !empty($p['payment_intent_id'])) {
-                $reference = $p['payment_intent_id'];
-            } elseif (!empty($p['reference_number'])) {
-                $reference = $p['reference_number'];
+            if (!$userId) {
+                // Redirect to login if user is not logged in
+                return redirect()->to('/login');
             }
 
-            // Overwrite reference_number so existing views keep working
-            $p['reference_number'] = $reference;
+            $paymentsModel = new PaymentsModel();
 
-            return $p;
-        }, $data['payments']);
+            // Fetch all payments for this user, latest first
+            // Fetch payments for this user (include partial payments explicitly)
+            $data['payments'] = $paymentsModel
+                ->select('payments.*, payments.payment_intent_id, billings.bill_no, billings.due_date, billings.amount_due as bill_amount, billings.balance as bill_balance')
+                ->join('billings', 'billings.id = payments.billing_id', 'left')
+                ->where('payments.user_id', $userId)
+                // include common statuses and ensure 'partial' is present
+                ->whereIn('payments.status', ['paid', 'partial', 'pending', 'awaiting_payment', 'initiated', 'failed', 'cancelled', 'expired'])
+                ->orderBy('payments.created_at', 'DESC')
+                ->findAll();
 
-        // Load the history view (file: app/Views/Users/history.php)
-        return view('users/history', $data);
-    }
+            // Ensure the view's `reference_number` shows the payment_intent_id for gateway payments
+            $data['payments'] = array_map(function($p) {
+                $method = strtolower($p['method'] ?? '');
+                $reference = '-';
+
+                if ($method === 'gateway' && !empty($p['payment_intent_id'])) {
+                    $reference = $p['payment_intent_id'];
+                } elseif (!empty($p['reference_number'])) {
+                    $reference = $p['reference_number'];
+                }
+
+                // normalize bill amount for the view (prefer balance, then amount_due)
+                $p['bill_amount'] = isset($p['bill_amount']) && $p['bill_amount'] !== null
+                    ? $p['bill_amount']
+                    : (isset($p['bill_balance']) ? $p['bill_balance'] : ($p['amount_due'] ?? 0));
+
+                // Overwrite reference_number so existing views keep working
+                $p['reference_number'] = $reference;
+
+                return $p;
+            }, $data['payments']);
+
+            // Load the history view (file: app/Views/Users/history.php)
+            return view('users/history', $data);
+        }
 
 
 
