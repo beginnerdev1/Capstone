@@ -344,10 +344,10 @@
             </div>
             <div class="modal-actions">
                 <button class="btn-modal btn-cancel" onclick="closeGCashModal()">Cancel</button>
-               <button id="rejectBtn" type="button" class="btn-modal"
+            <button id="rejectBtn" type="button" class="btn-modal"
                     style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; box-shadow: 0 4px 12px rgba(239,68,68,0.3);"
                     onclick="handleReject()">
-                    Reject Payment
+                Invalid Transaction
                 </button>
                 <button id="confirmBtn" class="btn-modal btn-confirm-payment" onclick="document.getElementById('confirmGCashForm').dispatchEvent(new Event('submit'))">Confirm Payment</button>
             </div>
@@ -835,7 +835,7 @@ if (confirmGCashForm) {
 
         const rejectBtn = document.getElementById('rejectBtn');
         if (rejectBtn) {
-            rejectBtn.textContent = 'Rejecting...';
+            rejectBtn.textContent = 'Marking invalid...';
             rejectBtn.disabled = true;
         }
 
@@ -849,7 +849,7 @@ if (confirmGCashForm) {
         .then(res => res.json())
         .then(res => {
             if (res.success) {
-                alert(`✅ Payment ID ${paymentId} rejected.`);
+                alert(`✅ Payment ID ${paymentId} marked as invalid.`);
                 closeGCashModal();
                 loadPayments({
                     month: document.getElementById('monthFilter').value,
@@ -857,16 +857,16 @@ if (confirmGCashForm) {
                     search: document.getElementById('searchInput').value
                 });
             } else {
-                alert('❌ ' + (res.message || 'Failed to reject payment.'));
+                alert('❌ ' + (res.message || 'Failed to mark payment as invalid.'));
             }
         })
         .catch(err => {
             console.error(err);
-            alert('❌ An error occurred while rejecting the payment.');
+            alert('❌ An error occurred while marking the payment as invalid.');
         })
         .finally(() => {
             if (rejectBtn) {
-                rejectBtn.textContent = 'Reject Payment';
+                rejectBtn.textContent = 'Invalid Transaction';
                 rejectBtn.disabled = false;
             }
         });

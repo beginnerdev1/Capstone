@@ -16,7 +16,7 @@ class App extends BaseConfig
      *
      * E.g., http://example.com/
      */
-        public string $baseURL = 'http://localhost/Capstone/public/';
+          public string $baseURL = 'http://localhost/Capstone/public/';
         //public string $baseURL = 'https://nonlucidly-monodomous-marc.ngrok-free.dev/';
     /**
      * Allowed Hostnames in the Site URL other than the hostname in the baseURL.

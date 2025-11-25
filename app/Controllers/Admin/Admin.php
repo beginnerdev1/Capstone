@@ -697,12 +697,57 @@ class Admin extends BaseController
             'active' => 2,
         ]);
 
-        // Clean up any archived inactive snapshot for this user
+        // If this user has an inactive snapshot, restore any archived billings first
         try {
-            $db = \Config\Database::connect();
-            $db->table('inactive_users')->where('user_id', $id)->delete();
-        } catch (\Throwable $_) {
-            // ignore cleanup errors
+            $inactiveRow = $db->table('inactive_users')->where('user_id', $id)->get()->getRowArray();
+            if ($inactiveRow) {
+                $inactiveId = (int)$inactiveRow['id'];
+
+                // Fetch archived bills for this inactive snapshot
+                $archived = $db->table('archived_billings')
+                    ->where('inactive_ref_id', $inactiveId)
+                    ->orderBy('billing_month', 'DESC')
+                    ->get()
+                    ->getResultArray();
+
+                if (!empty($archived)) {
+                    foreach ($archived as $a) {
+                        // Prepare insert data for billings. Use amount_due as balance for non-paid bills.
+                        $status = $a['status'] ?? null;
+                        $amountDue = isset($a['amount_due']) ? (float)$a['amount_due'] : 0.0;
+                        $balance = ($status === 'Paid') ? 0.00 : $amountDue;
+
+                        $insert = [
+                            'user_id' => $a['user_id'],
+                            'bill_no' => $a['bill_no'] ?? null,
+                            'amount_due' => $amountDue,
+                            'balance' => $balance,
+                            'carryover' => 0.00,
+                            'status' => $status,
+                            'billing_month' => $a['billing_month'] ?? null,
+                            'due_date' => $a['due_date'] ?? null,
+                            'paid_date' => $a['paid_date'] ?? null,
+                            'created_at' => $a['created_at'] ?? null,
+                            'updated_at' => $a['updated_at'] ?? null,
+                        ];
+
+                        // Insert back into billings. Let DB assign a new id to avoid PK conflicts.
+                        $db->table('billings')->insert($insert);
+                    }
+
+                    // Remove the archived rows now that they've been restored
+                    $db->table('archived_billings')->where('inactive_ref_id', $inactiveId)->delete();
+                }
+
+                // Finally remove the inactive snapshot (this would have cascaded archived rows if we hadn't removed them)
+                $db->table('inactive_users')->where('id', $inactiveId)->delete();
+            }
+        } catch (\Throwable $e) {
+            // Log and continue — we don't want to leave user permanently inactive if restore fails,
+            // but the transaction will roll back if we throw.
+            log_message('error', 'reactivateUser: failed to restore archived bills for user ' . $id . ' : ' . $e->getMessage());
+            $db->transRollback();
+            return $this->response->setJSON(['success' => false, 'message' => 'Failed to restore archived bills during reactivation']);
         }
 
         $db->transComplete();
@@ -1832,6 +1877,24 @@ public function confirmGCashPayment()
                     if (!$toEmail && $userId) {
                         $u = $this->usersModel->find($userId);
                         $toEmail = $u['email'] ?? null;
+
+                        // If the user still has no email, create a placeholder so we can send notifications.
+                        if (!$toEmail) {
+                            $generated = 'user' . $userId . '@no-email.local';
+                            try {
+                                $this->usersModel->update($userId, ['email' => $generated]);
+                                // Also attach to the payment record if payments table stores an email
+                                try {
+                                    $this->paymentsModel->update($paymentId, ['email' => $generated]);
+                                } catch (\Throwable $_) {
+                                    // ignore payment email update failure
+                                }
+                                $toEmail = $generated;
+                                log_message('info', "Auto-created placeholder email {$generated} for user {$userId} to send invalid transaction notification.");
+                            } catch (\Throwable $e) {
+                                log_message('error', 'Failed to auto-create placeholder email for user ' . $userId . ': ' . $e->getMessage());
+                            }
+                        }
                     }
 
                     if ($toEmail) {
@@ -1863,9 +1926,9 @@ public function confirmGCashPayment()
                                 ->setApiKey('api-key', $apiKey);
                             $apiInstance = new \Brevo\Client\Api\TransactionalEmailsApi(new \GuzzleHttp\Client(), $config);
 
-                            $subject = 'Your payment has been rejected';
+                            $subject = 'Invalid Transaction Notice';
 
-                            $html = <<<HTML
+                                $html = <<<HTML
                             <!doctype html>
                             <html>
                             <head>
@@ -1886,7 +1949,7 @@ public function confirmGCashPayment()
                                     </tr>
                                     <tr>
                                         <td style="padding:0 32px 24px;color:#374151;">
-                                        <p style="margin:0 0 12px;line-height:1.5;">We reviewed the GCash payment you submitted and it has been rejected by our administrator. Details below:</p>
+                                        <p style="margin:0 0 12px;line-height:1.5;">We reviewed the GCash payment you submitted and it has been marked as an invalid transaction by our administrator. Details below:</p>
                                         <p style="margin:6px 0;"><strong>Amount:</strong> ₱{$amount}</p>
                                         <p style="margin:6px 0;"><strong>Admin Reference:</strong> {$refText}</p>
                                         <p style="margin:12px 0 20px;line-height:1.5;">If you believe this was done in error, please re-upload a valid proof of payment or contact our support team for assistance.</p>
@@ -1915,7 +1978,7 @@ public function confirmGCashPayment()
                             </html>
                             HTML;
 
-                            $plain = "Hello {$displayName},\n\nYour GCash payment has been rejected.\n\nAmount: ₱{$amount}\nAdmin Reference: {$adminRef}\n\nIf you believe this is an error, please contact support: {$supportUrl}\n\nThis is an automated message.";
+                            $plain = "Hello {$displayName},\n\nYour GCash payment has been marked as an invalid transaction.\n\nAmount: ₱{$amount}\nAdmin Reference: {$adminRef}\n\nIf you believe this is an error, please contact support: {$supportUrl}\n\nThis is an automated message.";
 
                             $email = new \Brevo\Client\Model\SendSmtpEmail([
                                 'subject' => $subject,
@@ -1927,10 +1990,10 @@ public function confirmGCashPayment()
 
                             $apiInstance->sendTransacEmail($email);
                         } else {
-                            log_message('warning', 'BREVO_API_KEY not configured — skipping GCash rejection email for payment ' . $paymentId . ' (user ' . ($toEmail ?? 'unknown') . ')');
+                            log_message('warning', 'BREVO_API_KEY not configured — skipping GCash invalid-transaction email for payment ' . $paymentId . ' (user ' . ($toEmail ?? 'unknown') . ')');
                         }
                     } else {
-                        log_message('warning', 'No recipient email found for rejected GCash payment ID ' . $paymentId);
+                        log_message('warning', 'No recipient email found for invalid GCash payment ID ' . $paymentId);
                     }
                 } catch (\Throwable $e) {
                     log_message('error', 'Reject GCash email failed for payment ' . $paymentId . ': ' . $e->getMessage());
@@ -1939,7 +2002,7 @@ public function confirmGCashPayment()
 
             return $this->response->setJSON([
                 'success' => (bool)$updated,
-                'message' => $updated ? 'Payment rejected successfully' : 'Failed to reject payment'
+                'message' => $updated ? 'Payment marked invalid successfully' : 'Failed to mark payment as invalid'
             ]);
         } catch (\Throwable $e) {
             return $this->response->setJSON(['success' => false, 'message' => 'Exception: ' . $e->getMessage()]);
@@ -3466,6 +3529,9 @@ public function createManualBilling()
         $billNo = $datePrefix . '-' . uniqid();
     }
 
+    // Use server 'now' for consistent created_at and due_date calculation
+    $now = date('Y-m-d H:i:s');
+
     // New billing: balance = new amount, carryover = sum from last billing
     $newBilling = [
         'user_id'       => $userId,
@@ -3475,9 +3541,10 @@ public function createManualBilling()
         'balance'       => number_format($amount, 2, '.', ''),   
         'status'        => 'Pending',
         'billing_month' => $billingMonthFirstDay,
-        'due_date'      => date('Y-m-d', strtotime($billingMonthFirstDay . ' +7 days')),
-        'created_at'    => date('Y-m-d H:i:s'),
-        'updated_at'    => date('Y-m-d H:i:s'),
+        // Due date: 7 days after creation (consistent with client preview which uses today + 7 days)
+        'due_date'      => date('Y-m-d', strtotime($now . ' +7 days')),
+        'created_at'    => $now,
+        'updated_at'    => $now,
     ];
 
     try {

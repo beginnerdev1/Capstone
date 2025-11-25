@@ -60,7 +60,7 @@ public function index()
                 ->join('billings', 'billings.id = payments.billing_id', 'left')
                 ->where('payments.user_id', $userId)
                 // include common statuses and ensure 'partial' is present
-                ->whereIn('payments.status', ['paid', 'partial', 'pending', 'awaiting_payment', 'initiated', 'failed', 'cancelled', 'expired'])
+                ->whereIn('payments.status', ['paid', 'partial', 'pending', 'awaiting_payment', 'initiated', 'failed', 'cancelled', 'expired', 'rejected'])
                 ->orderBy('payments.created_at', 'DESC')
                 ->findAll();
 

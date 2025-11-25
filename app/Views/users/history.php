@@ -931,6 +931,14 @@
                     $icon_class = 'icon-pending';
                     $icon = 'bi-clock';
                     $label = 'Pending';
+                  } elseif ($rawStatus === 'rejected') {
+                    // Show rejected payments as Invalid Transaction to match admin wording
+                    $amount_class = 'amount-debit';
+                    $status_class = 'status-failed';
+                    $amount_prefix = '-';
+                    $icon_class = 'icon-failed';
+                    $icon = 'bi-exclamation-triangle';
+                    $label = 'Invalid';
                   } else {
                     $amount_class = 'amount-debit';
                     $status_class = 'status-failed';
@@ -1019,6 +1027,10 @@
             $status_class = 'status-pending';
             $icon = 'bi-clock';
             $label = 'Pending';
+          } elseif ($rawStatus === 'rejected') {
+            $status_class = 'status-failed';
+            $icon = 'bi-exclamation-triangle';
+            $label = 'Invalid';
           } else {
             $status_class = 'status-failed';
             $icon = 'bi-x-circle';
