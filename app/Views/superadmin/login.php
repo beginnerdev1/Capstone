@@ -93,6 +93,12 @@
                             }).then(function(res){
                                 return res.json().catch(function(){ return { error: 'Invalid response from server' }; });
                             }).then(function(json){
+                                if (json && json.redirect) {
+                                    // Server says the email existed — redirect to reset form (prefilled)
+                                    window.location = json.redirect;
+                                    return;
+                                }
+
                                 if (json && (json.success || json.updated)) {
                                     alertBox.innerHTML = '<div class="alert alert-success">'+ (json.message || 'Reset instructions sent if the account exists.') +'</div>';
                                     form.reset();
