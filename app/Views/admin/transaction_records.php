@@ -953,36 +953,45 @@ window.populateUsersByPurok = function()
 };
 
 // Populate pending billings for selected user
-window.populateBillingsByUser = function() 
-{
+window.populateBillingsByUser = function() {
     const userId = parseInt(document.getElementById('counterUser').value);
     const billingDropdown = document.getElementById('counterBilling');
     billingDropdown.innerHTML = '<option value="">Select billing</option>';
 
-    if (!userId) return;
+    if (!userId) {
+        document.getElementById('counterSubmitBtn').disabled = true;
+        return;
+    }
 
-    // Get selected month from filter
     const month = document.getElementById('monthFilter').value || new Date().toISOString().slice(0, 7);
 
-    // Pass month as query param
     fetch(`<?= site_url("admin/getPendingBillings") ?>/${userId}?month=${month}`)
         .then(res => res.json())
         .then(billings => {
             if (!billings || !billings.length) {
-                billingDropdown.innerHTML = '<option value="">No pending bills for this user in selected month</option>';
+                billingDropdown.innerHTML = '<option value="">No pending bills</option>';
                 document.getElementById('counterSubmitBtn').disabled = true;
                 return;
             }
+
             billings.forEach(b => {
                 const option = document.createElement('option');
                 option.value = b.id;
-                option.textContent = `${b.bill_no} - ₱${parseFloat(b.amount_due).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+
+                // Show only total outstanding
+                option.textContent = `Outstanding: ₱${parseFloat(b.total_outstanding).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+
                 billingDropdown.appendChild(option);
             });
+
             document.getElementById('counterSubmitBtn').disabled = false;
         })
-        .catch(err => console.error('Failed to fetch billings:', err));
+        .catch(err => {
+            console.error('Failed to fetch billings:', err);
+            document.getElementById('counterSubmitBtn').disabled = true;
+        });
 };
+
 
 
 // Event listeners

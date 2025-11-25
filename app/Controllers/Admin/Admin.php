@@ -2002,74 +2002,57 @@ public function confirmGCashPayment()
     }
 
 
-    // Get pending billings for a user (AJAX) - transaction Payments
-    public function getPendingBillings($userId)
-    {
-        try {
-            $month = $this->request->getGet('month');
-            $billingModel = new \App\Models\BillingModel();
+// Get latest pending billing for a user (AJAX)
+// Get latest pending billing for a user (AJAX)
+public function getPendingBillings($userId)
+{
+    try {
+        $month = $this->request->getGet('month'); // expected format: YYYY-MM
+        $billingModel = new \App\Models\BillingModel();
 
-            // Add debug logging
-            log_message('info', "getPendingBillings - UserID: {$userId}, Month: {$month}");
-
-            // Validate user ID
-            if (!$userId || !is_numeric($userId)) {
-                log_message('error', "Invalid user ID provided: {$userId}");
-                return $this->response->setJSON([
-                    'error' => true,
-                    'message' => 'Invalid user ID'
-                ]);
-            }
-
-            // Validate user exists
-            $userModel = new \App\Models\UsersModel();
-            $user = $userModel->find($userId);
-            if (!$user) {
-                log_message('error', "User not found: {$userId}");
-                return $this->response->setJSON([
-                    'error' => true,
-                    'message' => 'User not found'
-                ]);
-            }
-
-            $billings = $billingModel->getPendingBillingsByUserAndMonth($userId, $month);
-            
-            // Add debug logging for results
-            log_message('info', "getPendingBillings - Found " . count($billings) . " billings for specific month");
-            
-            if (empty($billings) && !empty($month)) {
-                // If no billings for specific month, try to get any pending billings for this user
-                log_message('info', "No billings for month {$month}, trying all pending billings for user {$userId}");
-                $billings = $billingModel->getPendingBillingsByUserAndMonth($userId, null);
-                log_message('info', "Found " . count($billings) . " total pending billings for user");
-            }
-
-            // Ensure we return a proper array structure
-            $formattedBillings = [];
-            foreach ($billings as $billing) {
-                $formattedBillings[] = [
-                    'id' => $billing['id'],
-                    'bill_no' => $billing['bill_no'] ?? 'BILL-' . $billing['id'],
-                    'amount_due' => (float)$billing['amount_due'],
-                    'status' => $billing['status'],
-                    'billing_month' => $billing['billing_month'],
-                    'due_date' => $billing['due_date'],
-                    'created_at' => $billing['created_at']
-                ];
-            }
-
-            log_message('info', "getPendingBillings - Returning " . count($formattedBillings) . " formatted billings");
-
-            return $this->response->setJSON($formattedBillings);
-
-        } catch (\Exception $e) {
-            log_message('error', "getPendingBillings error: " . $e->getMessage());
-            return $this->response->setJSON([
-                'error' => true,
-                'message' => 'Failed to fetch billings: ' . $e->getMessage()
-            ]);
+        // Validate user
+        if (!$userId || !is_numeric($userId)) {
+            return $this->response->setJSON(['error' => true, 'message' => 'Invalid user ID']);
         }
+
+        $userModel = new \App\Models\UsersModel();
+        if (!$userModel->find($userId)) {
+            return $this->response->setJSON(['error' => true, 'message' => 'User not found']);
+        }
+
+        // Base query for pending bills
+        $billingQuery = $billingModel
+            ->where('user_id', $userId)
+            ->where('status', 'Pending')
+            ->orderBy('due_date', 'ASC');
+
+        // Apply month filter if provided (use LIKE to match YYYY-MM)
+        if ($month) {
+            $billingQuery = $billingQuery->like('billing_month', $month);
+        }
+
+        // Get the latest pending bill
+        $billing = $billingQuery->first();
+
+        if (!$billing) {
+            return $this->response->setJSON([]);
+        }
+
+        // Compute total outstanding
+        $billing['total_outstanding'] = (float)$billing['carryover'] + (float)$billing['balance'];
+
+        return $this->response->setJSON([$billing]);
+
+    } catch (\Exception $e) {
+        return $this->response->setJSON([
+            'error' => true,
+            'message' => $e->getMessage()
+        ]);
     }
+}
+
+
+
 
 
 // Add counter payment (AJAX) - Transaction Payments
@@ -2078,6 +2061,7 @@ public function addCounterPayment()
     try {
         $data = $this->request->getJSON(true);
 
+        // Validate required fields
         if (!$data || empty($data['user_id']) || empty($data['billing_id']) || empty($data['amount'])) {
             return $this->response->setJSON(['success' => false, 'message' => 'Required fields missing']);
         }
@@ -2085,6 +2069,7 @@ public function addCounterPayment()
         $billingModel = new \App\Models\BillingModel();
         $paymentsModel = new \App\Models\PaymentsModel();
 
+        // Fetch billing
         $billing = $billingModel->find($data['billing_id']);
         if (!$billing) {
             return $this->response->setJSON(['success' => false, 'message' => 'Billing not found']);
@@ -2095,16 +2080,15 @@ public function addCounterPayment()
         }
 
         $amountPaid = floatval($data['amount']);
-
         $adminRef = $data['admin_reference'] ?? ('CNT-' . date('YmdHis') . '-' . rand(100, 999));
 
-        // Insert payment record (keep original fields)
+        // Insert payment record (initial status Paid, will update later if partial)
         $paymentId = $paymentsModel->insert([
             'user_id'           => $data['user_id'],
             'billing_id'        => $data['billing_id'],
             'amount'            => $amountPaid,
-            'method'            => 'offline',  // original
-            'status'            => 'Paid',     // will update later if partial
+            'method'            => 'offline',
+            'status'            => 'Paid',
             'payment_intent_id' => null,
             'payment_method_id' => null,
             'reference_number'  => null,
@@ -2131,6 +2115,10 @@ public function addCounterPayment()
             $amountPaid -= $deduct;
         }
 
+        // Ensure values never go negative
+        $carryover = max(0, $carryover);
+        $balance   = max(0, $balance);
+
         // Determine billing status
         $billingStatus = ($balance <= 0 && $carryover <= 0) ? 'Paid' : 'Partial';
 
@@ -2142,7 +2130,7 @@ public function addCounterPayment()
             'paid_date' => ($billingStatus === 'Paid') ? date('Y-m-d H:i:s') : null
         ]);
 
-        // Update payment status accordingly
+        // Update payment status to match billing
         $paymentsModel->update($paymentId, [
             'status' => strtolower($billingStatus)
         ]);
@@ -2150,14 +2138,21 @@ public function addCounterPayment()
         return $this->response->setJSON([
             'success' => true,
             'message' => 'Payment recorded successfully',
-            'billing_status' => $billingStatus
+            'billing_status' => $billingStatus,
+            'carryover' => $carryover,
+            'balance' => $balance,
+            'total_outstanding' => $carryover + $balance
         ]);
 
     } catch (\Exception $e) {
         log_message('error', $e->getMessage());
-        return $this->response->setJSON(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
+        return $this->response->setJSON([
+            'success' => false,
+            'message' => 'Server error: ' . $e->getMessage()
+        ]);
     }
 }
+
 
     // Private method: carryover and balance deduction logic
     private function computeCarryoverAndBalance(array $billing, float $amountPaid): array
