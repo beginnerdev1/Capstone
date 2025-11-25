@@ -50,6 +50,11 @@ $routes->group('users', ['filter' => 'userauth'], function ($routes) {
     $routes->get('chat/getMessages', 'Chat::getMessages');
     $routes->post('chat/postMessage', 'Chat::postMessage');
 
+    // Notifications (JSON endpoints)
+    $routes->get('notifications/json', 'Notifications::json');
+    $routes->post('notifications/mark_read', 'Notifications::mark_read');
+    $routes->post('notifications/mark_all_read', 'Notifications::mark_read');
+
 
     // Routes accessible even if profile is incomplete
     $routes->get('/', 'Users::index'); // index is now accessible

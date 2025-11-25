@@ -3497,6 +3497,24 @@ public function createManualBilling()
                 );
             }
 
+            // Create a persistent notification for the user (so it appears in the bell/dropdown)
+            try {
+                $notifModel = new \App\Models\NotificationsModel();
+                // Try to find the inserted billing id to create a precise link
+                $created = $this->billingModel->where('bill_no', $billNo)->first();
+                $billId = $created['id'] ?? null;
+                $notifModel->createNotification([
+                    'user_id' => $userId,
+                    'title' => 'New Bill Created',
+                    'body' => "A new bill ({$billNo}) for PHP " . number_format($amount,2) . " was created. Due: {$newBilling['due_date']}",
+                    'url' => $billId ? base_url('users/payments?bill=' . $billId) : base_url('users/payments'),
+                    'is_read' => 0,
+                ]);
+            } catch (\Throwable $e) {
+                // Log but don't interrupt billing creation
+                log_message('error', 'createManualBilling: failed to insert notification: ' . $e->getMessage());
+            }
+
             return $this->response->setJSON([
                 'success'    => true,
                 'message'    => 'Manual billing created and email sent',
