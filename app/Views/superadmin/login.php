@@ -35,11 +35,81 @@
 
                         <button type="submit" class="btn btn-primary w-100">Login</button>
                     </form>
+                    <div class="text-center mt-3">
+                        <a href="#" id="show-forgot">Forgot password?</a>
+                    </div>
+
+                    <div id="forgot-section" class="mt-3" style="display:none;">
+                        <div class="border rounded p-3 bg-white">
+                            <h6>Reset Super Admin Password</h6>
+                            <p class="small text-muted">Enter the email for the super admin account. We'll send a reset link or OTP if the account exists.</p>
+                            <div id="forgot-alert"></div>
+                            <form id="forgot-form">
+                                <?= csrf_field() ?>
+                                <div class="mb-2">
+                                    <label class="form-label">Email</label>
+                                    <input type="email" name="email" id="forgot-email" class="form-control" required>
+                                </div>
+                                <div class="d-grid">
+                                    <button id="forgot-submit" class="btn btn-outline-primary" type="submit">Send Reset Email</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-</body>
-</html>
+                <script>
+                document.addEventListener('DOMContentLoaded', function(){
+                    var toggle = document.getElementById('show-forgot');
+                    var section = document.getElementById('forgot-section');
+                    var form = document.getElementById('forgot-form');
+                    var alertBox = document.getElementById('forgot-alert');
+
+                    toggle && toggle.addEventListener('click', function(e){
+                        e.preventDefault();
+                        if (section.style.display === 'none') section.style.display = 'block'; else section.style.display = 'none';
+                    });
+
+                    if (form) {
+                        form.addEventListener('submit', function(e){
+                            e.preventDefault();
+                            alertBox.innerHTML = '';
+                            var btn = document.getElementById('forgot-submit');
+                            btn.disabled = true;
+                            var email = document.getElementById('forgot-email').value;
+                            var data = new FormData(form);
+
+                            fetch('<?= base_url('superadmin/forgot') ?>', {
+                                method: 'POST',
+                                body: data,
+                                credentials: 'same-origin',
+                                headers: {
+                                    'X-Requested-With': 'XMLHttpRequest'
+                                }
+                            }).then(function(res){
+                                return res.json().catch(function(){ return { error: 'Invalid response from server' }; });
+                            }).then(function(json){
+                                if (json && (json.success || json.updated)) {
+                                    alertBox.innerHTML = '<div class="alert alert-success">'+ (json.message || 'Reset instructions sent if the account exists.') +'</div>';
+                                    form.reset();
+                                } else if (json && json.error) {
+                                    alertBox.innerHTML = '<div class="alert alert-danger">'+ json.error +'</div>';
+                                } else {
+                                    alertBox.innerHTML = '<div class="alert alert-info">'+ (json.message || 'If that email exists we will send reset instructions.') +'</div>';
+                                }
+                            }).catch(function(err){
+                                alertBox.innerHTML = '<div class="alert alert-danger">Network error. Please try again later.</div>';
+                            }).finally(function(){
+                                btn.disabled = false;
+                            });
+                        });
+                    }
+                });
+                </script>
+
+                </body>
+                </html>

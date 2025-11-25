@@ -169,6 +169,101 @@ class SuperAdminAuth extends Controller
         return redirect()->back()->with('success', 'SuperAdmin created successfully!');
     }
 
+    /**
+     * Handle AJAX/POST from forgot password form: generate OTP and email reset code.
+     * Expects `email` POST param. Returns JSON.
+     */
+    public function forgot()
+    {
+        $email = $this->request->getPost('email');
+        if (! $email) {
+            return $this->response->setJSON(['error' => 'Email required']);
+        }
+
+        $model = new SuperAdminModel();
+        $row = $model->where('email', $email)->first();
+        if (! $row) {
+            // Do not reveal account existence; respond success to avoid enumeration
+            return $this->response->setJSON(['success' => true, 'message' => 'If that email exists we will send reset instructions.']);
+        }
+
+        // Generate OTP and store hashed value
+        $plain = $model->generateLoginOtp();
+        $hash = password_hash($plain, PASSWORD_DEFAULT);
+        $expires = date('Y-m-d H:i:s', strtotime('+15 minutes'));
+
+        try {
+            $model->update($row['id'], ['otp_hash' => $hash, 'otp_expires' => $expires, 'otp_failed_attempts' => 0, 'otp_locked_until' => null]);
+        } catch (\Throwable $e) {
+            log_message('error', 'SuperAdmin forgot: failed to store otp: ' . $e->getMessage());
+            return $this->response->setStatusCode(500)->setJSON(['error' => 'Unable to process request']);
+        }
+
+        // Send via Brevo transactional email if configured
+        if (!empty($row['email'])) {
+            try {
+                require ROOTPATH . 'vendor/autoload.php';
+                $config = Configuration::getDefaultConfiguration()->setApiKey('api-key', getenv('BREVO_API_KEY'));
+                $api = new TransactionalEmailsApi(new GuzzleClient(), $config);
+                $fromEmail = getenv('SMTP_FROM') ?: (getenv('SMTP_USER') ?: 'no-reply@localhost');
+                $html = '<p>Your Super Admin password reset code is: <b>' . esc($plain) . '</b>. It expires in 15 minutes.</p>';
+                $payload = new SendSmtpEmail([
+                    'subject' => 'Super Admin Password Reset Code',
+                    'sender' => ['name' => 'Super Admin', 'email' => $fromEmail],
+                    'to' => [[ 'email' => $row['email'] ]],
+                    'htmlContent' => $html,
+                ]);
+                $api->sendTransacEmail($payload);
+            } catch (\Throwable $e) {
+                log_message('error', 'SuperAdmin forgot: email send failed: ' . $e->getMessage());
+                // don't treat as fatal — still return generic success
+            }
+        }
+
+        return $this->response->setJSON(['success' => true, 'message' => 'If that email exists we will send reset instructions.']);
+    }
+
+    // Show reset form (enter email, code, new password)
+    public function resetForm()
+    {
+        return view('superadmin/reset_password');
+    }
+
+    // Process password reset: expects email, code, password, confirm_password
+    public function resetPassword()
+    {
+        $email = $this->request->getPost('email');
+        $code = $this->request->getPost('code');
+        $pw = $this->request->getPost('password');
+        $confirm = $this->request->getPost('confirm_password');
+
+        if (! $email || ! $code || ! $pw || $pw !== $confirm || strlen($pw) < 8) {
+            return redirect()->back()->with('error', 'Invalid input or passwords do not match (min 8 chars)');
+        }
+
+        $model = new SuperAdminModel();
+        $row = $model->where('email', $email)->first();
+        if (! $row) {
+            return redirect()->back()->with('error', 'Invalid code or email');
+        }
+
+        $otpHash = $row['otp_hash'] ?? null;
+        $otpExpires = !empty($row['otp_expires']) ? strtotime($row['otp_expires']) : 0;
+        if (! $otpHash || $otpExpires < time() || ! password_verify((string)$code, $otpHash)) {
+            return redirect()->back()->with('error', 'Invalid or expired code');
+        }
+
+        // OK — update password and clear OTP fields
+        try {
+            $model->update($row['id'], ['password' => password_hash($pw, PASSWORD_DEFAULT), 'otp_hash' => null, 'otp_expires' => null]);
+        } catch (\Throwable $e) {
+            log_message('error', 'SuperAdmin resetPassword failed: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Unable to update password');
+        }
+
+        return redirect()->to('/superadmin/login')->with('success', 'Password updated. Please login.');
+    }
+
     public function checkCodeForm()
     {
         return view('superadmin/check_code');

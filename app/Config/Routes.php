@@ -230,6 +230,10 @@ $routes->group('superadmin', ['namespace' => 'App\Controllers'], function ($rout
     $routes->post('setPassword', 'SuperAdminAuth::setPassword', ['filter' => 'superadminauth']);
     $routes->get('check-code', 'SuperAdminAuth::checkCodeForm', ['filter' => 'superadminguest']);
     $routes->post('check-code', 'SuperAdminAuth::checkCode', ['filter' => 'superadminguest']);
+    // Forgot / reset flow for SuperAdmin (guest)
+    $routes->post('forgot', 'SuperAdminAuth::forgot', ['filter' => 'superadminguest']);
+    $routes->get('reset-password', 'SuperAdminAuth::resetForm', ['filter' => 'superadminguest']);
+    $routes->post('reset-password', 'SuperAdminAuth::resetPassword', ['filter' => 'superadminguest']);
     
     $routes->group('', ['filter' => ['superadminauth','forcepasswordchange']], function ($routes) {
         $routes->get('/', 'SuperAdmin::index');
