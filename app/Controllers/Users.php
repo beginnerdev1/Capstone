@@ -18,6 +18,23 @@ public function index()
     $user = $userModel->find($userId);
     $data['profile_complete'] = $user ? $user['profile_complete'] : 0;
 
+    // Compute total paid by this user (include 'paid' and 'partial' statuses)
+    try {
+        $paymentsModel = new PaymentsModel();
+        $totalRow = $paymentsModel
+            ->selectSum('amount', 'total_paid')
+            ->where('user_id', $userId)
+            ->whereIn('status', ['paid', 'partial'])
+            ->where('deleted_at', null)
+            ->first();
+
+        $data['totalPaidAmount'] = isset($totalRow['total_paid']) ? $totalRow['total_paid'] : 0;
+    } catch (\Exception $e) {
+        // In case of any issue, default to zero and log the error
+        log_message('error', 'Failed to compute totalPaidAmount: ' . $e->getMessage());
+        $data['totalPaidAmount'] = 0;
+    }
+
     return view('users/index', $data);
 }
 
@@ -443,6 +460,22 @@ public function getBillingsAjax()
         $totalOutstanding = 0;
     }
 
+    // Compute totalPaid from payments (include 'paid' and 'partial')
+    $totalPaid = 0.0;
+    try {
+        $paymentsModel = new \App\Models\PaymentsModel();
+        $row = $paymentsModel->selectSum('amount', 'total_paid')
+            ->where('user_id', $userId)
+            ->whereIn('status', ['paid', 'partial'])
+            ->where('deleted_at', null)
+            ->first();
+
+        $totalPaid = isset($row['total_paid']) ? (float)$row['total_paid'] : 0.0;
+    } catch (\Throwable $e) {
+        log_message('error', 'getBillingsAjax: failed to compute totalPaid - ' . $e->getMessage());
+        $totalPaid = 0.0;
+    }
+
     $response = [
         'status' => 'success',
         'bills' => $billings,
@@ -450,14 +483,14 @@ public function getBillingsAjax()
             'carryover' => $carryover,
             'currentBill' => $amountDue,
             'totalOutstanding' => $totalOutstanding,
-            'totalPaid' => 0.0
+            'totalPaid' => $totalPaid
         ],
 
         // legacy keys for backward compatibility
         'carryover' => $carryover,
         'currentBill' => $amountDue,
         'totalOutstanding' => $totalOutstanding,
-        'totalPaid' => 0.0,
+        'totalPaid' => $totalPaid,
     ];
 
     return $this->response->setJSON($response);
