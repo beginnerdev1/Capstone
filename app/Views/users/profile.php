@@ -652,6 +652,16 @@
                 <div class="info-value account-created">—</div>
               </div>
             </div>
+
+            <div class="info-item">
+              <div class="info-icon">
+                <i class="bi bi-hash"></i>
+              </div>
+              <div class="info-content">
+                <div class="info-label">Line Number</div>
+                <div class="info-value account-line-number">—</div>
+              </div>
+            </div>
             
             <div class="info-item">
               <div class="info-icon">
@@ -1212,6 +1222,9 @@ $(document).ready(function () {
                     } else {
                         $(".account-created").text("—");
                     }
+
+                    // Line number (if provided by server)
+                    $(".account-line-number").text(data.line_number || '—');
 
                     // Update account status with appropriate styling
                     const status = data.account_status || "Pending";

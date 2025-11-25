@@ -638,7 +638,7 @@
               <div class="stat-icon mx-auto" style="background: linear-gradient(135deg, #38b2ac, #2c7a7b);">
                 <i class="bi bi-cash-stack text-white"></i>
               </div>
-              <div class="stat-value" id="totalPaidAmount">₱0.00</div>
+              <div class="stat-value" id="totalPaidAmount"><?php echo '₱' . number_format((float)($totalPaidAmount ?? 0), 2); ?></div>
               <div class="stat-label">Total Paid</div>
               <div class="stat-trend trend-up" id="paidAmountTrend">
                 <i class="bi bi-check-circle-fill"></i>
@@ -883,6 +883,9 @@
   
 
  <script>
+// Expose server-computed total paid as a fallback for the client dashboard
+window.serverTotalPaid = <?php echo json_encode((float)($totalPaidAmount ?? 0)); ?>;
+
 // Global cache for latest bills (used as fallback for disconnection check)
 let latestBills = [];
 // Global instance for Chart.js
@@ -1168,6 +1171,11 @@ function loadDashboardData() {
         }, 0);
 
         let totalBills = payload.length;
+
+        // If AJAX payload doesn't include paid amounts (or reports 0), prefer server-side computed total
+        if ((totalPaid === 0 || isNaN(totalPaid)) && typeof window.serverTotalPaid === 'number' && window.serverTotalPaid > 0) {
+          totalPaid = Number(window.serverTotalPaid);
+        }
 
         // --- Totals from Backend (Preferred) or Fallback Calculation ---
         let payloadWrapper = response;
