@@ -1652,25 +1652,23 @@
       billsData = data.bills || [];
       const container = document.getElementById('billListContainer');
 
-      // Filter to only pending or partial bills (normalize several variants)
+      // Filter to only pending bills (normalize variants)
       const pendingList = (billsData || []).filter(b => {
         const s = (b.status || '').toString().toLowerCase().trim();
-        return s === 'pending' || s === 'partial' || s === 'partially_paid' || s === 'partial payment' || s === 'partially paid';
+        return s === 'pending';
       });
 
-      // If no pending/partial bills, show the no-pending UI
+      // If no pending bills, show the no-pending UI
       if (!pendingList || pendingList.length === 0) {
         container.innerHTML = `<div class="text-center py-4"><i class="fas fa-check-circle fa-3x text-success mb-3"></i><h5>No Pending Bills</h5><p class="text-muted">All bills are up to date!</p></div>`;
         document.querySelectorAll('.disabled-content').forEach(el => el.classList.add('disabled-content'));
-        // Clear billsData since nothing pending
         billsData = [];
         updateTotals();
         return;
       }
 
-      // Use only the first pending/partial bill (the "only pending bill")
+      // Use only the first pending bill (the "latest pending bill")
       const bill = pendingList[0];
-      // Keep billsData limited to pendingList so other logic (if any) refers to pending bills
       billsData = pendingList;
       const netDueVal = parseFloat(bill.netDue || ((parseFloat(bill.carryover||0) + parseFloat(bill.amount_due||0)) - parseFloat(bill.paymentsMade||0))) || 0;
       const netDue = netDueVal.toFixed(2);
@@ -1695,7 +1693,7 @@
       const firstRadio = container.querySelector('.bill-radio');
       if (firstRadio) { firstRadio.checked = true; firstRadio.dispatchEvent(new Event('change')); }
 
-      console.log('Loaded latest bill successfully');
+      console.log('Loaded latest pending bill successfully');
     } catch (err) {
       console.error('Failed to load bills:', err);
       document.getElementById('billListContainer').innerHTML = `<div class="text-center py-4"><i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i><h5>Failed to Load Bills</h5><p class="text-muted">Please refresh the page or contact support.</p><button class="btn btn-primary btn-sm" onclick="loadBills()">Retry</button></div>`;
