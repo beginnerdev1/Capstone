@@ -357,6 +357,7 @@ html,body { height:100%; margin:0; font-family: var(--font-sans); background: li
             <div class="modal-body">
                 <form id="addUserForm">
                     <?= csrf_field() ?>
+                    <input type="hidden" name="status" value="approved">
                     <div class="alert alert-info" role="alert">
                         <i class="fas fa-info-circle me-1"></i>
                         <strong>Note:</strong> Please fill in all required fields. Password must be at least 6 characters.
@@ -430,12 +431,9 @@ html,body { height:100%; margin:0; font-family: var(--font-sans); background: li
                             <div class="invalid-feedback">Please select a purok</div>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Initial Status <span class="text-danger">*</span></label>
-                            <select class="form-select" name="status" required>
-                                <option value="pending">Pending</option>
-                                <option value="approved" selected>Approved</option>
-                                <option value="suspended">Suspended</option>
-                            </select>
+                            <label class="form-label">Initial Status</label>
+                            <input type="text" class="form-control" value="Approved" readonly>
+                            <div class="form-text text-success">Approved (set automatically for admin-created accounts)</div>
                         </div>
                     </div>
 
@@ -446,8 +444,7 @@ html,body { height:100%; margin:0; font-family: var(--font-sans); background: li
                             <div class="form-text">Optional: specify the water line identifier for this user.</div>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Barangay</label>
-                            <input type="text" class="form-control" value="Borlongan" readonly disabled>
+                            <!-- intentionally left blank to keep columns aligned -->
                         </div>
                     </div>
 
@@ -457,7 +454,8 @@ html,body { height:100%; margin:0; font-family: var(--font-sans); background: li
                             <input type="text" class="form-control" value="Dipaculao" readonly disabled>
                         </div>
                         <div class="col-md-6">
-                            <!-- placeholder to keep layout consistent -->
+                            <label class="form-label">Barangay</label>
+                            <input type="text" class="form-control" value="Borlongan" readonly disabled>
                         </div>
                     </div>
 

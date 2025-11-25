@@ -326,7 +326,9 @@ class Admin extends BaseController
             $familyNumber  = (int)$this->request->getPost('family_number');
             $purok         = trim((string)$this->request->getPost('purok'));
             $lineNumber    = trim((string)$this->request->getPost('line_number'));
-            $status        = strtolower(trim((string)$this->request->getPost('status') ?? 'approved'));
+            // Force admin-created accounts to be approved server-side regardless of submitted value
+            // This prevents clients from attempting to set other statuses via the form
+            $status        = 'approved';
 
             $errors = [];
             if (strlen($firstName) < 2) $errors['first_name'] = 'First name must be at least 2 characters';
