@@ -995,7 +995,7 @@
     </div>
   </main>
 
-  <!-- MODALS: Move all modals here, outside the history-container and main -->
+<!-- MODALS: Move all modals here, outside the history-container and main -->
   <?php if (!empty($payments)): ?>
     <?php
     foreach ($payments as $index => $payment):
@@ -1007,8 +1007,21 @@
             $payment['transaction_status'] ??
             ''
           ));
-        $totalDue = floatval($payment['bill_amount'] ?? $payment['total_amount'] ?? $payment['amount_due'] ?? 0);
+        
+        // Get carryover and current balance
+        $carryover = floatval($payment['carryover'] ?? $payment['carryover_balance'] ?? 0);
+        $currentBalance = floatval($payment['balance'] ?? $payment['current_balance'] ?? 0);
+        
+        // Calculate total bill amount as carryover + current balance
+        $totalDue = $carryover + $currentBalance;
+        
+        // If totalDue is still 0, fallback to original logic
+        if ($totalDue == 0) {
+          $totalDue = floatval($payment['bill_amount'] ?? $payment['total_amount'] ?? $payment['amount_due'] ?? 0);
+        }
+        
         $paidAmount = floatval($payment['amount'] ?? 0);
+        
           // Improved partial payment detection for modal
           $isPartial = (strpos($rawStatus, 'partial') !== false) || ($totalDue > 0 && $paidAmount > 0 && $paidAmount < $totalDue);
           if ($rawStatus === 'paid' && $totalDue > 0 && $paidAmount > 0 && $paidAmount < $totalDue) {
@@ -1100,10 +1113,26 @@
             <div class="receipt-item">
               <span class="receipt-label">
                 <i class="bi bi-bank text-primary"></i>
-                Original Bill Amount
+                Total Bill Amount
               </span>
               <span class="receipt-value">₱<?= number_format($totalDue, 2) ?></span>
             </div>
+            <?php if ($carryover > 0 || $currentBalance > 0): ?>
+            <div class="receipt-item" style="padding-left: 20px; font-size: 0.9em; color: #6c757d;">
+              <span class="receipt-label">
+                <i class="bi bi-arrow-return-right text-muted"></i>
+                Carryover
+              </span>
+              <span class="receipt-value">₱<?= number_format($carryover, 2) ?></span>
+            </div>
+            <div class="receipt-item" style="padding-left: 20px; font-size: 0.9em; color: #6c757d;">
+              <span class="receipt-label">
+                <i class="bi bi-arrow-return-right text-muted"></i>
+                Current Balance
+              </span>
+              <span class="receipt-value">₱<?= number_format($currentBalance, 2) ?></span>
+            </div>
+            <?php endif; ?>
             <?php endif; ?>
             <?php if ($remaining !== null): ?>
             <div class="receipt-item">
@@ -1147,7 +1176,6 @@
     </div>
     <?php endforeach; ?>
   <?php endif; ?>
-
   <div class="content-footer-spacer"></div>
   <?= $this->include('Users/footer') ?>
   <a href="#" id="scrollTop" class="scroll-top">

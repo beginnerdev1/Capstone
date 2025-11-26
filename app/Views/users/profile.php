@@ -17,7 +17,7 @@
   <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
 
   <!-- Your Local CSS -->
-  <link href="<?= base_url('assets/Users/css/main.css?v=' . time()) ?>" rel="stylesheet">
+
   <link href="<?= base_url('assets/Users/css/navbar.css?v=' . time()) ?>" rel="stylesheet">
 
 <style>
@@ -422,6 +422,9 @@
     border: none;
     padding: 25px 30px;
     gap: 15px;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
   }
 
   .btn-modal {
@@ -432,6 +435,10 @@
     transition: all 0.3s ease;
     position: relative;
     overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
   }
 
   .btn-modal::before {
@@ -533,6 +540,7 @@
   }
 
   @media (max-width: 576px) {
+    /* General Modal for full screen on mobile */
     .modal-dialog {
       max-width: 100%;
       margin: 0;
@@ -546,11 +554,19 @@
       flex-direction: column;
       max-height: 100vh;
     }
+    
+    .modal-header {
+      padding: 18px 20px; /* Further reduced header padding */
+    }
+    
+    .modal-title {
+      font-size: 1.2rem;
+    }
 
-    /* Ensure modal body is scrollable on very small screens */
+    /* CRITICAL FIX 1: Maximize modal body height by using a smaller fixed offset (90px total for header/footer) */
     .modal-body {
-      padding: 1rem;
-      max-height: calc(100vh - 120px);
+      padding: 12px 20px; /* Reduced padding inside the body */
+      max-height: calc(100vh - 90px); /* Height minus estimated header (40px) and footer (50px) */
       overflow-y: auto;
       flex: 1 1 auto;
     }
@@ -558,8 +574,10 @@
     /* Keep footer visible and prevent it from being pushed off-screen */
     .modal-footer {
       flex: 0 0 auto;
+      padding: 12px 20px; /* Further reduced padding */
       position: relative;
       z-index: 2;
+      justify-content: center;
     }
     
     .info-item {
@@ -571,6 +589,73 @@
     .info-icon {
       margin-right: 0;
       margin-bottom: 5px;
+    }
+
+    /* FIX: Make fixed-size modal also full-screen on small devices for usability */
+    .fixed-size-modal .modal-dialog {
+      max-width: 100%;
+      margin: 0;
+      height: 100vh;
+    }
+
+    .fixed-size-modal .modal-content {
+      height: 100%;
+      border-radius: 0;
+      max-height: 100vh;
+    }
+    
+    /* CRITICAL FIX 2: Apply the optimized height and spacing to fixed-size modal body */
+    .fixed-size-modal .modal-body {
+      max-height: calc(100vh - 90px); 
+      padding: 12px 20px; 
+    }
+    
+    /* CRITICAL FIX 3: Reduce vertical spacing between form elements (assuming standard markup) */
+    .form-label {
+      margin-bottom: 4px; /* Reduced space below label */
+      font-size: 0.9rem;
+    }
+    
+    .form-control, .form-select {
+      padding: 8px 12px; /* Slightly smaller input fields */
+      font-size: 0.95rem;
+      margin-bottom: 12px; /* Add margin below the input field to create group spacing */
+    }
+    
+    /* Specific button styling for mobile footer */
+    .modal-footer .btn-modal {
+      min-height: 40px; /* Reduced minimum height */
+      padding: 10px 20px; /* Reduced padding */
+      border-radius: 12px;
+      font-size: 0.95rem;
+    }
+
+    .modal-footer .btn-secondary-modal {
+      min-width: 110px;
+    }
+
+    .modal-footer .btn-primary-modal {
+      min-width: 160px;
+    }
+  }
+
+  /* Small mobile adjustments (e.g., max-width: 375px) */
+  @media (max-width: 375px) {
+    .modal-header {
+      padding: 15px 15px; 
+    }
+    
+    .modal-body, .fixed-size-modal .modal-body {
+      padding: 10px 15px; 
+    }
+
+    .modal-footer {
+      padding: 10px 15px;
+      gap: 10px;
+    }
+    
+    .form-control, .form-select {
+      margin-bottom: 10px; /* Tighter spacing on smallest screen */
     }
   }
 
@@ -604,7 +689,8 @@
   ::-webkit-scrollbar-thumb:hover {
     background: #667eea;
   }
-  /* Fixed-size modal variant: keep the profile edit modal a consistent size across devices */
+  
+  /* Fixed-size modal variant (Default for desktop/large screens) */
   .fixed-size-modal .modal-dialog {
     max-width: 560px;
     margin: 1.5rem auto;
@@ -623,19 +709,7 @@
     padding: 28px 30px;
   }
 
-  @media (max-width: 576px) {
-    .fixed-size-modal .modal-dialog {
-      max-width: 520px;
-      margin: 1rem auto;
-    }
-
-    .fixed-size-modal .modal-content {
-      border-radius: 12px;
-    }
-  }
-
 </style>
-
 </head>
 
 <body>

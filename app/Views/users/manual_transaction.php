@@ -100,6 +100,7 @@
       position: relative;
     }
     .upload-box:hover { background: #e9ecff; }
+    .upload-box.dragover { background: #e1e7ff; border-color: #4f46e5; }
     .upload-box i { font-size: 2.2rem; color: #667eea; }
     .upload-box .btn { margin-top: 0.7rem; }
     #previewContainer {
@@ -121,6 +122,28 @@
       object-fit: contain;
       box-shadow: 0 2px 8px rgba(102,126,234,0.08);
     }
+    .filename {
+      font-size: 0.9rem;
+      color: #374151;
+      margin-top: 0.35rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .btn-spinner {
+      display: inline-flex;
+      align-items: center;
+      gap: .5rem;
+    }
+    .spinner-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.9);
+      box-shadow: 0 0 0 0 rgba(255,255,255,0.6);
+      animation: spinner-pulse 1s infinite;
+    }
+    @keyframes spinner-pulse { 0% { transform: scale(1); } 50% { transform: scale(1.4); } 100% { transform: scale(1); } }
     .btn-primary {
       background: linear-gradient(90deg, #667eea, #48bb78);
       border: none;
@@ -163,6 +186,9 @@
     <!-- Alert placeholder -->
     <div id="alertBox" class="alert alert-warning d-none" role="alert"></div>
 
+    <!-- Fee waived / note placeholder -->
+    <div id="feeWaivedNote" class="alert alert-info d-none small" role="status">Note: Fee waived for manual transactions.</div>
+
     <form id="proofForm" method="post" enctype="multipart/form-data" action="<?= site_url('users/uploadProof') ?>">
       <!-- CHANGED: name and id -> billing_id so backend receives it -->
       <input type="hidden" name="billing_id" id="billing_id" value="">
@@ -176,6 +202,10 @@
           id="referenceNumber"
           class="form-control"
           placeholder="Enter GCash reference number"
+          inputmode="numeric"
+          pattern="\d*"
+          maxlength="13"
+          title="Numbers only, maximum 13 digits"
           required
         />
       </div>
@@ -194,7 +224,8 @@
             accept="image/*"
             required
           />
-          <button type="button" class="btn btn-outline-primary btn-sm">Choose File</button>
+          <button type="button" id="chooseFileBtn" class="btn btn-outline-primary btn-sm">Choose File</button>
+          <div id="chosenFilename" class="filename d-none"></div>
         </div>
         <!-- Preview -->
         <div id="previewContainer">
@@ -238,7 +269,7 @@
 
     const billId = getQueryParam('bill_id');
     const amount = getQueryParam('amount');
-    if (billId) {
+      if (billId) {
       // CHANGED: set billing_id hidden input
       $('#billing_id').val(billId);
 
@@ -248,6 +279,9 @@
         const current = parseFloat(data.amount_due || 0) || 0;
         const payments = parseFloat(data.paymentsMade || data.payments || 0) || 0;
         const netDue = Math.max(0, (carryover + current - payments));
+
+        // expose netDue globally for later validation
+        window.netDueAmount = netDue;
 
         // Display bill details with breakdown and computed net due
         $('#billDetails').html(
@@ -265,17 +299,41 @@
            </div>`
         ).css('display', 'flex');
 
-        // Prefill amount input: prefer explicit `amount` query param (user selection); otherwise use server-calculated netDue
+        // enforce max on the amount input so it cannot exceed billed net due
+        $('#amount').attr('max', netDue.toFixed(2));
+
+        // Prefill amount input: prefer explicit `amount` query param; otherwise use server-calculated netDue
         if (amount) {
           // ensure numeric
-          const amt = parseFloat(amount) || 0;
+          let amt = parseFloat(amount) || 0;
+          if (amt > netDue) {
+            amt = netDue;
+            alertBox.classList.remove('d-none');
+            alertBox.textContent = `Entered amount exceeded billed amount. Amount adjusted to ₱${netDue.toFixed(2)}.`;
+          } else {
+            // hide any previous alert
+            alertBox.classList.add('d-none');
+          }
           $('#amount').val(amt.toFixed(2));
-          // show fee-waived note when arriving from manual flow
+          // show fee-waived note when arriving from manual flow (if present)
           $('#feeWaivedNote').removeClass('d-none');
         } else {
           $('#amount').val(netDue.toFixed(2));
           $('#feeWaivedNote').addClass('d-none');
         }
+
+        // Client-side enforcement: if user types a value greater than max, clamp and show warning
+        $('#amount').on('input', function() {
+          const max = parseFloat($(this).attr('max')) || 0;
+          let val = parseFloat($(this).val()) || 0;
+          if (val > max) {
+            $(this).val(max.toFixed(2));
+            alertBox.classList.remove('d-none');
+            alertBox.textContent = `Amount cannot exceed billed amount (₱${max.toFixed(2)}).`;
+          } else {
+            alertBox.classList.add('d-none');
+          }
+        });
       });
     }
 
@@ -284,21 +342,70 @@
     const preview = document.getElementById('preview');
     const previewContainer = document.getElementById('previewContainer');
     const alertBox = document.getElementById('alertBox');
+    const chooseFileBtn = document.getElementById('chooseFileBtn');
+    const chosenFilename = document.getElementById('chosenFilename');
 
-    screenshotInput.addEventListener('change', function() {
-      const file = this.files[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-          preview.src = e.target.result;
-          previewContainer.style.display = 'block';
-        };
-        reader.readAsDataURL(file);
-      } else {
+    // Helper to show alerts with type: 'warning'|'danger'|'success'|'info'
+    function showAlert(type, message, autoHideMs) {
+      alertBox.className = 'alert d-block';
+      alertBox.classList.add('alert-' + (type || 'warning'));
+      alertBox.textContent = message;
+      if (autoHideMs && autoHideMs > 0) {
+        setTimeout(function() { alertBox.classList.add('d-none'); }, autoHideMs);
+      }
+    }
+
+    // Reference input: allow only digits and enforce maxlength=13 on input
+    const refInput = document.getElementById('referenceNumber');
+    if (refInput) {
+      refInput.addEventListener('input', function() {
+        // remove non-digits and trim to 13 characters
+        this.value = this.value.replace(/\D/g, '').slice(0,13);
+      });
+    }
+
+    // handle file selection and preview
+    function handleFileSelection(file) {
+      if (!file) {
         previewContainer.style.display = 'none';
         preview.src = '';
+        chosenFilename.classList.add('d-none');
+        chosenFilename.textContent = '';
+        return;
       }
+      // show filename
+      chosenFilename.textContent = file.name;
+      chosenFilename.classList.remove('d-none');
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        preview.src = e.target.result;
+        previewContainer.style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+    }
+
+    screenshotInput.addEventListener('change', function() {
+      handleFileSelection(this.files[0]);
     });
+
+    // Drag & drop support for upload box
+    const uploadBox = document.querySelector('.upload-box');
+    if (uploadBox) {
+      uploadBox.addEventListener('dragover', function(e) { e.preventDefault(); uploadBox.classList.add('dragover'); });
+      uploadBox.addEventListener('dragleave', function(e) { e.preventDefault(); uploadBox.classList.remove('dragover'); });
+      uploadBox.addEventListener('drop', function(e) {
+        e.preventDefault();
+        uploadBox.classList.remove('dragover');
+        const files = e.dataTransfer.files;
+        if (files && files[0]) {
+          screenshotInput.files = files;
+          handleFileSelection(files[0]);
+        }
+      });
+      // wire choose file button to trigger input
+      if (chooseFileBtn) chooseFileBtn.addEventListener('click', function() { screenshotInput.click(); });
+    }
 
     // Intercept form submit
     $('#proofForm').on('submit', function(e) {
@@ -306,24 +413,40 @@
 
       const ref = $('#referenceNumber').val().trim();
       if (!ref) {
-        alertBox.classList.remove('d-none');
-        alertBox.textContent = 'Please enter a reference number.';
+        showAlert('warning', 'Please enter a reference number.');
         return;
       }
-
-      $.post("<?= site_url('users/checkReference') ?>", { referenceNumber: ref }, function(data) {
-        if (data && data.exists) {
-          alertBox.classList.remove('d-none');
-          alertBox.textContent = 'This reference number has already been used. Please enter a different one.';
-        } else {
-          alertBox.classList.add('d-none');
-          e.currentTarget.submit();
+        // quick client-side validations before calling server
+        const amountVal = parseFloat($('#amount').val()) || 0;
+        if (window.netDueAmount !== undefined && amountVal > window.netDueAmount) {
+          showAlert('warning', `Amount cannot exceed billed amount (₱${window.netDueAmount.toFixed(2)}).`);
+          return;
         }
-      }, 'json')
-      .fail(function() {
-        alertBox.classList.remove('d-none');
-        alertBox.textContent = 'Unable to verify the reference right now. Please try again.';
-      });
+        if (!screenshotInput.files || !screenshotInput.files[0]) {
+          showAlert('warning', 'Please attach a screenshot of your payment.');
+          return;
+        }
+
+        // disable submit and show spinner
+        const submitBtn = $(this).find('button[type=submit]');
+        submitBtn.prop('disabled', true);
+        const origHtml = submitBtn.html();
+        submitBtn.html('<span class="btn-spinner"><span class="spinner-dot"></span>Submitting...</span>');
+
+        $.post("<?= site_url('users/checkReference') ?>", { referenceNumber: ref }, function(data) {
+          if (data && data.exists) {
+            showAlert('danger', 'This reference number has already been used. Please enter a different one.');
+            submitBtn.prop('disabled', false).html(origHtml);
+          } else {
+            // proceed with actual form submit (allow file upload)
+            showAlert('info', 'Submitting proof...');
+            e.currentTarget.submit();
+          }
+        }, 'json')
+        .fail(function() {
+          showAlert('danger', 'Unable to verify the reference right now. Please try again later.');
+          submitBtn.prop('disabled', false).html(origHtml);
+        });
     });
   </script>
 </body>

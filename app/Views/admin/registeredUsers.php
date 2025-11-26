@@ -655,9 +655,12 @@ function initRegisteredUsersPage() {
                         </div>
                     </div>
                     <div class="text-end mt-3">
-                        <button class="btn btn-danger deactivateUserBtn" data-id="${user.id}" data-name="${(user.first_name||'') + ' ' + (user.last_name||'') }" ${canDeactivate ? '' : 'data-disabled="1" title="' + deactivateTitle + '"'}>
-                            <i class="fas fa-user-slash me-1"></i> Deactivate
-                        </button>
+                            <button class="btn btn-warning suspendUserBtn me-2" data-id="${user.id}" ${ (user.status||'').toLowerCase() === 'suspended' ? 'data-disabled="1" title="User already suspended"' : '' }>
+                                <i class="fas fa-user-clock me-1"></i> Suspend
+                            </button>
+                            <button class="btn btn-danger deactivateUserBtn" data-id="${user.id}" data-name="${(user.first_name||'') + ' ' + (user.last_name||'') }" ${canDeactivate ? '' : 'data-disabled="1" title="' + deactivateTitle + '"'}>
+                                <i class="fas fa-user-slash me-1"></i> Deactivate
+                            </button>
                     </div>
                 `);
                 $("#viewUserModal").modal("show");
@@ -844,6 +847,61 @@ function initRegisteredUsersPage() {
             },
             complete: function(){
                 btn.prop('disabled', false).html('<i class="fas fa-user-slash me-1"></i>Deactivate');
+            }
+        });
+    });
+
+    // Suspend user flow
+    $(document).on('click', '.suspendUserBtn', function(){
+        if ($(this).data('disabled')) {
+            const msg = $(this).attr('title') || 'This user is already suspended.';
+            const warn = $(`<div class="alert alert-warning alert-dismissible fade show" role="alert">
+                <i class="fas fa-exclamation-triangle me-2"></i>${msg}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>`);
+            $('.container-fluid').prepend(warn);
+            setTimeout(()=>{ warn.fadeOut(400,function(){ $(this).remove(); }); }, 4000);
+            return;
+        }
+
+        const userId = $(this).data('id');
+        if(!userId) return;
+        const btn = $(this);
+        const original = btn.html();
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Suspending...');
+
+        $.ajax({
+            url: baseUrl + '/admin/suspendUser/' + encodeURIComponent(userId),
+            type: 'POST',
+            data: { user_id: userId },
+            dataType: 'json',
+            success: function(res){
+                if(res && res.success){
+                    const successAlert = $('<div class="alert alert-success alert-dismissible fade show" role="alert">' +
+                        '<i class="fas fa-check-circle me-2"></i>' + (res.message || 'User suspended successfully.') +
+                        '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                        '</div>');
+                    $('.container-fluid').prepend(successAlert);
+                    $('#viewUserModal').modal('hide');
+                    loadUsers($('#filterInput').val(), $('#filterPurok').val(), $('#filterStatus').val());
+                } else {
+                    const msg = res && res.message ? res.message : 'Failed to suspend user.';
+                    const errorAlert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
+                        '<i class="fas fa-exclamation-triangle me-2"></i>' + msg +
+                        '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                        '</div>');
+                    $('.container-fluid').prepend(errorAlert);
+                }
+            },
+            error: function(xhr){
+                const errorAlert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
+                    '<i class="fas fa-exclamation-triangle me-2"></i>Error suspending user. Please try again.' +
+                    '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                    '</div>');
+                $('.container-fluid').prepend(errorAlert);
+            },
+            complete: function(){
+                btn.prop('disabled', false).html(original);
             }
         });
     });

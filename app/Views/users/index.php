@@ -1408,8 +1408,8 @@ function loadRecentBills() {
                             <i class="bi bi-clock me-1"></i>
                             Due: ${dueDate ? dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'}
                         </small>
-                        <a href="<?= base_url('users/viewBill/') ?>${bill.bill_id ?? bill.id}" class="btn btn-sm btn-link p-0">
-                            View Bill <i class="bi bi-arrow-right"></i>
+                        <a href="<?= base_url('users/history') ?>" class="btn btn-sm btn-link p-0">
+                          View Bill <i class="bi bi-arrow-right"></i>
                         </a>
                     </div>
                 </div>

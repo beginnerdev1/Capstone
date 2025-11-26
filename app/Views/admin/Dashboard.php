@@ -689,7 +689,7 @@ html, body {
         <div class="py-2 collapse-inner">
           <div class="collapse-header">Components:</div>
                 <a href="<?= base_url('admin/registeredUsers') ?>" class="collapse-item ajax-link">All Users</a>
-                <a href="<?= base_url('admin/pendingAccounts') ?>" class="collapse-item ajax-link">Verify User</a>
+               <!-- <a href="<//?= base_url('admin/pendingAccounts') ?>" class="collapse-item ajax-link">Verify User</a>  -->
                 <a href="<?= base_url('admin/inactiveUsers') ?>" class="collapse-item ajax-link">Inactive Users</a>
                 <a href="<?= base_url('admin/suspendedUsers') ?>" class="collapse-item ajax-link">Suspended Users</a>
 
@@ -748,19 +748,11 @@ html, body {
                     <button class="hamburger-btn" id="hamburgerBtn">
                         <i class="fas fa-bars"></i>
                     </button>
-                    <div class="topbar-search">
-                        <input type="text" class="form-control" placeholder="Search for..." style="max-width: 300px;">
-                        <button type="button">
-                            <i class="fas fa-search"></i>
-                        </button>
-                    </div>
+
                 </div>
 
                 <div class="topbar-right">
-                    <div class="topbar-icon">
-                        <i class="fas fa-bell"></i>
-                        <span class="badge badge-danger badge-counter">3+</span>
-                    </div>
+                    
                     <a href="<?= base_url('admin/chat') ?>" class="ajax-link" title="Open chats">
                         <div class="topbar-icon" title="Unread user chats" style="display:inline-block;">
                             <i class="fas fa-envelope"></i>
