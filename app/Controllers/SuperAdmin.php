@@ -257,8 +257,9 @@ class SuperAdmin extends Controller
             return $this->response->setJSON(['status'=>'error','message'=>'No file uploaded or file invalid']);
         }
         $ext = strtolower(pathinfo($file->getClientName(), PATHINFO_EXTENSION));
-        if ($ext !== 'zip') {
-            return $this->response->setJSON(['status'=>'error','message'=>'Only ZIP archives are accepted']);
+        // Accept plain ZIP or encrypted files (extension 'enc' or 'zip')
+        if (!in_array($ext, ['zip','enc'])) {
+            return $this->response->setJSON(['status'=>'error','message'=>'Only ZIP archives or encrypted backup files are accepted']);
         }
 
         $destDir = WRITEPATH . 'backups/restores/';
@@ -272,21 +273,37 @@ class SuperAdmin extends Controller
             return $this->response->setJSON(['status'=>'error','message'=>'Failed to save uploaded file: ' . $e->getMessage()]);
         }
 
-        // Inspect ZIP for JSON files and metadata
+        // Inspect ZIP for JSON files and metadata. If uploaded file is encrypted,
+        // decrypt to a temp file for inspection (but keep original encrypted file).
         $tables = [];
         $zip = new \ZipArchive();
-        if ($zip->open($target) === true) {
-            for ($i = 0; $i < $zip->numFiles; $i++) {
-                $stat = $zip->statIndex($i);
-                $name = $stat['name'] ?? '';
-                if (preg_match('/^(.+)\.json$/i', $name, $m)) {
-                    $tbl = $m[1];
-                    // skip generic metadata file
-                    if (strtolower($tbl) === 'metadata') continue;
-                    $tables[] = $tbl;
+        $inspectPath = $target;
+        $tmpInspect = null;
+        try {
+            if ($this->isEncryptedFile($target) && $this->getBackupKey() !== null) {
+                $tmpInspect = $destDir . 'tmp_inspect_' . bin2hex(random_bytes(6)) . '.zip';
+                if (! $this->decryptFile($target, $tmpInspect)) {
+                    @unlink($tmpInspect);
+                    return $this->response->setJSON(['status'=>'error','message'=>'Uploaded file appears encrypted but decryption failed (invalid key?)']);
                 }
+                $inspectPath = $tmpInspect;
             }
-            $zip->close();
+
+            if ($zip->open($inspectPath) === true) {
+                for ($i = 0; $i < $zip->numFiles; $i++) {
+                    $stat = $zip->statIndex($i);
+                    $name = $stat['name'] ?? '';
+                    if (preg_match('/^(.+)\.json$/i', $name, $m)) {
+                        $tbl = $m[1];
+                        // skip generic metadata file
+                        if (strtolower($tbl) === 'metadata') continue;
+                        $tables[] = $tbl;
+                    }
+                }
+                $zip->close();
+            }
+        } finally {
+            if ($tmpInspect !== null && is_file($tmpInspect)) @unlink($tmpInspect);
         }
 
         return $this->response->setJSON(['status'=>'success','message'=>'Uploaded','filename'=>$filename,'tables'=>$tables]);
@@ -316,7 +333,24 @@ class SuperAdmin extends Controller
         if (!is_dir($tmpDir)) @mkdir($tmpDir, 0755, true);
 
         $zip = new \ZipArchive();
-        if ($zip->open($filePath) !== true) return $this->response->setJSON(['status'=>'error','message'=>'Failed to open ZIP archive']);
+        // If file appears encrypted, decrypt into tmp dir first (requires key)
+        $toOpen = $filePath;
+        $decryptedTmp = null;
+        if ($this->isEncryptedFile($filePath)) {
+            $decryptedTmp = $tmpDir . 'decrypted_' . bin2hex(random_bytes(6)) . '.zip';
+            if ($this->getBackupKey() === null || ! $this->decryptFile($filePath, $decryptedTmp)) {
+                // cleanup tmp dir
+                foreach (glob($tmpDir . '*') as $tf) @unlink($tf);
+                @rmdir($tmpDir);
+                return $this->response->setJSON(['status'=>'error','message'=>'Restore file appears encrypted but server cannot decrypt it (missing key or invalid file)']);
+            }
+            $toOpen = $decryptedTmp;
+        }
+
+        if ($zip->open($toOpen) !== true) {
+            if ($decryptedTmp !== null && is_file($decryptedTmp)) @unlink($decryptedTmp);
+            return $this->response->setJSON(['status'=>'error','message'=>'Failed to open ZIP archive']);
+        }
 
         // Extract only JSON files into tmp dir
         for ($i = 0; $i < $zip->numFiles; $i++) {
@@ -324,10 +358,11 @@ class SuperAdmin extends Controller
             $name = $stat['name'] ?? '';
             if (preg_match('/^(.+)\.json$/i', $name)) {
                 // extract to tmpDir preserving filename
-                copy('zip://' . $filePath . '#' . $name, $tmpDir . basename($name));
+                copy('zip://' . $toOpen . '#' . $name, $tmpDir . basename($name));
             }
         }
         $zip->close();
+        if ($decryptedTmp !== null && is_file($decryptedTmp)) @unlink($decryptedTmp);
 
         $db = \Config\Database::connect();
         $db->transStart();
@@ -646,12 +681,109 @@ class SuperAdmin extends Controller
         $path = WRITEPATH . 'backups' . DIRECTORY_SEPARATOR . $name;
         if (!is_file($path)) return $this->response->setJSON(['status'=>'error','message'=>'File not found']);
 
-        $size = filesize($path);
-        return $this->response
-            ->setHeader('Content-Type', 'application/zip')
-            ->setHeader('Content-Disposition', 'attachment; filename="' . $name . '"')
-            ->setHeader('Content-Length', (string)$size)
-            ->setBody(file_get_contents($path));
+        // If file is encrypted, decrypt to a temp file before streaming
+        $tmpToSend = null;
+        try {
+            if ($this->isEncryptedFile($path) && $this->getBackupKey() !== null) {
+                $tmp = WRITEPATH . 'backups' . DIRECTORY_SEPARATOR . 'tmp_decrypt_' . bin2hex(random_bytes(6)) . '.zip';
+                if (! $this->decryptFile($path, $tmp)) {
+                    return $this->response->setJSON(['status'=>'error','message'=>'Failed to decrypt backup for download']);
+                }
+                $tmpToSend = $tmp;
+                $sendPath = $tmp;
+            } else {
+                $sendPath = $path;
+            }
+
+            $size = filesize($sendPath);
+            $body = file_get_contents($sendPath);
+
+            // cleanup tmp if used
+            if ($tmpToSend !== null) {
+                @unlink($tmpToSend);
+            }
+
+            return $this->response
+                ->setHeader('Content-Type', 'application/zip')
+                ->setHeader('Content-Disposition', 'attachment; filename="' . $name . '"')
+                ->setHeader('Content-Length', (string)$size)
+                ->setBody($body);
+        } catch (\Throwable $e) {
+            if (isset($tmpToSend) && is_file($tmpToSend)) @unlink($tmpToSend);
+            log_message('error', 'downloadBackup error: ' . $e->getMessage());
+            return $this->response->setJSON(['status'=>'error','message'=>'Failed to prepare backup for download']);
+        }
+    }
+
+    // --- Backup encryption helpers (AES-256-GCM) ---
+    private function getBackupKey()
+    {
+        $env = getenv('BACKUP_ENCRYPTION_KEY') ?: '';
+        if (empty($env)) return null;
+        // Expect base64-encoded 32 byte key. If hex provided, accept that too.
+        // Try base64 decode first
+        $raw = base64_decode($env, true);
+        if ($raw !== false && strlen($raw) === 32) return $raw;
+        // Try hex
+        if (ctype_xdigit($env) && (strlen($env) === 64)) {
+            $raw = hex2bin($env);
+            if ($raw !== false && strlen($raw) === 32) return $raw;
+        }
+        // As a last resort, if env is exactly 32 bytes, use it raw
+        if (strlen($env) === 32) return $env;
+        return null;
+    }
+
+    private function isEncryptedFile($path)
+    {
+        if (!is_file($path)) return false;
+        $fh = fopen($path, 'rb');
+        if (!$fh) return false;
+        $hdr = fread($fh, 12);
+        fclose($fh);
+        return $hdr === "CIT-BACKUP-1";
+    }
+
+    private function encryptFile($src, $dst)
+    {
+        $key = $this->getBackupKey();
+        if ($key === null) return false;
+        $data = @file_get_contents($src);
+        if ($data === false) return false;
+        $ivLen = 12; // recommended for GCM
+        $iv = random_bytes($ivLen);
+        $tag = '';
+        $cipher = 'aes-256-gcm';
+        $ciphertext = openssl_encrypt($data, $cipher, $key, OPENSSL_RAW_DATA, $iv, $tag, '', 16);
+        if ($ciphertext === false) return false;
+        // File format: header(12) + iv(12) + tag(16) + ciphertext
+        $out = fopen($dst, 'wb');
+        if (!$out) return false;
+        fwrite($out, "CIT-BACKUP-1");
+        fwrite($out, $iv);
+        fwrite($out, $tag);
+        fwrite($out, $ciphertext);
+        fclose($out);
+        return true;
+    }
+
+    private function decryptFile($src, $dst)
+    {
+        $key = $this->getBackupKey();
+        if ($key === null) return false;
+        $fh = fopen($src, 'rb');
+        if (!$fh) return false;
+        $hdr = fread($fh, 12);
+        if ($hdr !== "CIT-BACKUP-1") { fclose($fh); return false; }
+        $iv = fread($fh, 12);
+        $tag = fread($fh, 16);
+        $ciphertext = stream_get_contents($fh);
+        fclose($fh);
+        $cipher = 'aes-256-gcm';
+        $plaintext = openssl_decrypt($ciphertext, $cipher, $key, OPENSSL_RAW_DATA, $iv, $tag);
+        if ($plaintext === false) return false;
+        $ok = file_put_contents($dst, $plaintext);
+        return $ok !== false;
     }
 
     // Handle user creation AJAX
@@ -971,10 +1103,32 @@ class SuperAdmin extends Controller
         }
         $zip->close();
 
+        // If encryption key provided, encrypt the ZIP and keep only encrypted copy
+        $encrypted = false;
+        $encZipPath = null;
+        $key = $this->getBackupKey();
+        if ($key !== null) {
+            try {
+                $encZipPath = $zipPath . '.enc';
+                if ($this->encryptFile($zipPath, $encZipPath)) {
+                    // remove the plain zip and use encrypted file going forward
+                    @unlink($zipPath);
+                    $zipPath = $encZipPath;
+                    $zipName = basename($encZipPath);
+                    $encrypted = true;
+                    // include encryption flag in metadata (rewrite metadata)
+                    $meta['encrypted'] = true;
+                    file_put_contents(WRITEPATH . 'backups' . DIRECTORY_SEPARATOR . $zipName . '.meta.json', json_encode($meta, JSON_PRETTY_PRINT));
+                }
+            } catch (\Throwable $_) {
+                // encryption failed; continue with plain zip
+            }
+        }
+
         // Log the backup action
         try {
             $logModel = new \App\Models\AdminActivityLogModel();
-            $details = ['filename' => $zipName, 'counts' => $counts];
+            $details = ['filename' => $zipName, 'counts' => $counts, 'encrypted' => ($encrypted ? 1 : 0)];
             $logModel->insert([
                 'actor_type' => 'superadmin',
                 'actor_id'   => $current,

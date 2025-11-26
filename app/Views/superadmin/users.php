@@ -58,11 +58,13 @@
             </div>
             <div class="col-md-6">
               <label class="form-label">Email</label>
-              <input type="email" name="email" class="form-control" required>
+              <input type="email" id="new-admin-email" name="email" class="form-control" required>
+              <div id="new-admin-email-help" class="form-text text-danger" style="display:none;">Email must be a valid address (e.g., user@example.com).</div>
             </div>
             <div class="col-md-6">
               <label class="form-label">Username</label>
-              <input type="text" name="username" class="form-control" required>
+              <input type="text" name="username" class="form-control" required pattern="[A-Za-z0-9._-]{3,30}" minlength="3" maxlength="30" autocomplete="username" oninput="this.value=this.value.replace(/[^A-Za-z0-9._-]/g,'')">
+              <div class="form-text small text-muted">Use letters, numbers, dot, underscore or hyphen (3-30 chars).</div>
             </div>
             <div class="col-md-6">
               <label class="form-label">Position</label>
@@ -86,7 +88,7 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button class="btn btn-primary" id="saveAdminBtn"><i class="fas fa-save me-1"></i>Save</button>
+        <button class="btn btn-primary" id="saveAdminBtn" disabled><i class="fas fa-save me-1"></i>Save</button>
       </div>
     </div>
   </div>
@@ -128,6 +130,9 @@
   $(document).on('click', '#btnNewAdmin', function(){
     $('#newAdminForm')[0].reset();
     $('#newAdminAlerts').empty();
+    // Ensure save button is disabled until email validation passes
+    $('#saveAdminBtn').prop('disabled', true).html('<i class="fas fa-save me-1"></i>Save');
+    $('#new-admin-email-help').hide();
     new bootstrap.Modal(document.getElementById('newAdminModal')).show();
   });
 
@@ -137,6 +142,20 @@
     $('#newAdminAlerts').empty();
     const form = document.getElementById('newAdminForm');
     const fd = new FormData(form);
+    // Client-side email validation: must follow basic email pattern (local@domain.tld)
+    const email = ($('#new-admin-email').val() || '').trim();
+    function isValidAdminEmail(e){
+      if(!e) return false;
+      // Basic RFC-like check: local@sub.domain.tld (domain must contain at least one dot)
+      const re = /^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/;
+      return re.test(e);
+    }
+
+    if(!isValidAdminEmail(email)){
+      $('#new-admin-email-help').show();
+      $('#newAdminAlerts').html('<div class="alert alert-danger">Please provide a valid email (e.g., user@example.com) before saving.</div>');
+      return;
+    }
     // Passwords are assigned server-side (default: 123456)
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Saving...');
     $.ajax({
@@ -163,6 +182,20 @@
         btn.prop('disabled', false).html('<i class="fas fa-save me-1"></i>Save');
       }
     });
+  });
+
+  // Enable/disable Save button based on email validity
+  $(document).on('input', '#new-admin-email', function(){
+    const val = ($(this).val() || '').trim();
+    const help = $('#new-admin-email-help');
+    const re = /^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/;
+    if(re.test(val)){
+      $('#saveAdminBtn').prop('disabled', false);
+      help.hide();
+      return;
+    }
+    $('#saveAdminBtn').prop('disabled', true);
+    help.show();
   });
 
   // Retire button click
@@ -214,8 +247,8 @@
         <input type="hidden" id="retireAdminId" value="">
         <div class="mb-3">
           <label class="form-label">Confirm Super Admin Code</label>
-          <input type="text" id="retireAdminCode" class="form-control" placeholder="Enter your super admin code to confirm" required autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="text">
-          <div class="form-text">Enter your super admin admin_code to confirm this action.</div>
+          <input type="text" id="retireAdminCode" class="form-control" placeholder="Enter your super admin code to confirm" required autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="text" pattern="[A-Za-z0-9]+" maxlength="128" oninput="this.value=this.value.replace(/[^A-Za-z0-9]/g,'')">
+          <div class="form-text">Enter your super admin admin_code to confirm this action. Alphanumeric only.</div>
         </div>
         <div id="retireAlerts"></div>
       </div>

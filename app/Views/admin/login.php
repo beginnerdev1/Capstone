@@ -17,7 +17,7 @@
 <body class="bg-gradient-primary">
 
   <div class="container d-flex align-items-center justify-content-center min-vh-100">
-    <div class="card shadow-lg border-0 rounded-4 p-4" style="max-width: 430px; width: 100%;">
+  <div class="card shadow-lg border-0 rounded-4 p-4 login-card" style="max-width: 400px; width: 100%;">
       <div class="text-center mb-4">
         <i class="fas fa-user-shield fa-3x text-primary mb-3"></i>
         <h3 class="fw-bold text-dark">Admin Login</h3>
@@ -39,8 +39,10 @@
         </div>
         <label for="password"><i class="fa-solid fa-lock me-2"></i>Password</label>
         <div class="form-floating mb-3 position-relative">
-          <input type="password" class="form-control" id="password" name="password" placeholder="Password" >
-          <i class="fa-solid fa-eye position-absolute top-50 end-0 translate-middle-y me-3 text-muted" id="togglePassword" style="cursor:pointer;"></i>
+          <input type="password" class="form-control" id="password" name="password" placeholder="Password">
+          <button type="button" id="togglePassword" class="btn btn-sm position-absolute top-50 end-0 translate-middle-y me-3 text-muted" aria-pressed="false" aria-label="Show password" style="background:transparent;border:none;padding:0;">
+            <i class="fa-solid fa-eye"></i>
+          </button>
         </div>
         <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold shadow-sm">Login</button>
 
@@ -48,7 +50,6 @@
           <a href="<?= base_url('admin/forgot-password') ?>" class="text-decoration-none small text-muted">
             <i class="fa-solid fa-key me-1"></i> Forgot password?
           </a>
-          <a href="<?= base_url('/') ?>" class="text-decoration-none small text-muted">Back to site</a>
         </div>
       </form>
 
@@ -61,14 +62,24 @@
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    // 👁️ Toggle password visibility
-    const togglePassword = document.querySelector("#togglePassword");
-    const password = document.querySelector("#password");
-    togglePassword.addEventListener("click", function () {
-      const type = password.getAttribute("type") === "password" ? "text" : "password";
-      password.setAttribute("type", type);
-      this.classList.toggle("fa-eye-slash");
-    });
+    // 👁️ Toggle password visibility (robust, accessible)
+    (function(){
+      const toggleBtn = document.getElementById('togglePassword');
+      const password = document.getElementById('password');
+      if (!toggleBtn || !password) return;
+      const icon = toggleBtn.querySelector('i');
+      function doToggle(){
+        const isPwd = password.type === 'password';
+        password.type = isPwd ? 'text' : 'password';
+        toggleBtn.setAttribute('aria-pressed', String(isPwd));
+        if (icon) {
+          icon.classList.remove(isPwd ? 'fa-eye' : 'fa-eye-slash');
+          icon.classList.add(isPwd ? 'fa-eye-slash' : 'fa-eye');
+        }
+      }
+      toggleBtn.addEventListener('click', function(e){ e.preventDefault(); doToggle(); });
+      toggleBtn.addEventListener('keydown', function(e){ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); doToggle(); }});
+    })();
   </script>
 </body>
 </html>

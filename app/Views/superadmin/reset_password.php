@@ -31,15 +31,16 @@
               </div>
               <div class="mb-2">
                 <label class="form-label">Reset Code</label>
-                <input type="text" name="code" class="form-control" placeholder="6-digit code" required>
+                <input type="text" name="code" class="form-control" placeholder="6-digit code" required inputmode="numeric" pattern="\d{6}" maxlength="6" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,6)">
+                <div class="form-text small text-muted">Enter the 6-digit numeric reset code.</div>
               </div>
               <div class="mb-2">
                 <label class="form-label">New Password</label>
-                <input type="password" name="password" class="form-control" required>
+                <input type="password" name="password" class="form-control" required minlength="8">
               </div>
               <div class="mb-3">
                 <label class="form-label">Confirm Password</label>
-                <input type="password" name="confirm_password" class="form-control" required>
+                <input type="password" name="confirm_password" class="form-control" required minlength="8">
               </div>
               <div class="d-grid">
                 <button class="btn btn-primary">Set New Password</button>

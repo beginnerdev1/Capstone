@@ -8,8 +8,13 @@
             <?= csrf_field() ?>
             <div class="mb-2">
               <label class="form-label">Upload Backup ZIP</label>
-              <input type="file" id="restoreFile" name="restore_zip" accept=".zip" class="form-control form-control-sm" required>
-              <div class="form-text">Upload a previously generated backup ZIP to restore. This action can modify the database.</div>
+              <input type="file" id="restoreFile" name="restore_zip" accept=".zip,.enc" class="form-control form-control-sm" required>
+              <div class="form-text">Upload a previously generated backup ZIP to restore. Encrypted backups (server-side AES-256-GCM) are accepted as well. This action can modify the database.</div>
+              <?php if (getenv('BACKUP_ENCRYPTION_KEY')): ?>
+                <div class="form-text small text-success">Backups are encrypted on this server (server-managed key).</div>
+              <?php else: ?>
+                <div class="form-text small text-muted">Backups on this server are not encrypted. To enable server-side encryption, set the environment variable <code>BACKUP_ENCRYPTION_KEY</code> (base64 or hex 32-byte key).</div>
+              <?php endif; ?>
             </div>
             <div class="d-flex gap-2">
               <button id="btnUploadRestore" type="button" class="btn btn-warning btn-sm">Upload for Restore</button>
@@ -28,6 +33,11 @@
             <div class="mb-3">
               <label class="form-label">Create Full Backup</label>
               <div class="form-text">This will create a ZIP archive containing JSON and CSV exports of all tables.</div>
+              <?php if (getenv('BACKUP_ENCRYPTION_KEY')): ?>
+                <div class="form-text small text-success">Backups will be encrypted on creation using the server key.</div>
+              <?php else: ?>
+                <div class="form-text small text-muted">Backups will be stored unencrypted unless <code>BACKUP_ENCRYPTION_KEY</code> is configured.</div>
+              <?php endif; ?>
             </div>
             <button id="btnCreateBackup" type="submit" class="btn btn-primary">Create Backup Now</button>
           </form>

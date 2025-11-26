@@ -8,15 +8,15 @@
         <div class="row">
           <div class="col-md-4 mb-3">
             <label class="form-label">First name</label>
-            <input type="text" name="first_name" class="form-control" value="<?= esc($row['first_name'] ?? session()->get('superadmin_first_name') ?? '') ?>" required>
+            <input type="text" name="first_name" class="form-control" value="<?= esc($row['first_name'] ?? session()->get('superadmin_first_name') ?? '') ?>" required pattern="[A-Za-z\s'\-]+" maxlength="100" oninput="this.value=this.value.replace(/[^A-Za-z\s'\-]/g,'')">
           </div>
           <div class="col-md-4 mb-3">
             <label class="form-label">Middle name</label>
-            <input type="text" name="middle_name" class="form-control" value="<?= esc($row['middle_name'] ?? session()->get('superadmin_middle_name') ?? '') ?>">
+            <input type="text" name="middle_name" class="form-control" value="<?= esc($row['middle_name'] ?? session()->get('superadmin_middle_name') ?? '') ?>" pattern="[A-Za-z\s'\-]*" maxlength="100" oninput="this.value=this.value.replace(/[^A-Za-z\s'\-]/g,'')">
           </div>
           <div class="col-md-4 mb-3">
             <label class="form-label">Last name</label>
-            <input type="text" name="last_name" class="form-control" value="<?= esc($row['last_name'] ?? session()->get('superadmin_last_name') ?? '') ?>" required>
+            <input type="text" name="last_name" class="form-control" value="<?= esc($row['last_name'] ?? session()->get('superadmin_last_name') ?? '') ?>" required pattern="[A-Za-z\s'\-]+" maxlength="100" oninput="this.value=this.value.replace(/[^A-Za-z\s'\-]/g,'')">
           </div>
         </div>
 
@@ -41,10 +41,10 @@
         <div class="mb-3">
           <label class="form-label">Super Admin Code (required to change password)</label>
           <div class="input-group">
-            <input id="adminCodeInput" type="password" name="admin_code" class="form-control" placeholder="Enter your super admin code" autocomplete="off" autocapitalize="off" spellcheck="false">
+            <input id="adminCodeInput" type="password" name="admin_code" class="form-control" placeholder="Enter your super admin code" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="text" pattern="[A-Za-z0-9]+" maxlength="128" oninput="this.value=this.value.replace(/[^A-Za-z0-9]/g,'')">
             <button class="btn btn-outline-secondary" type="button" id="toggleAdminCode" aria-pressed="false" title="Show code"><i class="fas fa-eye"></i></button>
           </div>
-          <div class="form-text">Enter your super admin code when changing your password. Leave empty if not changing password.</div>
+          <div class="form-text">Enter your super admin code when changing your password. Leave empty if not changing password. Alphanumeric only.</div>
         </div>
         <div id="profileAlerts"></div>
         <div class="d-flex justify-content-end">

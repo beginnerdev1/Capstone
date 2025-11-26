@@ -15,7 +15,7 @@
 
         <form action="<?= base_url('superadmin/check-code') ?>" method="post">
             <div class="mb-3">
-                <input type="text" name="admin_code" class="form-control" placeholder="Enter Admin Code" required>
+                <input type="text" name="admin_code" class="form-control" placeholder="Enter Admin Code" required inputmode="numeric" pattern="\d{6}" maxlength="6" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,6)">
             </div>
             <button type="submit" class="btn btn-primary w-100">verify</button>
         </form>

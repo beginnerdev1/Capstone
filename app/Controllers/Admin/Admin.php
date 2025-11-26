@@ -775,7 +775,90 @@ class Admin extends BaseController
             // ignore
         }
 
-        return $this->response->setJSON(['success' => true, 'message' => 'User reactivated successfully']);
+        // Send unsuspended notification (best-effort)
+        $email_sent = false;
+        $email_driver = null;
+        $email_debug = null;
+        try {
+            $user = $this->usersModel->find($id);
+            $now = date('Y-m-d H:i:s');
+            $fromEmail = getenv('SMTP_FROM') ?: getenv('MAIL_FROM') ?: (getenv('SMTP_USER') ?: 'no-reply@localhost');
+            $fromName  = getenv('MAIL_FROM_NAME') ?: getenv('SMTP_FROM_NAME') ?: 'Support';
+            $siteUrl = rtrim(base_url(), '/');
+
+            $recipientName = trim((($info['first_name'] ?? '') . ' ' . ($info['last_name'] ?? '')) ?: '');
+            if (empty($recipientName)) {
+                $recipientName = $user['email'] ?? '';
+            }
+
+            $html = view('emails/user_unsuspended', [
+                'recipientName' => $recipientName,
+                'email' => $user['email'] ?? '',
+                'unsuspendedAt' => $now,
+                'note' => '',
+                'fromName' => $fromName,
+                'siteUrl' => $siteUrl,
+            ]);
+            $plain = "Your account has been unsuspended on {$now}. You may now sign in and use your account.";
+
+            $apiKey = getenv('BREVO_API_KEY') ?: null;
+            if ($apiKey) {
+                if (empty($user['email'])) {
+                    log_message('warning', 'Unsuspend: skipping Brevo send because user email is empty for user id ' . ($user['id'] ?? $id));
+                } else {
+                    try {
+                        log_message('info', 'Unsuspend: attempting Brevo send to ' . $user['email']);
+                        $config = \Brevo\Client\Configuration::getDefaultConfiguration()->setApiKey('api-key', $apiKey);
+                        $apiInstance = new \Brevo\Client\Api\TransactionalEmailsApi(new \GuzzleHttp\Client(), $config);
+
+                        $toEntry = ['email' => $user['email'], 'name' => (!empty($recipientName) ? $recipientName : $user['email'])];
+                        $payload = [
+                            'subject' => 'Account Restored',
+                            'sender' => ['name' => $fromName, 'email' => $fromEmail],
+                            'to' => [$toEntry],
+                            'htmlContent' => $html,
+                            'textContent' => $plain,
+                        ];
+                        $logPayload = $payload;
+                        if (isset($logPayload['htmlContent'])) $logPayload['htmlContent'] = '[HTML CONTENT]';
+                        if (isset($logPayload['textContent'])) $logPayload['textContent'] = '[TEXT CONTENT]';
+                        log_message('debug', 'Unsuspend: brevo payload: ' . json_encode($logPayload));
+
+                        $emailObj = new \Brevo\Client\Model\SendSmtpEmail($payload);
+                        $brevoResp = $apiInstance->sendTransacEmail($emailObj);
+                        $email_sent = true;
+                        $email_driver = 'brevo';
+                        log_message('info', 'Unsuspend: Brevo send succeeded for ' . $user['email']);
+                        log_message('debug', 'Unsuspend: Brevo response: ' . var_export($brevoResp, true));
+                    } catch (\Throwable $e) {
+                        $email_debug = 'brevo: ' . $e->getMessage();
+                        $respBody = null;
+                        if (method_exists($e, 'getResponse')) {
+                            try { $r = $e->getResponse(); if ($r) { $respBody = (string)$r->getBody(); } } catch (\Throwable $_) {}
+                        }
+                        log_message('error', 'Unsuspend email (brevo) failed for user ' . ($user['email'] ?? 'unknown') . ': ' . $e->getMessage() . ($respBody ? ' ResponseBody: ' . $respBody : ''));
+                        if ($respBody) $email_debug .= ' ResponseBody: ' . $respBody;
+                    }
+                }
+            }
+
+
+            // Only Brevo is used for transactional emails. If Brevo did not send the message,
+            // record the failure in logs and return that email was not sent. Do not attempt PHP mail fallback.
+            if (!$email_sent) {
+                if (empty($apiKey)) {
+                    $email_debug = 'brevo: not configured';
+                    log_message('warning', 'Unsuspend: BREVO_API_KEY not set; email not sent to ' . ($user['email'] ?? 'unknown'));
+                } else {
+                    log_message('warning', 'Unsuspend: Brevo attempted but did not send to ' . ($user['email'] ?? 'unknown') . '. Debug: ' . ($email_debug ?? ''));
+                }
+            }
+
+        } catch (\Throwable $e) {
+            log_message('error', 'Failed to send unsuspend email: ' . $e->getMessage());
+        }
+
+        return $this->response->setJSON(['success' => true, 'message' => 'User reactivated successfully', 'email_sent' => $email_sent, 'email_driver' => $email_driver, 'email_debug' => $email_debug]);
     }
 
     public function filterUsers()
@@ -1178,10 +1261,122 @@ class Admin extends BaseController
     // Suspend user account
     public function suspendUser($id)
     {
+        // Fetch user before updating so we have their email/name
+        $user = $this->usersModel->find($id);
+        $now = date('Y-m-d H:i:s');
         $this->usersModel->update($id, [
             'active' => -1,
-            'status' => 'suspended'
+            'status' => 'suspended',
+            'updated_at' => $now
         ]);
+
+        // Send suspension email (best-effort, non-blocking)
+        $email_sent = false;
+        $email_driver = null;
+        $email_debug = null;
+        try {
+
+            $fromEmail = getenv('SMTP_FROM') ?: getenv('MAIL_FROM') ?: (getenv('SMTP_USER') ?: 'no-reply@localhost');
+            $fromName  = getenv('MAIL_FROM_NAME') ?: getenv('SMTP_FROM_NAME') ?: 'Support';
+            $siteUrl = rtrim(base_url(), '/');
+            $supportUrl = $siteUrl . '/contact';
+
+            $recipientName = trim((($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: '');
+            if (empty($recipientName)) {
+                $recipientName = $user['email'] ?? '';
+            }
+            $subject = 'Account Suspended';
+            $html = view('emails/user_suspended', [
+                'recipientName' => $recipientName,
+                'email' => $user['email'] ?? '',
+                'suspendedAt' => $now,
+                'reason' => '',
+                'supportUrl' => $supportUrl,
+                'fromName' => $fromName,
+                'siteUrl' => $siteUrl,
+            ]);
+            $plain = "Your account has been suspended on {$now}. If you believe this is an error, contact support: {$supportUrl}";
+
+            // Try Brevo first
+            $apiKey = getenv('BREVO_API_KEY') ?: null;
+            if ($apiKey) {
+                if (empty($user['email'])) {
+                    log_message('warning', 'Suspension: skipping Brevo send because user email is empty for user id ' . ($user['id'] ?? $id));
+                } else {
+                    try {
+                        log_message('info', 'Suspension: attempting Brevo send to ' . $user['email']);
+                        $config = \Brevo\Client\Configuration::getDefaultConfiguration()->setApiKey('api-key', $apiKey);
+                        $apiInstance = new \Brevo\Client\Api\TransactionalEmailsApi(new \GuzzleHttp\Client(), $config);
+
+                        $toEntry = ['email' => $user['email'], 'name' => (!empty($recipientName) ? $recipientName : $user['email'])];
+                        $payload = [
+                            'subject' => $subject,
+                            'sender' => ['name' => $fromName, 'email' => $fromEmail],
+                            'to' => [$toEntry],
+                            'htmlContent' => $html,
+                            'textContent' => $plain,
+                        ];
+
+                        // Log the payload (without exposing API key)
+                        $logPayload = $payload;
+                        if (isset($logPayload['htmlContent'])) $logPayload['htmlContent'] = '[HTML CONTENT]';
+                        if (isset($logPayload['textContent'])) $logPayload['textContent'] = '[TEXT CONTENT]';
+                        log_message('debug', 'Suspension: brevo payload: ' . json_encode($logPayload));
+
+                        $emailObj = new \Brevo\Client\Model\SendSmtpEmail($payload);
+                        $brevoResp = $apiInstance->sendTransacEmail($emailObj);
+                        $email_sent = true;
+                        $email_driver = 'brevo';
+                        // Log Brevo response for tracing (var_export to avoid JSON issues)
+                        log_message('info', 'Suspension: Brevo send succeeded for ' . $user['email']);
+                        log_message('debug', 'Suspension: Brevo response: ' . var_export($brevoResp, true));
+                    } catch (\Throwable $e) {
+                        $email_debug = 'brevo: ' . $e->getMessage();
+                        // If Guzzle/Brevo response present, capture body for debugging
+                        $respBody = null;
+                        if (method_exists($e, 'getResponse')) {
+                            try {
+                                $r = $e->getResponse();
+                                if ($r) {
+                                    $respBody = (string)$r->getBody();
+                                }
+                            } catch (\Throwable $_) {
+                                // ignore
+                            }
+                        }
+                        log_message('error', 'Suspension email (brevo) failed for user ' . ($user['email'] ?? 'unknown') . ': ' . $e->getMessage() . ($respBody ? ' ResponseBody: ' . $respBody : ''));
+                        if ($respBody) {
+                            $email_debug .= ' ResponseBody: ' . $respBody;
+                        }
+                    }
+                }
+            }
+
+            // Only Brevo is used for transactional emails. If Brevo did not send the message,
+            // record the failure in logs and return that email was not sent. Do not attempt PHP mail fallback.
+            if (!$email_sent) {
+                if (empty($apiKey)) {
+                    $email_debug = 'brevo: not configured';
+                    log_message('warning', 'Suspension: BREVO_API_KEY not set; email not sent to ' . ($user['email'] ?? 'unknown'));
+                } else {
+                    log_message('warning', 'Suspension: Brevo attempted but did not send to ' . ($user['email'] ?? 'unknown') . '. Debug: ' . ($email_debug ?? ''));
+                }
+            }
+        } catch (\Throwable $e) {
+            log_message('error', 'Failed to send suspension email: ' . $e->getMessage());
+        }
+
+        // If AJAX (JSON) request, return JSON for the frontend; otherwise keep original redirect behavior
+        if ($this->request->isAJAX()) {
+            return $this->response->setJSON([
+                'success' => true,
+                'message' => 'User suspended successfully.',
+                'email_sent' => $email_sent,
+                'email_driver' => $email_driver,
+                'email_debug' => $email_debug,
+            ]);
+        }
+
         return redirect()->back()->with('success', 'User suspended successfully.');
     }
 

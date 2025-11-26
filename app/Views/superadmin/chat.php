@@ -49,7 +49,7 @@
 				<div class="card-body">
 					<form id="chat-form">
 						<div class="input-group">
-							<input type="text" id="chat-input" class="form-control" placeholder="Type message..." aria-label="Message">
+							<input type="text" id="chat-input" class="form-control" placeholder="Type message..." aria-label="Message" maxlength="2000" oninput="if(this.value.length>2000) this.value=this.value.slice(0,2000)">
 							<button class="btn btn-primary" type="submit">Send</button>
 						</div>
 					</form>

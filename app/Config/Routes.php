@@ -174,6 +174,7 @@ $routes->get('getOverduePaymentsData', 'Admin::getOverduePaymentsData');// Get O
         $routes->get('deactivateUser/(:num)', 'Admin::deactivateUser/$1');
         $routes->post('deactivateUser/(:num)', 'Admin::deactivateUser/$1');
         $routes->get('suspendUser/(:num)', 'Admin::suspendUser/$1');
+        $routes->post('suspendUser/(:num)', 'Admin::suspendUser/$1');
         // Removed duplicate/stale routes to ensure correct controller + data
         // $routes->get('reports', 'Reports::index');
         // $routes->get('charts', 'Admin::charts');

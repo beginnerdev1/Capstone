@@ -37,3 +37,13 @@ body.bg-gradient-primary {
 .text-muted small {
   font-size: 0.85rem;
 }
+
+/* Smaller inputs specifically for the login card to match verification page sizing */
+.login-card .form-control {
+  font-size: 0.95rem;
+  padding: 0.35rem 0.6rem;
+  height: calc(1.5em + 0.7rem + 2px);
+}
+.login-card .form-floating > .form-control {
+  padding: 0.35rem 0.6rem;
+}
