@@ -124,8 +124,9 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .stat-card:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 15px 40px rgba(0,0,0,0.15);
+  /* Disable hover motion but keep the accent bar and colors */
+  transform: none;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
 }
 
 .stat-icon {
@@ -184,8 +185,9 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .quick-action-card:hover {
-  transform: translateY(-8px) scale(1.05);
-  box-shadow: var(--card-shadow-hover);
+  /* Disable quick-action hover visual changes while keeping colors */
+  transform: none;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
   text-decoration: none;
 }
 
