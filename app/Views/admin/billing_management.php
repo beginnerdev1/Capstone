@@ -401,6 +401,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="ubill-wrapper">
         <div class="ubill-header">
@@ -566,7 +567,7 @@
                     </div>
                     <div class="ubill-form-group">
                         <label class="ubill-form-label">💰 Amount (₱)</label>
-                        <input type="number" id="manual-billing-amount" class="ubill-form-input" placeholder="e.g., 60.00" step="0.01" min="1" required>
+                        <input type="number" id="manual-billing-amount" class="ubill-form-input" placeholder="e.g., 60.00" step="0.01" min="1" required readonly aria-readonly="true" title="Auto-calculated amount (read-only)">
                     </div>
                 </div>
 
