@@ -124,103 +124,98 @@ public function getAccountStatus()
     }
 
  
-    // Update or insert profile info AJAX - Done
-    public function updateProfile()
-    {
-        try {
-            $userId = session()->get('user_id');
-            $userModel = new \App\Models\UsersModel();
+    // Update profile via AJAX - Done
+public function updateProfile()
+{
+    try {
+        $userId = session()->get('user_id');
+        $userModel = new \App\Models\UsersModel();
 
-            if (!$userModel->find($userId)) {
-                return $this->response->setJSON([
-                    'status' => 'error',
-                    'message' => 'User does not exist'
-                ]);
-            }
-
-            $data = [
-                'first_name'    => $this->request->getPost('first_name'),
-                'last_name'     => $this->request->getPost('last_name'),
-                'phone'         => $this->request->getPost('phone'),
-                'gender'        => $this->request->getPost('gender'),
-                'age'           => $this->request->getPost('age'),
-                'family_number' => $this->request->getPost('family_number'),
-                'purok'         => $this->request->getPost('purok'),
-                'barangay'      => $this->request->getPost('barangay'),
-                'municipality'  => $this->request->getPost('municipality'),
-                'province'      => $this->request->getPost('province'),
-                'zipcode'       => $this->request->getPost('zipcode'),
-            ];
-
-            $file = $this->request->getFile('profile_picture');
-            if ($file && $file->isValid() && !$file->hasMoved()) {
-                $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-                $maxSize = 5 * 1024 * 1024;
-                $uploadDir = 'uploads/profile_pictures';
-
-                if (!in_array($file->getMimeType(), $allowedMimes)) {
-                    return $this->response->setJSON([
-                        'status' => 'error',
-                        'message' => 'Invalid file type.'
-                    ]);
-                }
-
-                if ($file->getSize() > $maxSize) {
-                    return $this->response->setJSON([
-                        'status' => 'error',
-                        'message' => 'File size exceeds 5MB.'
-                    ]);
-                }
-
-                $extension = strtolower($file->getClientExtension());
-                $validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-                if (!in_array($extension, $validExtensions)) {
-                    return $this->response->setJSON([
-                        'status' => 'error',
-                        'message' => 'Invalid file extension.'
-                    ]);
-                }
-
-                if (!is_dir($uploadDir)) {
-                    mkdir($uploadDir, 0755, true);
-                }
-
-                $newName = time() . '_' . uniqid() . '.' . $extension;
-                $file->move($uploadDir, $newName);
-                $data['profile_picture'] = $newName;
-            }
-
-            $userInfoModel = model('UserInformationModel');
-            $result = $userInfoModel->saveUserInfo($userId, $data);
-
-            if (isset($result['success']) && $result['success'] === true) {
-                // Mark profile as complete. Do NOT change account status to pending when user edits their profile.
-                // Previously the code set 'status' => 'pending' here which forced the account back to pending
-                // after any profile edit. Commenting that out to preserve admin-set/approved status.
-                $userModel->update($userId, [
-                    'profile_complete' => 1,
-                    // 'status' => 'pending' // intentionally disabled
-                ]);
-
-                return $this->response->setJSON([
-                    'status' => 'success',
-                    'message' => 'Profile updated successfully'
-                ]);
-            }
-
+        if (!$userModel->find($userId)) {
             return $this->response->setJSON([
                 'status' => 'error',
-                'message' => 'Failed to update profile'
-            ]);
-
-        } catch (\Exception $e) {
-            log_message('error', 'UpdateProfile Exception: ' . $e->getMessage());
-            return $this->response->setJSON([
-                'status' => 'error',
-                'message' => 'An unexpected error occurred'
+                'message' => 'User does not exist'
             ]);
         }
+
+        // Only editable field: phone
+        $phone = $this->request->getPost('phone');
+
+        // Validate phone: exactly 11 digits
+        if (!preg_match('/^\d{11}$/', $phone)) {
+            return $this->response->setJSON([
+                'status' => 'error',
+                'message' => 'Phone number must be exactly 11 digits'
+            ]);
+        }
+
+        $data = [
+            'phone' => $phone,
+        ];
+
+        // Keep original profile picture upload logic unchanged
+        $file = $this->request->getFile('profile_picture');
+        if ($file && $file->isValid() && !$file->hasMoved()) {
+            $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+            $maxSize = 5 * 1024 * 1024;
+            $uploadDir = 'uploads/profile_pictures';
+
+            if (!in_array($file->getMimeType(), $allowedMimes)) {
+                return $this->response->setJSON([
+                    'status' => 'error',
+                    'message' => 'Invalid file type.'
+                ]);
+            }
+
+            if ($file->getSize() > $maxSize) {
+                return $this->response->setJSON([
+                    'status' => 'error',
+                    'message' => 'File size exceeds 5MB.'
+                ]);
+            }
+
+            $extension = strtolower($file->getClientExtension());
+            $validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+            if (!in_array($extension, $validExtensions)) {
+                return $this->response->setJSON([
+                    'status' => 'error',
+                    'message' => 'Invalid file extension.'
+                ]);
+            }
+
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0755, true);
+            }
+
+            $newName = time() . '_' . uniqid() . '.' . $extension;
+            $file->move($uploadDir, $newName);
+            $data['profile_picture'] = $newName;
+        }
+
+        $userInfoModel = model('UserInformationModel');
+        $result = $userInfoModel->saveUserInfo($userId, $data);
+
+        if (isset($result['success']) && $result['success'] === true) {
+            $userModel->update($userId, ['profile_complete' => 1]);
+            return $this->response->setJSON([
+                'status' => 'success',
+                'message' => 'Profile updated successfully'
+            ]);
+        }
+
+        return $this->response->setJSON([
+            'status' => 'error',
+            'message' => 'Failed to update profile'
+        ]);
+
+    } catch (\Exception $e) {
+        log_message('error', 'UpdateProfile Exception: ' . $e->getMessage());
+        return $this->response->setJSON([
+            'status' => 'error',
+            'message' => 'An unexpected error occurred'
+        ]);
     }
+}
 
 
     // Return profile info via AJAX - Done

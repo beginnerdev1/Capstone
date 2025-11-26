@@ -966,7 +966,7 @@
                 <i class="bi bi-person"></i>
                 First Name
               </label>
-              <input type="text" class="form-control" name="first_name" id="firstName" required>
+              <input type="text" class="form-control" name="first_name" id="firstName" required readonly>
             </div>
 
             <div class="col-md-6">
@@ -974,7 +974,7 @@
                 <i class="bi bi-person"></i>
                 Last Name
               </label>
-              <input type="text" class="form-control" name="last_name" id="lastName" required>
+              <input type="text" class="form-control" name="last_name" id="lastName" required readonly>
             </div>
 
             <div class="col-md-6">
@@ -982,7 +982,7 @@
                 <i class="bi bi-gender-ambiguous"></i>
                 Gender
               </label>
-              <select class="form-select" name="gender" id="gender" required>
+              <select class="form-select" name="gender" id="gender" required disabled>
                 <option value="">Select Gender</option>
                 <option>Male</option>
                 <option>Female</option>
@@ -995,7 +995,7 @@
                 <i class="bi bi-calendar3"></i>
                 Age
               </label>
-              <input type="number" class="form-control" name="age" id="age" min="1" max="120" required>
+              <input type="number" class="form-control" name="age" id="age" min="1" max="120" required readonly>
             </div>
 
             <div class="col-md-6">
@@ -1003,7 +1003,7 @@
                 <i class="bi bi-house"></i>
                 Family Number
               </label>
-              <input type="number" class="form-control" name="family_number" id="familyNumber" min="1" max="20" required>
+              <input type="number" class="form-control" name="family_number" id="familyNumber" min="1" max="20" required readonly>
             </div>
 
             <div class="col-md-6">
@@ -1011,15 +1011,23 @@
                 <i class="bi bi-telephone"></i>
                 Contact Number
               </label>
-              <input type="text" class="form-control" name="phone" id="phone" required>
+              <input 
+                type="tel" 
+                class="form-control" 
+                name="phone" 
+                id="phone" 
+                required 
+                maxlength="11" 
+                minlength="11" 
+                pattern="[0-9]{11}"
+              >
             </div>
-
             <div class="col-md-6">
               <label class="form-label">
                 <i class="bi bi-geo-alt"></i>
                 Purok
               </label>
-              <select class="form-select" name="purok" id="purok" required>
+              <select class="form-select" name="purok" id="purok" required disabled>
                 <option value="">Select Purok</option>
                 <option value="1">1</option>
                 <option value="2">2</option>
@@ -1029,6 +1037,7 @@
                 <option value="6">6</option>
                 <option value="7">7</option>
               </select>
+
             </div>
 
             <div class="col-md-6">

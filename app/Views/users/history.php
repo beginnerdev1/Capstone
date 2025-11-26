@@ -42,6 +42,8 @@
       background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
       min-height: 100vh;
       padding-top: 90px;
+      display: flex; /* allow footer sticky and vertical centering */
+      flex-direction: column;
     }
 
     /* Page Header */
@@ -80,32 +82,32 @@
       font-size: 1.1rem;
       font-weight: 400;
     }
-
-    /* Main Container - Increased width and Centering */
+    /* Main Container - center child (.history-container) without changing its width/height */
     #main {
-      max-width: 1400px; /* Overall max width */
-      margin: 0 auto; /* Centers #main on the body */
+      max-width: 1400px; /* overall max */
+      margin: 0 auto; /* horizontally center within the viewport */
       padding: 0 1rem;
       position: relative;
-      display: flex; 
-      justify-content: center; /* Centers children inside #main */
-      align-items: flex-start;
+      display: flex;
+      justify-content: center; /* horizontal centering of the card */
+      align-items: center; /* vertical centering of the card */
+      flex: 1 1 auto; /* fill remaining space so footer stays pinned */
+      min-height: calc(100vh - 260px); /* account for hero + footer so centering is visible */
     }
 
-    /* History Container - Increased width */
     .history-container {
       background: white;
       border-radius: var(--border-radius);
-      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12); 
-      overflow: hidden; 
-      margin-top: 0;
+      box-shadow: 0 24px 60px rgba(15, 23, 42, 0.14);
+      overflow: hidden;
+      margin: 0 auto; /* center inside #main */
       position: relative;
       z-index: 10;
-      min-height: 300px;
-      max-width: 900px; /* Increased card width */
-      width: 100%; 
-      padding: 0; 
-      box-sizing: border-box; 
+      min-height: 460px; /* keep card tall */
+      width: min(1100px, 88%); /* responsive width */
+      min-width: 680px; /* avoid being very narrow on wide screens */
+      padding: 0;
+      box-sizing: border-box;
     }
 
     .history-header {
@@ -216,14 +218,14 @@
 
     /* Transaction List */
     .transaction-list {
-      max-height: 70vh;
+      max-height: 65vh; /* slightly larger to show more items */
       overflow-y: auto;
       position: relative;
       background: white;
       border-bottom-left-radius: var(--border-radius);
       border-bottom-right-radius: var(--border-radius);
-      min-height: 200px;
-      padding: 0 18px 18px; 
+      min-height: 340px; /* keep a substantial floor */
+      padding: 0 28px 28px; /* more inner spacing */
     }
 
     .history-subheader {
@@ -645,13 +647,17 @@
     }
 
     @media (max-width: 1024px) { 
-        #main {
-            max-width: 95%; 
-            padding: 0 1rem; 
-        }
-        .history-container {
-            max-width: 800px; 
-        }
+      #main {
+        max-width: 95%; 
+        padding: 0 1rem; 
+        min-height: calc(100vh - 220px);
+      }
+      .history-container {
+        width: 95%;
+        min-width: unset; /* allow card to scale down */
+        max-width: 800px; 
+        min-height: 380px; /* slightly smaller for smaller viewports */
+      }
     }
 
     @media (max-width: 768px) {
@@ -995,7 +1001,7 @@
     </div>
   </main>
 
-<!-- MODALS: Move all modals here, outside the history-container and main -->
+  <!-- MODALS: Move all modals here, outside the history-container and main -->
   <?php if (!empty($payments)): ?>
     <?php
     foreach ($payments as $index => $payment):
@@ -1007,21 +1013,8 @@
             $payment['transaction_status'] ??
             ''
           ));
-        
-        // Get carryover and current balance
-        $carryover = floatval($payment['carryover'] ?? $payment['carryover_balance'] ?? 0);
-        $currentBalance = floatval($payment['balance'] ?? $payment['current_balance'] ?? 0);
-        
-        // Calculate total bill amount as carryover + current balance
-        $totalDue = $carryover + $currentBalance;
-        
-        // If totalDue is still 0, fallback to original logic
-        if ($totalDue == 0) {
-          $totalDue = floatval($payment['bill_amount'] ?? $payment['total_amount'] ?? $payment['amount_due'] ?? 0);
-        }
-        
+        $totalDue = floatval($payment['bill_amount'] ?? $payment['total_amount'] ?? $payment['amount_due'] ?? 0);
         $paidAmount = floatval($payment['amount'] ?? 0);
-        
           // Improved partial payment detection for modal
           $isPartial = (strpos($rawStatus, 'partial') !== false) || ($totalDue > 0 && $paidAmount > 0 && $paidAmount < $totalDue);
           if ($rawStatus === 'paid' && $totalDue > 0 && $paidAmount > 0 && $paidAmount < $totalDue) {
@@ -1113,26 +1106,10 @@
             <div class="receipt-item">
               <span class="receipt-label">
                 <i class="bi bi-bank text-primary"></i>
-                Total Bill Amount
+                Original Bill Amount
               </span>
               <span class="receipt-value">₱<?= number_format($totalDue, 2) ?></span>
             </div>
-            <?php if ($carryover > 0 || $currentBalance > 0): ?>
-            <div class="receipt-item" style="padding-left: 20px; font-size: 0.9em; color: #6c757d;">
-              <span class="receipt-label">
-                <i class="bi bi-arrow-return-right text-muted"></i>
-                Carryover
-              </span>
-              <span class="receipt-value">₱<?= number_format($carryover, 2) ?></span>
-            </div>
-            <div class="receipt-item" style="padding-left: 20px; font-size: 0.9em; color: #6c757d;">
-              <span class="receipt-label">
-                <i class="bi bi-arrow-return-right text-muted"></i>
-                Current Balance
-              </span>
-              <span class="receipt-value">₱<?= number_format($currentBalance, 2) ?></span>
-            </div>
-            <?php endif; ?>
             <?php endif; ?>
             <?php if ($remaining !== null): ?>
             <div class="receipt-item">
@@ -1176,8 +1153,9 @@
     </div>
     <?php endforeach; ?>
   <?php endif; ?>
+
   <div class="content-footer-spacer"></div>
-  <?= $this->include('Users/footer') ?>
+
   <a href="#" id="scrollTop" class="scroll-top">
     <i class="bi bi-arrow-up"></i>
   </a>
