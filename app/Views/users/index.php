@@ -125,12 +125,13 @@
       transform: scaleX(0);
       transition: transform 0.3s ease;
     }
+    /* Remove hover motion/visuals but keep color/gradients */
     .stat-card:hover {
-      transform: translateY(-10px) scale(1.02);
-      box-shadow: var(--card-shadow-hover);
+      transform: none;
+      box-shadow: var(--card-shadow);
     }
     .stat-card:hover::before {
-      transform: scaleX(1);
+      transform: scaleX(0);
     }
     .stat-icon {
       width: 80px;
@@ -155,7 +156,7 @@
       transition: left 0.6s;
     }
     .stat-card:hover .stat-icon::before {
-      left: 100%;
+      left: -100%;
     }
     .stat-value {
       font-size: 2.8rem;
@@ -209,14 +210,16 @@
       opacity: 0;
       transition: opacity 0.3s ease;
     }
+    /* Keep quick-action colors but disable hover animations */
     .quick-action-card:hover {
-      transform: translateY(-8px) scale(1.05);
-      box-shadow: var(--card-shadow-hover);
-      color: white;
+      transform: none;
+      box-shadow: var(--card-shadow);
       text-decoration: none;
     }
     .quick-action-card:hover::before {
+      /* show color overlay on hover, keep no movement */
       opacity: 1;
+      filter: saturate(1.05) brightness(0.92);
     }
     .quick-action-card > * {
       position: relative;
@@ -595,7 +598,7 @@
               </div>
               <div class="stat-value" id="pendingBills">0</div>
               <div class="small text-muted mt-2" id="pendingDetailsLine">
-                <i class="bi bi-info-circle me-1"></i>Details
+                <!--<i class="bi bi-info-circle me-1"></i>Details-->
               </div>
               <div class="stat-label">Pending Bills</div>
               <div class="stat-trend" id="pendingTrend">
