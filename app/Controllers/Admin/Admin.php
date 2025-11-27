@@ -85,18 +85,40 @@ class Admin extends BaseController
         
         if ($data === null) {
             try {
-                // === Billing data (optimized with single query) ===
+                // === Billing data (includes archived billings so deactivated users are counted) ===
                 $currentYear = date('Y');
                 $currentMonth = date('m');
-                
-                // Get annual and monthly totals in one query
-                $billingStats = $this->billingModel
-                    ->select("SUM(amount_due) as annual_total,
-                             SUM(CASE WHEN MONTH(billings.updated_at) = {$currentMonth} THEN amount_due ELSE 0 END) as monthly_total")
-                    ->whereIn('status', ['Paid', 'Over the Counter'])
-                    ->where('YEAR(billings.updated_at)', $currentYear)
-                    ->get()
-                    ->getRow();
+
+                // Connect to DB and prepare status list
+                $db = \Config\Database::connect();
+                $statuses = ['Paid', 'Over the Counter'];
+
+                try {
+                    if ($db->tableExists('archived_billings')) {
+                        // Aggregate across both tables using UNION ALL
+                        $statusList = "'" . implode("','", $statuses) . "'";
+                        $sql = "SELECT COALESCE(SUM(amount_due),0) AS annual_total,
+                                       COALESCE(SUM(CASE WHEN MONTH(dt) = {$currentMonth} THEN amount_due ELSE 0 END),0) AS monthly_total
+                                FROM (
+                                    SELECT amount_due, updated_at AS dt FROM billings WHERE status IN ({$statusList}) AND YEAR(updated_at) = ?
+                                    UNION ALL
+                                    SELECT amount_due, updated_at AS dt FROM archived_billings WHERE status IN ({$statusList}) AND YEAR(updated_at) = ?
+                                ) t";
+
+                        $billingStats = $db->query($sql, [$currentYear, $currentYear])->getRow();
+                    } else {
+                        // archived table not present: fall back to single-table query
+                        $billingStats = $this->billingModel
+                            ->select("SUM(amount_due) as annual_total, SUM(CASE WHEN MONTH(billings.updated_at) = {$currentMonth} THEN amount_due ELSE 0 END) as monthly_total")
+                            ->whereIn('status', $statuses)
+                            ->where('YEAR(billings.updated_at)', $currentYear)
+                            ->get()
+                            ->getRow();
+                    }
+                } catch (\Throwable $e) {
+                    log_message('warning', 'Dashboard billing aggregation failed: ' . $e->getMessage());
+                    $billingStats = null;
+                }
 
                 $totalCollected = $billingStats ? (float)$billingStats->annual_total : 0;
                 $monthlyTotal = $billingStats ? (float)$billingStats->monthly_total : 0;
@@ -113,54 +135,85 @@ class Admin extends BaseController
                 $pending = $userStats ? (int)$userStats->pending : 0;
                 $inactive = $userStats ? (int)$userStats->inactive : 0;
 
-                // === Monthly income data (for charts) ===
-                $query = $this->billingModel->select("
-                        DATE_FORMAT(billings.updated_at, '%b') AS month,
-                        MONTH(billings.updated_at) AS month_num,
-                        SUM(amount_due) AS total
-                    ")
-                    ->whereIn('status', ['Paid', 'Over the Counter'])
-                    ->where('YEAR(billings.updated_at)', $currentYear)
-                    ->groupBy('MONTH(billings.updated_at)')
-                    ->orderBy('MONTH(billings.updated_at)', 'ASC')
-                    ->get();
-
+                // === Monthly income data (combine active + archived billings if available) ===
                 $allMonths = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
                 $monthlyTotals = array_fill(0, 12, 0);
 
-                foreach ($query->getResultArray() as $row) {
-                    $monthIndex = (int)$row['month_num'] - 1;
-                    $monthlyTotals[$monthIndex] = (float)$row['total'];
+                try {
+                    // Active billings
+                    $activeQuery = $this->billingModel->select("DATE_FORMAT(updated_at, '%b') AS month, MONTH(updated_at) AS month_num, SUM(amount_due) AS total")
+                        ->whereIn('status', $statuses)
+                        ->where('YEAR(updated_at)', $currentYear)
+                        ->groupBy('MONTH(updated_at)')
+                        ->orderBy('MONTH(updated_at)', 'ASC')
+                        ->get();
+
+                    foreach ($activeQuery->getResultArray() as $row) {
+                        $monthIndex = (int)$row['month_num'] - 1;
+                        $monthlyTotals[$monthIndex] += (float)$row['total'];
+                    }
+
+                    // Archived billings
+                    if ($db->tableExists('archived_billings')) {
+                        $archived = $db->table('archived_billings')
+                            ->select("DATE_FORMAT(updated_at, '%b') AS month, MONTH(updated_at) AS month_num, SUM(amount_due) AS total")
+                            ->whereIn('status', $statuses)
+                            ->where('YEAR(updated_at)', $currentYear)
+                            ->groupBy('MONTH(updated_at)')
+                            ->orderBy('MONTH(updated_at)', 'ASC')
+                            ->get()
+                            ->getResultArray();
+
+                        foreach ($archived as $row) {
+                            $monthIndex = (int)$row['month_num'] - 1;
+                            $monthlyTotals[$monthIndex] += (float)$row['total'];
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    log_message('warning', 'Dashboard monthly totals aggregation failed: ' . $e->getMessage());
                 }
 
-                // === Revenue breakdown by rate category ===
-                // Normal Rate: ₱60 (default users)
-                // Senior Citizen Rate: ₱48 (age >= 60)
-                // Living Alone Rate: ₱30 (family_number = 1)
-                $revenueQuery = $this->billingModel
-                    ->select("
-                        SUM(CASE 
-                            WHEN user_information.family_number = 1 THEN billings.amount_due 
-                            ELSE 0 
-                        END) as alone_revenue,
-                        SUM(CASE 
-                            WHEN user_information.age >= 60 AND user_information.family_number != 1 THEN billings.amount_due 
-                            ELSE 0 
-                        END) as senior_revenue,
-                        SUM(CASE 
-                            WHEN (user_information.age < 60 OR user_information.age IS NULL) AND user_information.family_number != 1 THEN billings.amount_due 
-                            ELSE 0 
-                        END) as normal_revenue
-                    ")
-                    ->join('user_information', 'user_information.user_id = billings.user_id', 'left')
-                    ->whereIn('billings.status', ['Paid', 'Over the Counter'])
-                    ->where('YEAR(billings.updated_at)', $currentYear)
-                    ->get()
-                    ->getRow();
+                // === Revenue breakdown by rate category (combine active + archived) ===
+                $aloneRevenue = $seniorRevenue = $normalRevenue = 0;
+                try {
+                    // Active
+                    $r1 = $this->billingModel
+                        ->select("SUM(CASE WHEN user_information.family_number = 1 THEN billings.amount_due ELSE 0 END) as alone_revenue,
+                                   SUM(CASE WHEN user_information.age >= 60 AND user_information.family_number != 1 THEN billings.amount_due ELSE 0 END) as senior_revenue,
+                                   SUM(CASE WHEN (user_information.age < 60 OR user_information.age IS NULL) AND user_information.family_number != 1 THEN billings.amount_due ELSE 0 END) as normal_revenue")
+                        ->join('user_information', 'user_information.user_id = billings.user_id', 'left')
+                        ->whereIn('billings.status', $statuses)
+                        ->where('YEAR(billings.updated_at)', $currentYear)
+                        ->get()
+                        ->getRow();
 
-                $aloneRevenue = $revenueQuery ? (float)$revenueQuery->alone_revenue : 0;
-                $seniorRevenue = $revenueQuery ? (float)$revenueQuery->senior_revenue : 0;
-                $normalRevenue = $revenueQuery ? (float)$revenueQuery->normal_revenue : 0;
+                    if ($r1) {
+                        $aloneRevenue += (float)($r1->alone_revenue ?? 0);
+                        $seniorRevenue += (float)($r1->senior_revenue ?? 0);
+                        $normalRevenue += (float)($r1->normal_revenue ?? 0);
+                    }
+
+                    // Archived
+                    if ($db->tableExists('archived_billings')) {
+                        $r2 = $db->table('archived_billings')
+                            ->select("SUM(CASE WHEN ui.family_number = 1 THEN archived_billings.amount_due ELSE 0 END) as alone_revenue,
+                                       SUM(CASE WHEN ui.age >= 60 AND ui.family_number != 1 THEN archived_billings.amount_due ELSE 0 END) as senior_revenue,
+                                       SUM(CASE WHEN (ui.age < 60 OR ui.age IS NULL) AND ui.family_number != 1 THEN archived_billings.amount_due ELSE 0 END) as normal_revenue")
+                            ->join('user_information ui', 'ui.user_id = archived_billings.user_id', 'left')
+                            ->whereIn('archived_billings.status', $statuses)
+                            ->where('YEAR(archived_billings.updated_at)', $currentYear)
+                            ->get()
+                            ->getRow();
+
+                        if ($r2) {
+                            $aloneRevenue += (float)($r2->alone_revenue ?? 0);
+                            $seniorRevenue += (float)($r2->senior_revenue ?? 0);
+                            $normalRevenue += (float)($r2->normal_revenue ?? 0);
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    log_message('warning', 'Dashboard revenue aggregation failed: ' . $e->getMessage());
+                }
 
                 $data = [
                     'months' => json_encode($allMonths),
@@ -169,6 +222,20 @@ class Admin extends BaseController
                     'monthlyTotal' => $monthlyTotal,
                     'active' => $active,
                     'pending' => $pending,
+                    // Pending payments (count of pending billings including archived)
+                    'pendingPayments' => (function() {
+                        try {
+                            $db = \Config\Database::connect();
+                            $c1 = (int) $db->table('billings')->where('status', 'Pending')->countAllResults();
+                            $c2 = 0;
+                            if ($db->tableExists('archived_billings')) {
+                                $c2 = (int) $db->table('archived_billings')->where('status', 'Pending')->countAllResults();
+                            }
+                            return $c1 + $c2;
+                        } catch (\Throwable $_) {
+                            return 0;
+                        }
+                    })(),
                     'inactive' => $inactive,
                     'normalRevenue' => $normalRevenue,
                     'seniorRevenue' => $seniorRevenue,
@@ -3898,66 +3965,74 @@ public function createManualBilling()
         // Expected monthly collection
         $monthlyExpected = ($normalCount * $rateNormal) + ($seniorCount * $rateSenior) + ($aloneCount * $rateAlone);
         
-        // Collection within selected date range
-        $currentMonthCollected = $this->billingModel
-            ->where('billings.status', 'Paid')
-            ->where('DATE(billings.updated_at) >=', $startDate)
-            ->where('DATE(billings.updated_at) <=', $endDate)
+        // Collection within selected date range (include archived_billings)
+        $db = \Config\Database::connect();
+        $row1 = $db->table('billings')
+            ->where('status', 'Paid')
+            ->where('DATE(updated_at) >=', $startDate)
+            ->where('DATE(updated_at) <=', $endDate)
             ->selectSum('amount_due')
             ->get()
-            ->getRow()
-            ->amount_due ?? 0;
+            ->getRow();
+        $row2 = $db->table('archived_billings')
+            ->where('status', 'Paid')
+            ->where('DATE(updated_at) >=', $startDate)
+            ->where('DATE(updated_at) <=', $endDate)
+            ->selectSum('amount_due')
+            ->get()
+            ->getRow();
+
+        $currentMonthCollected = (float)(($row1 && isset($row1->amount_due) ? $row1->amount_due : 0) + ($row2 && isset($row2->amount_due) ? $row2->amount_due : 0));
         
         // Paid households in range (distinct users), based on updated_at
-        $paidHouseholds = (int)($this->billingModel
-            ->select('COUNT(DISTINCT user_id) as c')
-            ->where('billings.status', 'Paid')
-            ->where('DATE(billings.updated_at) >=', $startDate)
-            ->where('DATE(billings.updated_at) <=', $endDate)
-            ->get()
-            ->getRow()->c ?? 0);
+        // Paid households in range (distinct users) across both active and archived billings
+        $sql = "SELECT COUNT(DISTINCT user_id) as c FROM (
+                    SELECT user_id FROM billings WHERE status = 'Paid' AND DATE(updated_at) >= ? AND DATE(updated_at) <= ?
+                    UNION
+                    SELECT user_id FROM archived_billings WHERE status = 'Paid' AND DATE(updated_at) >= ? AND DATE(updated_at) <= ?
+                ) as t";
+        $paidHouseholds = (int)($db->query($sql, [$startDate, $endDate, $startDate, $endDate])->getRow()->c ?? 0);
 
-        // Partial payments count (distinct users with status 'Partial')
-        $partialCount = (int)($this->billingModel
-            ->select('COUNT(DISTINCT user_id) as c')
-            ->where('billings.status', 'Partial')
-            ->where('DATE(billings.updated_at) >=', $startDate)
-            ->where('DATE(billings.updated_at) <=', $endDate)
-            ->get()
-            ->getRow()->c ?? 0);
-
-        // Partial payments: distinct users with billing status 'Partial' in range
-        $partialCount = (int)($this->billingModel
-            ->select('COUNT(DISTINCT user_id) as c')
-            ->where('billings.status', 'Partial')
-            ->where('DATE(billings.updated_at) >=', $startDate)
-            ->where('DATE(billings.updated_at) <=', $endDate)
-            ->get()
-            ->getRow()->c ?? 0);
+        // Partial payments distinct users (include archived)
+        $sql = "SELECT COUNT(DISTINCT user_id) as c FROM (
+                    SELECT user_id FROM billings WHERE status = 'Partial' AND DATE(updated_at) >= ? AND DATE(updated_at) <= ?
+                    UNION
+                    SELECT user_id FROM archived_billings WHERE status = 'Partial' AND DATE(updated_at) >= ? AND DATE(updated_at) <= ?
+                ) as t";
+        $partialCount = (int)($db->query($sql, [$startDate, $endDate, $startDate, $endDate])->getRow()->c ?? 0);
         
-        // Pending amount and count (range)
-        $pendingAmount = (float)($this->billingModel
-            ->where('billings.status', 'Pending')
-            ->where('DATE(billings.updated_at) >=', $startDate)
-            ->where('DATE(billings.updated_at) <=', $endDate)
+        // Pending amount and count (range) across both tables
+        $rowA = $db->table('billings')
+            ->where('status', 'Pending')
+            ->where('DATE(updated_at) >=', $startDate)
+            ->where('DATE(updated_at) <=', $endDate)
             ->selectSum('amount_due')
             ->get()
-            ->getRow()
-            ->amount_due ?? 0);
+            ->getRow();
+        $rowB = $db->table('archived_billings')
+            ->where('status', 'Pending')
+            ->where('DATE(updated_at) >=', $startDate)
+            ->where('DATE(updated_at) <=', $endDate)
+            ->selectSum('amount_due')
+            ->get()
+            ->getRow();
 
-        $pendingCount = (int)($this->billingModel
-            ->where('billings.status', 'Pending')
-            ->where('DATE(billings.updated_at) >=', $startDate)
-            ->where('DATE(billings.updated_at) <=', $endDate)
-            ->countAllResults());
+        $pendingAmount = (float)(($rowA && isset($rowA->amount_due) ? $rowA->amount_due : 0) + ($rowB && isset($rowB->amount_due) ? $rowB->amount_due : 0));
+
+        $sql = "SELECT COUNT(*) as c FROM (
+                    SELECT id FROM billings WHERE status = 'Pending' AND DATE(updated_at) >= ? AND DATE(updated_at) <= ?
+                    UNION ALL
+                    SELECT id FROM archived_billings WHERE status = 'Pending' AND DATE(updated_at) >= ? AND DATE(updated_at) <= ?
+                ) as t";
+        $pendingCount = (int)($db->query($sql, [$startDate, $endDate, $startDate, $endDate])->getRow()->c ?? 0);
         
-        // Late payments (overdue)
-        $latePayments = $this->billingModel
-            ->where('billings.status', 'Pending')
-            ->where('due_date <', date('Y-m-d'))
-            ->where('DATE(due_date) >=', $startDate)
-            ->where('DATE(due_date) <=', $endDate)
-            ->countAllResults();
+        // Late payments (overdue) across both tables
+        $sql = "SELECT COUNT(*) as c FROM (
+                    SELECT id FROM billings WHERE status = 'Pending' AND due_date < ? AND DATE(due_date) >= ? AND DATE(due_date) <= ?
+                    UNION ALL
+                    SELECT id FROM archived_billings WHERE status = 'Pending' AND due_date < ? AND DATE(due_date) >= ? AND DATE(due_date) <= ?
+                ) as t";
+        $latePayments = (int)($db->query($sql, [date('Y-m-d'), $startDate, $endDate, date('Y-m-d'), $startDate, $endDate])->getRow()->c ?? 0);
         
         // If no data for current month, fallback to Year-To-Date for status overview
         $statusScope = 'RANGE';
@@ -3966,16 +4041,15 @@ public function createManualBilling()
         $collectionRate = $totalHouseholds > 0 ? round(($paidHouseholds / $totalHouseholds) * 100, 1) : 0;
         
         // Monthly collection rates and amounts for chart (within range)
-        $monthlyData = $this->billingModel
-            ->select("YEAR(billings.updated_at) as y, MONTH(billings.updated_at) as month_num, COUNT(DISTINCT user_id) as paid_count, SUM(amount_due) as total_amount")
-            ->where('billings.status', 'Paid')
-            ->where('DATE(billings.updated_at) >=', $startDate)
-            ->where('DATE(billings.updated_at) <=', $endDate)
-            ->groupBy('YEAR(billings.updated_at), MONTH(billings.updated_at)')
-            ->orderBy('YEAR(billings.updated_at)', 'ASC')
-            ->orderBy('MONTH(billings.updated_at)', 'ASC')
-            ->get()
-            ->getResultArray();
+        // Monthly collection rates and amounts for chart (within range) - aggregate active + archived
+        $sql = "SELECT YEAR(dt) as y, MONTH(dt) as month_num, COUNT(DISTINCT user_id) as paid_count, SUM(amount_due) as total_amount FROM (
+                    SELECT user_id, amount_due, updated_at as dt FROM billings WHERE status = 'Paid' AND DATE(updated_at) >= ? AND DATE(updated_at) <= ?
+                    UNION ALL
+                    SELECT user_id, amount_due, updated_at as dt FROM archived_billings WHERE status = 'Paid' AND DATE(updated_at) >= ? AND DATE(updated_at) <= ?
+                ) t
+                GROUP BY YEAR(dt), MONTH(dt)
+                ORDER BY YEAR(dt) ASC, MONTH(dt) ASC";
+        $monthlyData = $db->query($sql, [$startDate, $endDate, $startDate, $endDate])->getResultArray();
         
         $collectionRates = array_fill(0, 12, 0);
         $collectionAmounts = array_fill(0, 12, 0);

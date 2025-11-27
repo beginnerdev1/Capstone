@@ -250,14 +250,14 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
             </div>
 
             <div class="stat-card">
-                <div class="stat-content">
-                    <div class="stat-label">Pending Requests</div>
-                    <div class="stat-value"><?= number_format($pending ?? 0) ?></div>
-                    <div class="stat-description">Requires review</div>
-                </div>
-                <div class="stat-icon-wrapper orange" aria-hidden="true">
-                    <i class="fas fa-comments"></i>
-                </div>
+              <div class="stat-content">
+                <div class="stat-label">Pending Payments</div>
+                <div class="stat-value"><?= number_format($pendingPayments ?? 0) ?></div>
+                <div class="stat-description">Unsettled billings</div>
+              </div>
+              <div class="stat-icon-wrapper orange" aria-hidden="true">
+                <i class="fas fa-file-invoice-dollar"></i>
+              </div>
             </div>
         </div>
 
