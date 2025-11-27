@@ -823,6 +823,7 @@
     
 
     <script>
+        // Sidebar and Topbar Functionality
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('sidebarOverlay');
         const hamburgerBtn = document.getElementById('hamburgerBtn');
@@ -893,7 +894,9 @@
             }
         });
     </script>
+
 <script>
+    // Load last visited AJAX page on initial load
 $(document).on("click", ".ajax-link", function(e) {
     e.preventDefault();
     const url = $(this).attr("href");
@@ -904,6 +907,7 @@ $(document).on("click", ".ajax-link", function(e) {
     loadAjaxPage(url);
 });
 
+// On page load, check for last visited AJAX page
 function loadAjaxPage(url) {
     $.ajax({
         url: url,
