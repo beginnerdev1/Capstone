@@ -1,0 +1,14 @@
+%% CLI remediation flowchart (Mermaid)
+
+flowchart TD
+  Start[Run: php tools/fix_failed_payments.php] --> Confirm{Provide user ID/date or ALL?}
+  Confirm --> Prompt[Script lists candidate rows]
+  Prompt --> Action{Confirm update with YES}
+  Action -- YES --> Update[Perform DB updates: set status='rejected', add admin_reference]
+  Action -- NO --> Abort[Abort, no changes]
+  Update --> Report[Show summary of affected rows]
+  Report --> End
+
+  style Start fill:#f9f9f9
+  style Update fill:#ffdede
+  style Report fill:#e8ffe8

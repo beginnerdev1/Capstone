@@ -1,0 +1,28 @@
+%% Payments subsystem flowchart (Mermaid)
+
+flowchart TD
+  UI["Checkout / Admin confirm manual payment"] -->|create gateway| CreateGateway[Controller: Payments->createCheckout]
+  CreateGateway --> PaymentsModelCreate[PaymentsModel->createGatewayRow]
+  PaymentsModelCreate --> DB[(payments table)]
+
+  %% Supersede logic
+  CreateGateway -->|before create: mark previous awaiting as rejected| Supersede[PaymentsModel->supersedeAwaiting]
+  Supersede --> DB
+
+  %% Manual confirmation
+  AdminConfirm[Admin confirms manual payment] --> PaymentsControllerConfirm[PaymentsModel->confirmGCashPayment]
+  PaymentsControllerConfirm -->|mark manual paid| DB
+  PaymentsControllerConfirm -->|reject same-day awaiting gateway rows| RejectSameDay[PaymentsModel->rejectSameUserSameDayAwaiting]
+  RejectSameDay --> DB
+
+  %% Failed transactions and expiry
+  DB -->|expires_at reached or status cancelled| FailedLogic["Failed/Rejected selection rules"]
+  FailedLogic --> AdminUI["Failed Transactions view"]
+
+  %% CLI remediation:
+  CLI[tools/fix_failed_payments.php] -->|mass-update| DB
+
+  style CreateGateway fill:#fff3cd
+  style PaymentsModelCreate fill:#ffe8e8
+  style Supersede fill:#ffdede
+  style PaymentsControllerConfirm fill:#e6f7ff

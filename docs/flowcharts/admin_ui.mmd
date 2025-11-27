@@ -1,0 +1,22 @@
+%% Admin UI & Failed Transactions flowchart (Mermaid)
+
+flowchart TD
+  Browser[Admin Dashboard] -->|polling / fingerprint| Poll[JS Polling]
+  Poll -->|on change| Refresh[AJAX refresh tables]
+
+  Browser --> Actions[Admin actions: Confirm Manual Payment / Create Gateway / View Failed]
+  Actions --> PaymentsController
+  PaymentsController --> DB[(payments table)]
+
+  DB -->|query for Failed view| FailedFetch[Controller->getFailedPaymentsData]
+  FailedFetch -->|apply rules| FilterLogic{Rules}
+  FilterLogic -->|include expired & cancelled| IncludeExpired((Include expired payments))
+  FilterLogic -->|include rejected| IncludeRejected((Include rejected/failed))
+  FilterLogic --> View[Render Failed Transactions view]
+  View --> Browser
+
+  %% Rules include: status in (failed,rejected); expired/cancelled by expires_at; avoid excluding same-day superseded rows
+
+  style Poll fill:#f0f7ff
+  style Refresh fill:#e8ffe8
+  style FilterLogic fill:#fff3cd

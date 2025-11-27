@@ -1,0 +1,48 @@
+%% Overview system flowchart (Mermaid)
+%% Save as overview.mmd and render with Mermaid
+
+flowchart TD
+  subgraph Client
+    A[Browser / Admin UI / JS] -->|HTTP requests| B[Public entry / index.php]
+  end
+
+  B --> C[CodeIgniter Router]
+  C --> D[Controller: Admin / Users / Payments / API]
+
+  subgraph Controllers
+    D --> D1[Users Controller]
+    D --> D2[Payments Controller]
+    D --> D3[Admin Controller]
+  end
+
+  D1 --> M1[Models: UsersModel]
+  D2 --> M2[Models: PaymentsModel]
+  D3 --> M3[Models: BillingModel]
+
+  M1 --> DB[(MySQL Database)]
+  M2 --> DB
+  M3 --> DB
+
+  D --> V[Views / JSON responses]
+  V --> A
+
+  %% Payments lifecycle detail pointer
+  D2 -->|creates gateway session| G["Gateway session row (method=gateway, status=awaiting_payment)"]
+  G -->|if new gateway created later or manual payment confirmed| R["Reject/mark superseded"]
+  R --> M2
+
+  %% Failed transactions visibility
+  M2 -->|fetch failed| F[Failed Transactions view]
+  F --> A
+
+  %% CLI remediation tool
+  T[tools/fix_failed_payments.php] -->|DB updates| M2
+  T --> DB
+
+  style B fill:#f9f9f9,stroke:#ddd
+  style C fill:#fff3cd,stroke:#f0ad4e
+  style D fill:#e6f7ff,stroke:#86c5ff
+  style M1 fill:#e8ffe8,stroke:#8fd18f
+  style M2 fill:#ffe8e8,stroke:#ff8f8f
+  style DB fill:#eeeeff,stroke:#8888ff
+  style T fill:#f0f0f0,stroke:#bbbbbb

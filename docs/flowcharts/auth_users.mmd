@@ -1,0 +1,35 @@
+%% User management flowchart (Mermaid)
+
+flowchart TD
+  subgraph UI
+    A[Add User Modal]
+    B[Edit User Modal]
+    C[View User / Actions]
+  end
+
+  A -->|submit| S1[Client JS validation]
+  B -->|submit| S2[Client JS validation]
+
+  S1 -->|AJAX POST| ControllerAdd[Admin->addUser]
+  S2 -->|AJAX POST| ControllerUpdate[Admin->updateUser]
+
+  ControllerAdd -->|server-side validation| VAdd{valid?}
+  VAdd -- yes --> UsersModelCreate[UsersModel->insert]
+  VAdd -- no --> ResponseAdd[400 + errors]
+  UsersModelCreate --> DB[(users table)]
+  ResponseAdd --> UI
+
+  ControllerUpdate -->|server-side validation| VUpd{valid?}
+  VUpd -- yes --> UsersModelUpdate[UsersModel->update]
+  VUpd -- no --> ResponseUpd[400 + errors]
+  UsersModelUpdate --> DB
+  ResponseUpd --> UI
+
+  %% Client sanitizers
+  %% name inputs sanitized (letters, spaces, dot)
+  %% phone sanitized (digits, N/A, /)
+
+  style ControllerAdd fill:#e6f7ff
+  style ControllerUpdate fill:#e6f7ff
+  style UsersModelCreate fill:#e8ffe8
+  style UsersModelUpdate fill:#e8ffe8
