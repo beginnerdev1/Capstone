@@ -319,6 +319,84 @@ class SuperAdminAuth extends Controller
         return view('superadmin/check_code');
     }
 
+    /**
+     * Resend the login OTP to the pending superadmin email.
+     * Rate-limited via session to avoid abuse.
+     */
+    public function resendCode()
+    {
+        if (! $this->request->is('post')) {
+            return redirect()->back();
+        }
+
+        $session = session();
+        $pendingId = $session->get('pending_superadmin_id');
+        $pendingEmail = $session->get('pending_superadmin_email');
+        if (! $pendingId || ! $pendingEmail) {
+            return redirect()->to('/superadmin/login')->with('error', 'No pending verification found. Please login again.');
+        }
+
+        // Rate limiting (session-based)
+        $now = time();
+        $last = (int) ($session->get('otp_last_resend') ?? 0);
+        if ($now - $last < 60) {
+            return redirect()->back()->with('error', 'Please wait before requesting another code.');
+        }
+
+        $count = (int) ($session->get('otp_resend_count') ?? 0);
+        $windowStart = (int) ($session->get('otp_resend_window_start') ?? 0);
+        if ($windowStart === 0) { $windowStart = $now; $session->set('otp_resend_window_start', $windowStart); }
+        if ($now - $windowStart < 3600 && $count >= 5) {
+            return redirect()->back()->with('error', 'Too many resend requests. Try again later.');
+        }
+        if ($now - $windowStart >= 3600) {
+            $count = 0; $session->set('otp_resend_window_start', $now);
+        }
+
+        $model = new SuperAdminModel();
+        $row = $model->find($pendingId);
+        if (! $row) {
+            return redirect()->to('/superadmin/login')->with('error', 'Account not found.');
+        }
+
+        // Generate OTP and store hashed value (10 minute expiry)
+        try {
+            $plain = $model->generateLoginOtp();
+            $hash = password_hash((string)$plain, PASSWORD_DEFAULT);
+            $expires = date('Y-m-d H:i:s', strtotime('+10 minutes'));
+            $model->update($pendingId, ['otp_hash' => $hash, 'otp_expires' => $expires, 'otp_failed_attempts' => 0, 'otp_locked_until' => null]);
+        } catch (\Throwable $e) {
+            log_message('error', 'SuperAdmin resendCode: failed to generate/store otp: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Unable to generate a new code. Try again later.');
+        }
+
+        // Attempt to send via Brevo (best-effort)
+        try {
+            require ROOTPATH . 'vendor/autoload.php';
+            $config = Configuration::getDefaultConfiguration()->setApiKey('api-key', getenv('BREVO_API_KEY'));
+            $api = new TransactionalEmailsApi(new GuzzleClient(), $config);
+            $fromEmail = getenv('SMTP_FROM') ?: (getenv('SMTP_USER') ?: 'no-reply@localhost');
+            $html = '<p>Your Super Admin login code is: <b>' . esc($plain) . '</b>. It expires in 10 minutes.</p>';
+            $payload = new SendSmtpEmail([
+                'subject' => 'Your Super Admin Login Code',
+                'sender'  => ['name' => 'Super Admin', 'email' => $fromEmail],
+                'to'      => [[ 'email' => $pendingEmail ]],
+                'htmlContent' => $html,
+            ]);
+            $api->sendTransacEmail($payload);
+        } catch (\Throwable $e) {
+            log_message('error', 'SuperAdmin resendCode: failed to send email: ' . $e->getMessage());
+            // Do not expose detailed errors to the user
+            return redirect()->back()->with('error', 'Failed to send the code. Try again later.');
+        }
+
+        // Update session counters
+        $session->set('otp_last_resend', $now);
+        $session->set('otp_resend_count', $count + 1);
+
+        return redirect()->back()->with('info', 'A new code has been sent to your email.');
+    }
+
     public function checkCode()
     {
         $code = $this->request->getPost('admin_code');

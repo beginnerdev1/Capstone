@@ -236,6 +236,7 @@ $routes->group('superadmin', ['namespace' => 'App\Controllers'], function ($rout
     $routes->post('setPassword', 'SuperAdminAuth::setPassword', ['filter' => 'superadminauth']);
     $routes->get('check-code', 'SuperAdminAuth::checkCodeForm', ['filter' => 'superadminguest']);
     $routes->post('check-code', 'SuperAdminAuth::checkCode', ['filter' => 'superadminguest']);
+    $routes->post('resend-code', 'SuperAdminAuth::resendCode', ['filter' => 'superadminguest']);
     // Forgot / reset flow for SuperAdmin (guest)
     $routes->post('forgot', 'SuperAdminAuth::forgot', ['filter' => 'superadminguest']);
     $routes->get('reset-password', 'SuperAdminAuth::resetForm', ['filter' => 'superadminguest']);
