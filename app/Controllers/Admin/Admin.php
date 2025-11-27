@@ -314,6 +314,24 @@ class Admin extends BaseController
         }
 
         try {
+            // Fetch payment record to ensure valid operation
+            $payment = $this->paymentsModel->find($paymentId);
+            if (!$payment) {
+                return $this->response->setJSON(['success' => false, 'message' => 'Payment record not found']);
+            }
+
+            // Only allow rejecting manual/pending payments from this endpoint
+            if ((isset($payment['method']) ? strtolower($payment['method']) : '') !== 'manual' || (isset($payment['status']) ? strtolower($payment['status']) : '') !== 'pending') {
+                return $this->response->setJSON(['success' => false, 'message' => 'Invalid payment type or status for rejection']);
+            }
+
+            // If adminRef is provided, ensure it matches the user's reference number
+            if (!empty($adminRef)) {
+                $userRef = $payment['reference_number'] ?? null;
+                if ($userRef === null || (string)$adminRef !== (string)$userRef) {
+                    return $this->response->setJSON(['success' => false, 'message' => 'Admin reference must match the user reference number']);
+                }
+            }
             helper(['text']);
 
             $firstName     = trim((string)$this->request->getPost('first_name'));
@@ -1916,7 +1934,29 @@ public function confirmGCashPayment()
         return $this->response->setJSON(['success' => false, 'message' => 'Payment ID is required']);
     }
 
+    // Admin reference must be present, numeric-only, and max 13 digits
+    if (empty($adminRef) || !is_string($adminRef) || !preg_match('/^\d{1,13}$/', $adminRef)) {
+        return $this->response->setJSON(['success' => false, 'message' => 'Admin reference must be numeric and not exceed 13 digits']);
+    }
+
     try {
+        // Fetch payment and validate it before confirming
+        $payment = $this->paymentsModel->find($paymentId);
+        if (!$payment) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Payment record not found']);
+        }
+
+        // Only allow confirming for manual GCash payments that are pending
+        if ((isset($payment['method']) ? strtolower($payment['method']) : '') !== 'manual' || (isset($payment['status']) ? strtolower($payment['status']) : '') !== 'pending') {
+            return $this->response->setJSON(['success' => false, 'message' => 'Invalid payment type or status for confirmation']);
+        }
+
+        // Check admin reference matches the user's reference number
+        $userRef = $payment['reference_number'] ?? null;
+        if ($userRef === null || (string)$adminRef !== (string)$userRef) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Admin reference must match the user reference number']);
+        }
+
         // Confirm payment
         $updated = $this->paymentsModel->confirmGCashPayment($paymentId, $adminRef);
         $billingUpdated = false;
@@ -2058,6 +2098,11 @@ public function confirmGCashPayment()
             return $this->response->setJSON(['success' => false, 'message' => 'Missing payment_id']);
         }
 
+        // Validate admin reference if provided; it should be numeric and at most 13 digits
+        if (!empty($adminRef) && (!is_string($adminRef) || !preg_match('/^\d{1,13}$/', $adminRef))) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Admin reference must be numeric and not exceed 13 digits']);
+        }
+
         try {
             $updated = $this->paymentsModel->rejectGCashPayment($paymentId, $adminRef);
 
@@ -2065,7 +2110,6 @@ public function confirmGCashPayment()
             if ($updated) {
                 try {
                     // Fetch payment and user info
-                    $payment = $this->paymentsModel->find($paymentId);
                     $userId = $payment['user_id'] ?? null;
                     $toEmail = $payment['email'] ?? null;
 
@@ -2341,6 +2385,14 @@ public function addCounterPayment()
 
         $amountPaid = floatval($data['amount']);
         $adminRef = $data['admin_reference'] ?? ('CNT-' . date('YmdHis') . '-' . rand(100, 999));
+
+        // Ensure amount does not exceed billing outstanding (carryover + balance)
+        $carryoverCheck = floatval($billing['carryover'] ?? 0);
+        $balanceCheck = floatval($billing['balance'] ?? $billing['amount_due']);
+        $outstanding = $carryoverCheck + $balanceCheck;
+        if ($amountPaid > $outstanding) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Amount cannot exceed billing outstanding (' . number_format($outstanding, 2) . ')']);
+        }
 
         // Insert payment record (initial status Paid, will update later if partial)
         $paymentId = $paymentsModel->insert([

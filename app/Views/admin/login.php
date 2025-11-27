@@ -6,9 +6,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
   <title>Admin Login</title>
 
-  <!-- Bootstrap + FontAwesome -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://use.fontawesome.com/releases/v6.3.0/js/all.js" crossorigin="anonymous"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
   <style>
     * {
@@ -17,41 +19,52 @@
       box-sizing: border-box;
     }
 
+    html, body {
+      height: 100%; /* Ensures full height */
+    }
+
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      font-family: 'Poppins', sans-serif;
+      background: radial-gradient(circle at bottom left, #0072ff, #004aad);
       min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 20px;
       position: relative;
-      overflow: hidden;
+      /* We allow vertical scrolling, but hide horizontal overflow */
+      overflow-x: hidden; 
+      overflow-y: auto; 
     }
 
     /* Animated background elements */
+    /* KEY FIX: Changed from absolute to fixed so they don't add scroll space */
     body::before {
       content: '';
-      position: absolute;
+      position: fixed; 
       width: 600px;
       height: 600px;
-      background: rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.05);
       border-radius: 50%;
-      top: -300px;
-      right: -200px;
+      bottom: -200px;
+      left: -200px;
       animation: float 20s infinite ease-in-out;
+      pointer-events: none; /* Click-through */
+      z-index: 0;
     }
 
     body::after {
       content: '';
-      position: absolute;
-      width: 400px;
-      height: 400px;
-      background: rgba(255, 255, 255, 0.08);
+      position: fixed;
+      width: 500px;
+      height: 500px;
+      background: rgba(255, 255, 255, 0.05);
       border-radius: 50%;
-      bottom: -200px;
-      left: -100px;
+      top: -100px;
+      right: -150px;
       animation: float 15s infinite ease-in-out reverse;
+      pointer-events: none; /* Click-through */
+      z-index: 0;
     }
 
     @keyframes float {
@@ -64,11 +77,13 @@
       z-index: 1;
       width: 100%;
       max-width: 440px;
+      margin: auto; /* Helps centering when scrolling is active */
     }
 
     .login-card {
       background: rgba(255, 255, 255, 0.95);
       backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
       border-radius: 24px;
       padding: 48px 40px;
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
@@ -95,13 +110,13 @@
     .logo-icon {
       width: 70px;
       height: 70px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #0072ff 0%, #004aad 100%);
       border-radius: 18px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       margin-bottom: 20px;
-      box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+      box-shadow: 0 8px 24px rgba(0, 114, 255, 0.4);
       animation: pulse 2s infinite;
     }
 
@@ -168,7 +183,7 @@
 
     .form-label i {
       margin-right: 8px;
-      color: #667eea;
+      color: #0072ff;
       width: 16px;
     }
 
@@ -189,8 +204,8 @@
 
     .form-control:focus {
       outline: none;
-      border-color: #667eea;
-      box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+      border-color: #0072ff;
+      box-shadow: 0 0 0 4px rgba(0, 114, 255, 0.1);
       background: white;
     }
 
@@ -217,11 +232,11 @@
     }
 
     #togglePassword:hover {
-      color: #667eea;
+      color: #0072ff;
     }
 
     #togglePassword:focus {
-      outline: 2px solid #667eea;
+      outline: 2px solid #0072ff;
       outline-offset: 2px;
       border-radius: 6px;
     }
@@ -231,19 +246,20 @@
       padding: 14px;
       font-size: 16px;
       font-weight: 600;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #0072ff 0%, #004aad 100%);
       border: none;
       border-radius: 12px;
       color: white;
       cursor: pointer;
       transition: all 0.3s ease;
-      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+      box-shadow: 0 4px 15px rgba(0, 114, 255, 0.4);
       margin-top: 8px;
     }
 
     .btn-login:hover {
       transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+      box-shadow: 0 6px 20px rgba(0, 114, 255, 0.5);
+      background: linear-gradient(135deg, #005ce6 0%, #003b8f 100%);
     }
 
     .btn-login:active {
@@ -256,7 +272,7 @@
     }
 
     .forgot-password a {
-      color: #667eea;
+      color: #0072ff;
       text-decoration: none;
       font-size: 14px;
       font-weight: 500;
@@ -266,7 +282,7 @@
     }
 
     .forgot-password a:hover {
-      color: #764ba2;
+      color: #004aad;
       text-decoration: underline;
     }
 
@@ -295,13 +311,169 @@
     }
 
     /* Responsive */
-    @media (max-width: 480px) {
+    @media (max-width: 768px) {
+      body::before {
+        width: 400px;
+        height: 400px;
+        top: -200px;
+        right: -150px;
+      }
+
+      body::after {
+        width: 300px;
+        height: 300px;
+        bottom: -150px;
+        left: -100px;
+      }
+
+      .login-container {
+        padding: 0 10px; /* Safety padding for sides */
+      }
+
       .login-card {
-        padding: 36px 28px;
+        padding: 40px 32px;
+      }
+
+      .logo-icon {
+        width: 65px;
+        height: 65px;
+      }
+
+      .logo-icon i {
+        font-size: 28px;
+      }
+
+      .login-card h3 {
+        font-size: 26px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      body {
+        padding: 16px;
+        /* Allow body to grow with content */
+        height: auto;
+        min-height: 100vh;
+      }
+
+      body::before {
+        width: 300px;
+        height: 300px;
+        top: -150px;
+        right: -100px;
+      }
+
+      body::after {
+        width: 250px;
+        height: 250px;
+        bottom: -125px;
+        left: -75px;
+      }
+
+      .login-card {
+        padding: 32px 24px;
+        border-radius: 20px;
+      }
+
+      .logo-icon {
+        width: 60px;
+        height: 60px;
+        border-radius: 14px;
+        margin-bottom: 16px;
+      }
+
+      .logo-icon i {
+        font-size: 26px;
       }
 
       .login-card h3 {
         font-size: 24px;
+        margin-bottom: 6px;
+      }
+
+      .login-card .subtitle {
+        font-size: 13px;
+      }
+
+      .form-group {
+        margin-bottom: 20px;
+      }
+
+      .form-label {
+        font-size: 13px;
+        margin-bottom: 8px;
+      }
+
+      .form-control {
+        padding: 12px 14px;
+        font-size: 14px;
+        border-radius: 10px;
+      }
+
+      .btn-login {
+        padding: 13px;
+        font-size: 15px;
+        border-radius: 10px;
+      }
+
+      .secure-badge {
+        margin-top: 24px;
+        padding-top: 18px;
+      }
+
+      .secure-badge span {
+        font-size: 12px;
+      }
+    }
+
+    @media (max-width: 360px) {
+      .login-card {
+        padding: 28px 20px;
+      }
+
+      .login-card h3 {
+        font-size: 22px;
+      }
+
+      .btn-login {
+        font-size: 14px;
+      }
+    }
+
+    /* Landscape mode adjustments */
+    @media (max-height: 600px) and (orientation: landscape) {
+      body {
+        height: auto;
+        min-height: 100vh;
+        align-items: flex-start; /* Allows scrolling from top */
+        padding: 20px 10px;
+      }
+      
+      .login-container {
+         margin-top: 10px;
+         margin-bottom: 20px;
+      }
+
+      .login-card {
+        padding: 24px 32px;
+      }
+
+      .logo-section {
+        margin-bottom: 20px;
+      }
+
+      .logo-icon {
+        width: 50px;
+        height: 50px;
+        margin-bottom: 10px;
+      }
+
+      .logo-icon i {
+        font-size: 22px;
+      }
+      
+      .forgot-password {
+        margin-top: 16px;
       }
     }
   </style>
@@ -318,7 +490,6 @@
         <p class="subtitle">Access the administrator dashboard</p>
       </div>
 
-      <!-- Flash messages -->
       <?php if(session()->getFlashdata('error')): ?>
         <div class="alert alert-danger text-center"><?= session()->getFlashdata('error') ?></div>
       <?php endif; ?>
@@ -388,7 +559,6 @@
     </div>
   </div>
 
-  <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script>
     // Toggle password visibility

@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
 
-    <style>
+<style>
         /* ===================================
            TYPOGRAPHY SYSTEM
            =================================== */
@@ -73,30 +73,30 @@
             background-color: #f8f9fc;
         }
 
-        /* Ensure footer remains at bottom of dashboard layout */
-html, body {
-  height: 100%;
-}
+                /* Ensure footer remains at bottom of dashboard layout */
+        html, body {
+        height: 100%;
+        }
 
-.main-wrapper {
-  display: flex;           /* already present in your file, re-assert */
-  flex-direction: column;
-  min-height: 100vh;       /* already present as well, but keep it */
-}
+        .main-wrapper {
+        display: flex;           /* already present in your file, re-assert */
+        flex-direction: column;
+        min-height: 100vh;       /* already present as well, but keep it */
+        }
 
-/* make main content grow and push footer down */
-.main-content {
-  flex: 1 0 auto;
-}
+        /* make main content grow and push footer down */
+        .main-content {
+        flex: 1 0 auto;
+        }
 
-/* ensure footer participates in flow and is pushed down */
-.footer {
-  margin-top: auto !important;
-  position: relative !important;
-  z-index: 2;
-}
+        /* ensure footer participates in flow and is pushed down */
+        .footer {
+        margin-top: auto !important;
+        position: relative !important;
+        z-index: 2;
+        }
 
-/* ===================================
+        /* ===================================
            SIDEBAR TYPOGRAPHY
            =================================== */
 
@@ -358,11 +358,44 @@ html, body {
 
         .badge-counter {
             position: absolute;
-            top: -8px;
-            right: -8px;
+            top: -6px;
+            right: -6px;
             font-family: var(--font-primary);
             font-size: var(--fs-xs);
             padding: 0.25rem 0.5rem;
+        }
+
+        /* When unread is shown as a tiny dot (single unread) */
+        .badge-counter.dot {
+            min-width: 0 !important;
+            width: 10px;
+            height: 10px;
+            padding: 0 !important;
+            font-size: 0 !important;
+            display: inline-block !important;
+            background-color: #dc3545 !important;
+            color: #fff !important;
+            border-radius: 50%;
+            line-height: 10px;
+            text-indent: -9999px; /* prevent accidental display */
+            box-shadow: 0 0 0 2px rgba(255,255,255,0.95);
+            z-index: 9999;
+        }
+
+        /* Force the topbar unread badge to use a red background and white text
+           regardless of other .badge-counter styles (e.g., transaction list). */
+        #unreadChatsCount.badge-counter {
+            background-color: #dc3545 !important; /* Bootstrap danger */
+            background: #dc3545 !important;
+            background-image: none !important;
+            background-clip: padding-box !important;
+            opacity: 1 !important;
+            color: #fff !important;
+            border: none !important;
+            padding: 0.25rem 0.45rem !important;
+            min-width: 18px; /* ensure numeric fits */
+            z-index: 10000 !important;
+            box-shadow: 0 0 0 2px rgba(255,255,255,0.95) !important;
         }
 
         .user-profile {
@@ -754,9 +787,10 @@ html, body {
                 <div class="topbar-right">
                     
                     <a href="<?= base_url('admin/chat') ?>" class="ajax-link" title="Open chats">
-                        <div class="topbar-icon" title="Unread user chats" style="display:inline-block;">
+                        <div class="topbar-icon" title="Unread user chats" style="display:inline-block; position:relative;">
                             <i class="fas fa-envelope"></i>
-                            <span id="unreadChatsCount" class="badge badge-danger badge-counter" style="display:none;">0</span>
+                            <!-- Empty content initially; JS will toggle between dot or numeric count -->
+                            <span id="unreadChatsCount" class="badge badge-danger badge-counter" style="display:none; background:#dc3545 !important; color:#fff !important; border:none !important;"></span>
                         </div>
                     </a>
                     <div style="height: 24px; width: 1px; background-color: #e3e6f0; margin: 0 0.5rem;"></div>
@@ -1542,20 +1576,40 @@ $(document).ready(function() {
     (function(){
         const el = document.getElementById('unreadChatsCount');
         if (!el) return;
-        const url = "<?= site_url('admin/chat/unreadCount') ?>";
+        const unreadCountUrl = "<?= site_url('admin/chat/unreadCount') ?>";
+        const unreadStreamUrl = "<?= site_url('admin/chat/stream') ?>";
+
+        function updateBadge(c) {
+            const count = Number(c) || 0;
+            if (count > 0) {
+                if (count === 1) {
+                    el.classList.add('dot');
+                    el.textContent = '';
+                    el.setAttribute('aria-label', '1 unread chat');
+                    el.removeAttribute('aria-hidden');
+                } else {
+                    el.classList.remove('dot');
+                    el.textContent = (count > 99 ? '99+' : String(count));
+                    el.setAttribute('aria-label', count + ' unread chats');
+                    el.removeAttribute('aria-hidden');
+                }
+                el.style.display = 'inline-block';
+            } else {
+                el.style.display = 'none';
+                el.classList.remove('dot');
+                el.textContent = '';
+                el.removeAttribute('aria-label');
+                el.setAttribute('aria-hidden','true');
+            }
+        }
 
         async function fetchCount(){
             try {
-                const r = await fetch(url, { credentials: 'same-origin' });
+            const r = await fetch(unreadCountUrl, { credentials: 'same-origin' });
                 if (!r.ok) return;
                 const j = await r.json();
                 const c = Number(j && j.count ? j.count : 0) || 0;
-                if (c > 0) {
-                    el.textContent = String(c);
-                    el.style.display = '';
-                } else {
-                    el.style.display = 'none';
-                }
+                updateBadge(c);
             } catch (e) {
                 // silent fail
                 //console.warn('Unread count failed', e);
@@ -1587,8 +1641,33 @@ $(document).ready(function() {
                 setTimeout(loop, delay);
             }
 
-            // start
+            // start (polling fallback)
             loop();
+            // initial immediate fetch (ensure badge reflects current count right away)
+            try { fetchCount(); } catch(_) {}
+
+            // If EventSource is supported, use SSE to get immediate updates
+            if (window.EventSource) {
+                try {
+                    const es = new EventSource(unreadStreamUrl);
+                    es.addEventListener('open', function(){ console.debug('[UnreadCount] SSE open'); });
+                    es.addEventListener('unread', function(ev){
+                        try {
+                            const j = JSON.parse(ev.data || '{}');
+                            updateBadge(j.count);
+                        } catch(err) { console.warn('[UnreadCount] SSE parse error', err); }
+                    });
+                    es.onerror = function(err){
+                        console.warn('[UnreadCount] SSE error, falling back to polling', err);
+                        es.close();
+                    };
+                } catch (err) {
+                    console.warn('[UnreadCount] SSE init failed', err);
+                }
+            }
         })();
     })();
     </script>
+
+    </body>
+    </html>
