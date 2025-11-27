@@ -110,6 +110,9 @@ html,body { height:100%; margin:0; font-family: var(--font-sans); background: li
 
 /* Large tablets and below */
 @media (max-width: 1024px) {
+                            <button class="btn btn-info editUserBtn me-2" data-id="${user.id}" title="Edit user">
+                                <i class="fas fa-edit me-1"></i> Edit
+                            </button>
     .container-fluid { padding: 16px; margin: 20px auto; }
     .header { flex-direction: column; align-items: flex-start; gap: 12px; }
     .controls { width: 100%; justify-content: space-between; }
@@ -329,6 +332,109 @@ html,body { height:100%; margin:0; font-family: var(--font-sans); background: li
     </div>
 </div>
 
+            <!-- Edit User Modal -->
+            <div class="modal fade" id="editUserModal" tabindex="-1" aria-labelledby="editUserLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header" style="background: linear-gradient(90deg,var(--primary), var(--primary-600)); color:white;">
+                            <h5 class="modal-title" id="editUserLabel"><i class="fas fa-user-edit me-2"></i>Edit User</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="editUserForm">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="user_id" id="editUserId" value="">
+
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">First Name</label>
+                                        <input type="text" class="form-control" id="editFirstName" name="first_name" readonly>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Last Name</label>
+                                        <input type="text" class="form-control" id="editLastName" name="last_name" readonly>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Email Address</label>
+                                    <input type="email" class="form-control" id="editEmail" name="email" required>
+                                </div>
+
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Contact Number</label>
+                                        <input type="text" class="form-control" id="editPhone" name="phone" maxlength="20">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Password</label>
+                                        <input type="password" class="form-control" id="editPassword" name="password" readonly placeholder="(hidden)">
+                                    </div>
+                                </div>
+
+                                <div class="row mb-3">
+                                    <div class="col-md-4">
+                                        <label class="form-label">Gender</label>
+                                        <select class="form-select" id="editGender" name="gender">
+                                            <option value="">Select</option>
+                                            <option value="Male">Male</option>
+                                            <option value="Female">Female</option>
+                                            <option value="Other">Other</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Age</label>
+                                        <input type="number" class="form-control" id="editAge" name="age" min="1" max="120">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Family Members</label>
+                                        <input type="number" class="form-control" id="editFamily" name="family_number" min="1" max="20">
+                                    </div>
+                                </div>
+
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                            <label class="form-label">Line Number</label>
+                                            <input type="text" class="form-control" id="editLine" name="line_number" maxlength="32">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Purok</label>
+                                            <select class="form-select" id="editPurok" name="purok"></select>
+                                        </div>
+                                </div>
+
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                            <label class="form-label">Municipality</label>
+                                            <input type="text" class="form-control" id="editMunicipality" name="municipality" readonly>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Barangay</label>
+                                            <input type="text" class="form-control" id="editBarangay" name="barangay" readonly>
+                                        </div>
+                                </div>
+
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Province</label>
+                                        <input type="text" class="form-control" id="editProvince" name="province" readonly>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Zip Code</label>
+                                        <input type="text" class="form-control" id="editZip" name="zipcode" readonly>
+                                    </div>
+                                </div>
+
+                                <div class="text-end">
+                                    <button type="button" class="btn btn-ghost" data-bs-dismiss="modal">Cancel</button>
+                                    <button type="submit" class="btn btn-primary" id="saveEditUserBtn">Save Changes</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
 <!-- View User Modal -->
 <div class="modal fade" id="viewUserModal" tabindex="-1" aria-labelledby="viewUserLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -424,11 +530,9 @@ html,body { height:100%; margin:0; font-family: var(--font-sans); background: li
 
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <label class="form-label">Purok <span class="text-danger">*</span></label>
-                            <select class="form-select" name="purok" id="addUserPurok" required>
-                                <option value="">Select Purok</option>
-                            </select>
-                            <div class="invalid-feedback">Please select a purok</div>
+                            <label class="form-label">Water Line Number</label>
+                            <input type="text" class="form-control" name="line_number" maxlength="32" placeholder="e.g., 001">
+                            <div class="form-text">Optional: specify the water line identifier for this user.</div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Initial Status</label>
@@ -439,9 +543,11 @@ html,body { height:100%; margin:0; font-family: var(--font-sans); background: li
 
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <label class="form-label">Water Line Number</label>
-                            <input type="text" class="form-control" name="line_number" maxlength="32" placeholder="e.g., 001">
-                            <div class="form-text">Optional: specify the water line identifier for this user.</div>
+                            <label class="form-label">Purok <span class="text-danger">*</span></label>
+                            <select class="form-select" name="purok" id="addUserPurok" required>
+                                <option value="">Select Purok</option>
+                            </select>
+                            <div class="invalid-feedback">Please select a purok</div>
                         </div>
                         <div class="col-md-6">
                             <!-- intentionally left blank to keep columns aligned -->
@@ -450,12 +556,12 @@ html,body { height:100%; margin:0; font-family: var(--font-sans); background: li
 
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <label class="form-label">Municipality</label>
-                            <input type="text" class="form-control" value="Dipaculao" readonly disabled>
-                        </div>
-                        <div class="col-md-6">
                             <label class="form-label">Barangay</label>
                             <input type="text" class="form-control" value="Borlongan" readonly disabled>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Municipality</label>
+                            <input type="text" class="form-control" value="Dipaculao" readonly disabled>
                         </div>
                     </div>
 
@@ -647,6 +753,7 @@ function initRegisteredUsersPage() {
                         </div>
                         <div class="col-md-6">
                             <p><strong>Purok:</strong> ${user.purok||'-'}</p>
+                            <p><strong>Line #:</strong> ${user.line_number||user.line||user.lineNumber||user.line_no||user.lineNo||'-'}</p>
                             <p><strong>Barangay:</strong> ${user.barangay||'-'}</p>
                             <p><strong>Municipality:</strong> ${user.municipality||'-'}</p>
                             <p><strong>Province:</strong> ${user.province||'-'}</p>
@@ -655,6 +762,9 @@ function initRegisteredUsersPage() {
                         </div>
                     </div>
                     <div class="text-end mt-3">
+                            <button class="btn btn-info editUserBtn me-2" data-id="${user.id}" title="Edit user">
+                                <i class="fas fa-edit me-1"></i> Edit
+                            </button>
                             <button class="btn btn-warning suspendUserBtn me-2" data-id="${user.id}" ${ (user.status||'').toLowerCase() === 'suspended' ? 'data-disabled="1" title="User already suspended"' : '' }>
                                 <i class="fas fa-user-clock me-1"></i> Suspend
                             </button>
@@ -666,6 +776,115 @@ function initRegisteredUsersPage() {
                 $("#viewUserModal").modal("show");
             },
             error:function(){ $("#userDetailsContent").html(`<p class="text-danger">Error fetching user data.</p>`);}
+        });
+    });
+
+    // Open Edit User modal and populate fields
+    $(document).on('click', '.editUserBtn', function(){
+        const userId = $(this).data('id');
+        if(!userId) return;
+        $.ajax({
+            url: baseUrl + '/admin/getUser/' + encodeURIComponent(userId),
+            type: 'GET',
+            dataType: 'json'
+        }).done(function(user){
+            if(!user || !user.id) {
+                const warn = $('<div class="alert alert-warning alert-dismissible fade show" role="alert">' +
+                    '<i class="fas fa-exclamation-triangle me-2"></i>User not found.' +
+                    '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                    '</div>');
+                $('.container-fluid').prepend(warn);
+                setTimeout(()=>{ warn.fadeOut(400,function(){ $(this).remove(); }); }, 3000);
+                return;
+            }
+
+            // fill fields
+            $('#editUserId').val(user.id || '');
+            $('#editFirstName').val(user.first_name || '');
+            $('#editLastName').val(user.last_name || '');
+            $('#editEmail').val(user.email || '');
+            $('#editPhone').val(user.phone || '');
+            $('#editGender').val(user.gender || '');
+            $('#editAge').val(user.age || '');
+            $('#editFamily').val(user.family_number || '');
+            // purok options
+            const psel = $('#editPurok'); psel.empty(); psel.append('<option value="">Select Purok</option>');
+            for(let i=1;i<=maxPurok;i++){ psel.append('<option value="'+i+'">Purok '+i+'</option>'); }
+            if(user.purok) psel.val(user.purok);
+            // populate line number, try several common keys returned by the API
+            const lineVal = user.line_number || user.line || user.lineNumber || user.line_no || user.lineNo || '';
+            $('#editLine').val(lineVal);
+
+            // close the view modal before showing the edit modal so focus is correct
+            try { $('#viewUserModal').modal('hide'); } catch(e) { /* ignore */ }
+            $('#editPassword').val(''); // keep password hidden and readonly
+
+            // readonly location fields
+            $('#editBarangay').val(user.barangay || '');
+            $('#editMunicipality').val(user.municipality || '');
+            $('#editProvince').val(user.province || '');
+            $('#editZip').val(user.zipcode || '');
+
+            // show modal
+            try { $('#editUserModal').modal('show'); } catch(e){ console.warn('Failed to show edit modal', e); }
+        }).fail(function(){
+            const err = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
+                '<i class="fas fa-exclamation-triangle me-2"></i>Failed to load user data.' +
+                '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                '</div>');
+            $('.container-fluid').prepend(err);
+            setTimeout(()=>{ err.fadeOut(400,function(){ $(this).remove(); }); }, 4000);
+        });
+    });
+
+    // Submit Edit User form
+    $('#editUserForm').on('submit', function(e){
+        e.preventDefault();
+        const userId = $('#editUserId').val();
+        if(!userId) return;
+        // Client-side: ensure line_number contains only letters and digits
+        const editLineVal = $('#editLine').val() || '';
+        if (!/^[A-Za-z0-9]*$/.test(editLineVal)) {
+            const errorAlert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
+                '<i class="fas fa-exclamation-triangle me-2"></i>Line number may only contain letters and numbers.' +
+                '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                '</div>');
+            $('#editUserForm').prepend(errorAlert);
+            return;
+        }
+        const btn = $('#saveEditUserBtn');
+        btn.prop('disabled', true).text('Saving...');
+        const data = $(this).serialize();
+        $.ajax({
+            url: baseUrl + '/admin/updateUser/' + encodeURIComponent(userId),
+            type: 'POST',
+            data: data,
+            dataType: 'json'
+        }).done(function(res){
+            if(res && res.success){
+                const successAlert = $('<div class="alert alert-success alert-dismissible fade show" role="alert">' +
+                    '<i class="fas fa-check-circle me-2"></i>' + (res.message || 'User updated successfully.') +
+                    '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                    '</div>');
+                $('.container-fluid').prepend(successAlert);
+                try { $('#editUserModal').modal('hide'); } catch(_) {}
+                loadUsers($('#filterInput').val(), $('#filterPurok').val(), $('#filterStatus').val());
+            } else {
+                const msg = res && res.message ? res.message : 'Failed to update user.';
+                const errorAlert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
+                    '<i class="fas fa-exclamation-triangle me-2"></i>' + msg +
+                    '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                    '</div>');
+                $('#editUserForm').prepend(errorAlert);
+            }
+        }).fail(function(xhr){
+            const errorAlert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
+                '<i class="fas fa-exclamation-triangle me-2"></i>Error updating user. Please try again.' +
+                '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                '</div>');
+            $('#editUserForm').prepend(errorAlert);
+        }).always(function(){
+            btn.prop('disabled', false).html('Save Changes');
         });
     });
 
@@ -714,6 +933,17 @@ function initRegisteredUsersPage() {
         if (!form.checkValidity()) {
             e.stopPropagation();
             $(form).addClass('was-validated');
+            return;
+        }
+
+        // Client-side: ensure line_number contains only letters and digits
+        const addLineVal = $(this).find('[name="line_number"]').val() || '';
+        if (!/^[A-Za-z0-9]*$/.test(addLineVal)) {
+            const errorAlert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
+                '<i class="fas fa-exclamation-triangle me-2"></i>Line number may only contain letters and numbers.' +
+                '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                '</div>');
+            $('#addUserForm').prepend(errorAlert);
             return;
         }
 

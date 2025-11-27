@@ -470,6 +470,15 @@ class Admin extends BaseController
                 ]);
             }
 
+            // Server-side: ensure line number contains only letters and digits
+            if ($lineNumber !== '' && !preg_match('/^[A-Za-z0-9]+$/', $lineNumber)) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors' => ['line_number' => 'Line number may only contain letters and numbers']
+                ]);
+            }
+
             // Normalize email to lowercase for consistent storage and comparison
             $email = strtolower($email);
 
@@ -1549,6 +1558,7 @@ class Admin extends BaseController
             'age'           => $info['age'] ?? '',
             'family_number' => $info['family_number'] ?? '',
             'phone'         => $info['phone'] ?? '',
+            'line_number'   => $info['line_number'] ?? '',
             'purok'         => $info['purok'] ?? '',
             'barangay'      => $info['barangay'] ?? '',
             'municipality'  => $info['municipality'] ?? '',
@@ -1556,6 +1566,80 @@ class Admin extends BaseController
             'zipcode'       => $info['zipcode'] ?? '',
             'profile_picture' => $picUrl
         ]);
+    }
+
+    // Update user details (AJAX)
+    public function updateUser($id)
+    {
+        if (!$this->request->is('post')) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Invalid request method']);
+        }
+
+        $id = (int)$id;
+        $user = $this->usersModel->find($id);
+        if (!$user) {
+            return $this->response->setJSON(['success' => false, 'message' => 'User not found']);
+        }
+
+        try {
+            // Collect posted values
+            $email = trim((string)$this->request->getPost('email'));
+            $phone = trim((string)$this->request->getPost('phone'));
+            $gender = trim((string)$this->request->getPost('gender'));
+            $age = (int)$this->request->getPost('age');
+            $family_number = (int)$this->request->getPost('family_number');
+            $purok = trim((string)$this->request->getPost('purok'));
+            $line_number = trim((string)$this->request->getPost('line_number'));
+            $barangay = trim((string)$this->request->getPost('barangay'));
+            $municipality = trim((string)$this->request->getPost('municipality'));
+            $province = trim((string)$this->request->getPost('province'));
+            $zipcode = trim((string)$this->request->getPost('zipcode'));
+
+            // Basic validation: email required and unique
+            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                return $this->response->setJSON(['success' => false, 'message' => 'Invalid email address']);
+            }
+
+            // Server-side: ensure line number contains only letters and digits
+            if ($line_number !== '' && !preg_match('/^[A-Za-z0-9]+$/', $line_number)) {
+                return $this->response->setJSON(['success' => false, 'message' => 'Invalid line number', 'errors' => ['line_number' => 'Line number may only contain letters and numbers']]);
+            }
+            $existing = $this->usersModel->where('LOWER(email)', strtolower($email))->first();
+            if ($existing && (int)$existing['id'] !== $id) {
+                return $this->response->setJSON(['success' => false, 'message' => 'Email is already used by another account']);
+            }
+
+            // Update email on users table if changed
+            if ($email !== $user['email']) {
+                $this->usersModel->update($id, ['email' => strtolower($email)]);
+            }
+
+            // Prepare info data and save via model helper (it validates)
+            $infoData = [
+                'first_name'    => $this->request->getPost('first_name') ?? ($this->userInfoModel->getByUserId($id)['first_name'] ?? ''),
+                'last_name'     => $this->request->getPost('last_name') ?? ($this->userInfoModel->getByUserId($id)['last_name'] ?? ''),
+                'phone'         => $phone,
+                'gender'        => $gender,
+                'age'           => $age,
+                'family_number' => $family_number,
+                'purok'         => $purok,
+                'line_number'   => $line_number,
+                'barangay'      => $barangay,
+                'municipality'  => $municipality,
+                'province'      => $province,
+                'zipcode'       => $zipcode,
+            ];
+
+            $saveRes = $this->userInfoModel->saveUserInfo($id, $infoData);
+            if (!$saveRes['success']) {
+                return $this->response->setJSON(['success' => false, 'message' => $saveRes['message'] ?? 'Validation failed', 'errors' => $saveRes['errors'] ?? []]);
+            }
+
+            return $this->response->setJSON(['success' => true, 'message' => 'User updated successfully']);
+        } catch (\Throwable $e) {
+            log_message('error', 'updateUser error: ' . $e->getMessage());
+            return $this->response->setJSON(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
+        }
     }
 
         // Approve user account

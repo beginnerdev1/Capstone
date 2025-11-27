@@ -481,6 +481,37 @@ $(function(){
     let csrfHash = '<?= csrf_hash() ?>';
     const chatBase = '<?= base_url('admin/chat') ?>';
 
+    // Fetch unread count and update the global topbar badge (`#unreadChatsCount`).
+    function fetchAndUpdateTopbarUnread() {
+        try {
+            const badge = document.getElementById('unreadChatsCount');
+            if (!badge) return;
+            const url = '<?= site_url('admin/chat/unreadCount') ?>';
+            fetch(url, { credentials: 'same-origin' }).then(function(res){
+                if (!res.ok) return null;
+                return res.json();
+            }).then(function(j){
+                if (!j) return;
+                var count = Number(j.count || 0) || 0;
+                if (count > 0) {
+                    if (count === 1) {
+                        badge.classList.add('dot');
+                        badge.textContent = '';
+                        badge.style.display = 'inline-block';
+                    } else {
+                        badge.classList.remove('dot');
+                        badge.textContent = (count > 99 ? '99+' : String(count));
+                        badge.style.display = 'inline-block';
+                    }
+                } else {
+                    badge.style.display = 'none';
+                    badge.classList.remove('dot');
+                    badge.textContent = '';
+                }
+            }).catch(function(){ /* silent */ });
+        } catch (e) { /* ignore */ }
+    }
+
     // UI mode: 'user' or 'admin'
     var viewMode = 'user';
 
@@ -618,7 +649,9 @@ $(function(){
 
     function loadAdminMessages(incremental){ if (!selectedAdminId) return; var url = chatBase + '/getMessagesForAdmin/' + encodeURIComponent(selectedAdminId); if (incremental && lastTimestamp) url += '?since=' + encodeURIComponent(lastTimestamp); $.get(url, function(data){ if (!incremental) { $('#aqua-chat-messages').empty(); seenMessageIds.clear(); } appendMessages(data || []); }); }
 
-    function loadConversationMessages(userId, incremental){ if (!userId) return; var url = chatBase + '/getMessages/' + encodeURIComponent(userId); if (incremental && lastTimestamp) url += '?since=' + encodeURIComponent(lastTimestamp); $.get(url, function(data){ if (!incremental) { $('#aqua-chat-messages').empty(); seenMessageIds.clear(); } appendMessages(data || []); if (!incremental || (data && data.length)) { var markPayload = {}; markPayload[csrfName] = csrfHash; $.post(chatBase + '/markRead/' + encodeURIComponent(userId), markPayload).always(function(){ loadConversations(); }); } }); }
+    function loadConversationMessages(userId, incremental){ if (!userId) return; var url = chatBase + '/getMessages/' + encodeURIComponent(userId); if (incremental && lastTimestamp) url += '?since=' + encodeURIComponent(lastTimestamp); $.get(url, function(data){ if (!incremental) { $('#aqua-chat-messages').empty(); seenMessageIds.clear(); } appendMessages(data || []); if (!incremental || (data && data.length)) { var markPayload = {}; markPayload[csrfName] = csrfHash; $.post(chatBase + '/markRead/' + encodeURIComponent(userId), markPayload).always(function(){ loadConversations(); // Also refresh the global unread badge in the topbar so it reflects the recent markRead
+                    try { fetchAndUpdateTopbarUnread(); } catch(_) {}
+                }); } }); }
 
     function startPolling(){ stopPolling(); pollId = setInterval(function(){ if (document.hidden) return; if (viewMode === 'user' && selectedUserId) loadConversationMessages(selectedUserId, true); if (viewMode === 'admin' && selectedAdminId) loadAdminMessages(true); }, pollInterval); }
     function stopPolling(){ if (pollId) { clearInterval(pollId); pollId = null; } }
