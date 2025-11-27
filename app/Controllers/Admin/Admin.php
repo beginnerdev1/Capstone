@@ -79,8 +79,42 @@ class Admin extends BaseController
     public function content()
     {
         $cache = \Config\Services::cache();
-        $cacheKey = 'dashboard_stats_' . date('Y-m-d-H') . '_' . floor(date('i') / 5);
-        
+
+        // Build a short token based on last-updated timestamps (or counts) of key tables.
+        // This ensures dashboard cache invalidates only when relevant tables change.
+        $db = \Config\Database::connect();
+        $tablesToWatch = ['billings', 'archived_billings', 'users', 'payments', 'chat_messages', 'admin_chats'];
+        $pieces = [];
+        foreach ($tablesToWatch as $t) {
+            try {
+                if ($db->tableExists($t)) {
+                    // Prefer updated_at if present, else created_at, else fallback to count
+                    $row = $db->table($t)->selectMax('updated_at')->get()->getRow();
+                    $val = $row && !empty(($row->updated_at ?? '')) ? $row->updated_at : null;
+                    if (!$val) {
+                        $row2 = $db->table($t)->selectMax('created_at')->get()->getRow();
+                        $val = $row2 && !empty(($row2->created_at ?? '')) ? $row2->created_at : null;
+                    }
+                    if (!$val) {
+                        // Last resort: use row count
+                        $cnt = (int) $db->table($t)->countAllResults(false);
+                        $pieces[] = $t . ':' . $cnt;
+                    } else {
+                        $pieces[] = $t . ':' . $val;
+                    }
+                } else {
+                    $pieces[] = $t . ':missing';
+                }
+            } catch (\Throwable $e) {
+                // Be defensive: include an error marker so cache key changes if queries fail differently
+                $pieces[] = $t . ':err';
+                log_message('warning', "Dashboard cache token error for table {$t}: " . $e->getMessage());
+            }
+        }
+
+        $tableToken = md5(implode('|', $pieces));
+        $cacheKey = 'dashboard_stats_' . $tableToken;
+
         $data = $cache->get($cacheKey);
         
         if ($data === null) {

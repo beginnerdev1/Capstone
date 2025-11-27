@@ -53,10 +53,10 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
 .btn-report { background: var(--primary); border: none; color: #fff; padding: 0.75rem 1.5rem; border-radius: var(--radius); font-weight: 600; font-size: 0.95rem; box-shadow: var(--shadow-sm); transition: all 0.2s ease; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem; }
 .btn-report:hover { background: var(--primary-hover); transform: translateY(-1px); box-shadow: var(--shadow-md); }
 
-/* Stats Grid */
-.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
-.stat-card { background: var(--bg-secondary); border-radius: var(--radius); padding: 1.75rem; box-shadow: var(--shadow-sm); border: 1px solid var(--border-color); transition: all 0.2s ease; display: flex; align-items: center; gap: 1rem; }
-.stat-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); border-color: var(--primary); }
+/* Stats Grid: force a 2x2 layout on desktop for consistent appearance */
+.stats-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; margin-bottom: 2rem; align-items: stretch; }
+.stat-card { background: var(--bg-secondary); border-radius: var(--radius); padding: 1.5rem 1.75rem; box-shadow: var(--shadow-sm); border: 1px solid var(--border-color); transition: all 0.18s ease; display: flex; align-items: center; gap: 1rem; min-height: 110px; }
+.stat-card:hover { box-shadow: var(--shadow-md); transform: translateY(-4px); border-color: var(--primary); }
 
 /* Layout fix: ensure content and icon align regardless of text wrap */
 .stat-content { flex: 1 1 auto; min-width: 0; }
@@ -176,12 +176,19 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
 
 /* Responsive */
 @media (max-width: 1200px) { .charts-grid { grid-template-columns: 1fr; } .projects-grid { grid-template-columns: 1fr; } }
-@media (max-width: 768px) {
-  .container-fluid { padding: 1.5rem 1rem; }
+@media (max-width: 992px) {
+  .container-fluid { padding: 1.75rem 1rem; }
   .page-header { flex-direction: column; align-items: stretch; gap: 1rem; padding: 1.25rem 1.5rem; }
+  .page-title { font-size: 1.6rem; }
+  .btn-report { width: 100%; justify-content: center; }
+}
+
+@media (max-width: 768px) {
+  .stats-grid { grid-template-columns: 1fr; gap: 1rem; }
+  .container-fluid { padding: 1.5rem 1rem; }
+  .page-header { padding: 1.25rem 1.5rem; }
   .page-title { font-size: 1.5rem; }
   .btn-report { width: 100%; justify-content: center; }
-  .stats-grid { grid-template-columns: 1fr; gap: 1rem; }
   .stat-value { font-size: 1.75rem; }
   .stat-icon-wrapper { width: 56px; height: 56px; }
   .stat-icon-wrapper i { font-size: 1.5rem; }

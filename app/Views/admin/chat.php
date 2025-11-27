@@ -313,9 +313,11 @@
             display: inline-block; 
         }
         
+        /* Keep the side panel element present on mobile but off-canvas; visibility controlled
+           by #aqua-side-panel.show so the toggle button can open it. Setting display:block
+           here prevents the element from being permanently hidden by a utility class. */
         .col-md-3.aqua-desktop-only { 
-            /* This is crucial: Hides the panel in its desktop position */
-            display: none; 
+            display: block; 
         }
         
         .col-md-9 { 
@@ -398,6 +400,24 @@
                 </button>
             </div>
 
+     <!--        <div class="mb-2">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0 me-2 d-md-none">
+                        <a href="#" class="btn btn-outline-secondary btn-sm btn-back" onclick="goBackWithFallback('<?= base_url('admin') ?>'); return false;" aria-label="Go back">
+                            <i class="fas fa-arrow-left"></i>
+                            <span class="d-none d-sm-inline"> Back</span>
+                        </a>
+                    </div>
+                    <div class="flex-shrink-0 d-none d-md-block">
+                        <a href="<?= base_url('admin') ?>" class="btn btn-outline-secondary btn-sm" aria-label="Dashboard">
+                            <i class="fas fa-home"></i>
+                            <span class="d-none d-sm-inline"> Dashboard</span>
+                        </a>
+                    </div>
+                    <div class="flex-grow-1"></div>
+                </div>
+            </div> -->
+
             <div class="card aqua-main-chat-card">
                 <div class="card-header aqua-chat-header d-flex justify-content-between align-items-center">
                     <div id="aqua-chat-mode-label" class="aqua-chat-label">
@@ -435,6 +455,24 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.4.0/purify.min.js"></script>
 <script src="<?= base_url('assets/js/safe-html.js') ?>"></script>
 <script>
+        // Navigate back safely: prefer same-origin referrer, otherwise fallback to admin dashboard
+        function goBackWithFallback(fallbackUrl) {
+            try {
+                var ref = document.referrer || '';
+                if (ref && ref.indexOf(location.origin) === 0) {
+                    history.back();
+                    return;
+                }
+                if (history.length > 1) {
+                    history.back();
+                    return;
+                }
+            } catch (e) {
+                // ignore and fall through to fallback
+            }
+            window.location.href = fallbackUrl || '/';
+        }
+
 $(function(){
     var adminMap = {}, selectedUserId = null, selectedAdminId = null;
     // current admin id (prefer admin session, fall back to superadmin if present)

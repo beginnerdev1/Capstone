@@ -43,6 +43,24 @@
 				<button id="toggle-conversations" class="btn btn-outline-secondary btn-sm me-2">Admins</button>
 			</div>
 
+			<div class="mb-2">
+				<div class="d-flex align-items-center">
+						<div class="flex-shrink-0 me-2 d-md-none">
+							<a href="#" class="btn btn-outline-secondary btn-sm btn-back" onclick="goBackWithFallback('<?= base_url('superadmin') ?>'); return false;" aria-label="Go back">
+								<i class="bi bi-arrow-left"></i>
+								<span class="d-none d-sm-inline"> Back</span>
+							</a>
+						</div>
+					<div class="flex-shrink-0 d-none d-md-block">
+						<a href="<?= base_url('superadmin') ?>" class="btn btn-outline-secondary btn-sm" aria-label="Dashboard">
+							<i class="bi bi-house"></i>
+							<span class="d-none d-sm-inline"> Dashboard</span>
+						</a>
+					</div>
+					<div class="flex-grow-1"></div>
+				</div>
+			</div>
+
 			<div class="card">
 				<div class="card-header">Admin Chat (Admins only)</div>
 				<div id="chat-messages"></div>
@@ -73,6 +91,24 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.4.0/purify.min.js"></script>
 <script src="<?= base_url('assets/js/safe-html.js') ?>"></script>
 <script>
+		// Navigate back safely: prefer same-origin referrer, otherwise fallback to superadmin dashboard
+		function goBackWithFallback(fallbackUrl) {
+			try {
+				var ref = document.referrer || '';
+				if (ref && ref.indexOf(location.origin) === 0) {
+					history.back();
+					return;
+				}
+				if (history.length > 1) {
+					history.back();
+					return;
+				}
+			} catch (e) {
+				// ignore and fall through to fallback
+			}
+			window.location.href = fallbackUrl || '/';
+		}
+
 $(function(){
 	var adminMap = {}, selectedAdminId = null;
 	// current admin id (sender) from session — prefer superadmin when present

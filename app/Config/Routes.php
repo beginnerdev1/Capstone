@@ -186,6 +186,7 @@ $routes->get('getOverduePaymentsData', 'Admin::getOverduePaymentsData');// Get O
         // Activity logs moved to superadmin area; admin endpoints removed
         // Admin chat
         $routes->get('chat', 'Chat::index');
+        $routes->get('chat/stream', 'Chat::stream');
         $routes->get('chat/getAdmins', 'Chat::getAdmins');
         $routes->get('chat/getMessages', 'Chat::getMessages');
         $routes->get('chat/getConversations', 'Chat::getConversations');

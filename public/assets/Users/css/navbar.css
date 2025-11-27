@@ -220,3 +220,28 @@
 @media (max-width: 576px) {
   .notification-dropdown { width: 90vw; left: 5vw; right: 5vw; top: 46px; }
 }
+
+/* Ensure offcanvas doesn't cover the page header or top content when opened
+   Position it below the fixed header and reduce its height accordingly. */
+:root {
+  --site-header-height: 70px;
+}
+
+@media (max-width: 992px) {
+  :root { --site-header-height: 64px; }
+}
+
+@media (max-width: 576px) {
+  :root { --site-header-height: 58px; }
+}
+
+.offcanvas {
+  top: var(--site-header-height);
+  height: calc(100% - var(--site-header-height));
+}
+
+.offcanvas-backdrop {
+  top: var(--site-header-height);
+  height: calc(100% - var(--site-header-height));
+}
+

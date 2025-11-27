@@ -42,7 +42,7 @@
       max-width: 1000px;
       margin: 0 auto;
       padding: 0 20px;
-      padding-top: 80px;
+      padding-top: calc(var(--site-header-height, 70px) + 10px);
       padding-bottom: 40px;
     }
 
@@ -217,6 +217,7 @@
       border-radius: 16px;
       box-shadow: var(--shadow-sm);
       word-wrap: break-word;
+      word-break: break-word;
       position: relative;
       transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
@@ -360,7 +361,9 @@
     /* Responsive Design */
     @media (max-width: 768px) {
       .chat-wrapper {
-        padding: 70px 12px 20px;
+        padding: calc(var(--site-header-height, 64px) + 6px) 12px 20px;
+        box-sizing: border-box;
+        width: 100%;
       }
 
       .page-header {
@@ -435,7 +438,7 @@
     @media (max-width: 480px) {
       .chat-wrapper {
         margin: 12px auto;
-        padding: 0 8px;
+        padding: calc(var(--site-header-height, 58px) + 8px) 8px 12px;
       }
 
       .page-header h1 {
@@ -509,8 +512,12 @@
 
   <main class="chat-wrapper">
     <div class="page-header">
-      <h1><i class="bi bi-headset"></i> Contact Support</h1>
-      <p>We're here to help! Chat with our admin team in real-time.</p>
+      <div class="d-flex align-items-center">
+        <div class="flex-grow-1">
+          <h1 class="mb-0"><i class="bi bi-headset"></i> Contact Support</h1>
+          <p class="mb-0">We're here to help! Chat with our admin team in real-time.</p>
+        </div>
+      </div>
     </div>
 
     <div class="card chat-card">
@@ -555,6 +562,13 @@
         </button>
       </form>
     </div>
+    <!-- Moved: Back button placed below chat to avoid overlap with offcanvas -->
+    <div class="mt-3 text-start d-block">
+      <a href="#" class="btn btn-outline-secondary btn-sm" aria-label="Go back" onclick="goBackWithFallback('<?= base_url() ?>'); return false;">
+        <i class="bi bi-arrow-left"></i>
+        <span class="ms-1">Back</span>
+      </a>
+    </div>
   </main>
 
   <?php include APPPATH . 'Views/users/footer.php'; ?>
@@ -564,6 +578,24 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.4.0/purify.min.js"></script>
   <script src="<?= base_url('assets/js/safe-html.js') ?>"></script>
   <script>
+    // Navigate back safely: prefer same-origin referrer, otherwise fallback to site root
+    function goBackWithFallback(fallbackUrl) {
+      try {
+        var ref = document.referrer || '';
+        if (ref && ref.indexOf(location.origin) === 0) {
+          history.back();
+          return;
+        }
+        if (history.length > 1) {
+          history.back();
+          return;
+        }
+      } catch (e) {
+        // ignore and fall through to fallback
+      }
+      window.location.href = fallbackUrl || '/';
+    }
+
   $(function(){
     // CSRF for AJAX posts
     const csrfName = '<?= csrf_token() ?>';
@@ -597,20 +629,46 @@
       return container;
     }
 
-    function loadMessages(){
-      $.get('<?= base_url('users/chat/getMessages') ?>', function(data){
+    // Keep track of last seen timestamp/message ids to avoid full re-renders
+    var lastTimestamp = null;
+    var seenMessageIds = new Set();
+
+    function isAtBottom(el) {
+      if (!el) return true;
+      return (el.scrollHeight - (el.scrollTop + el.clientHeight)) < 48;
+    }
+
+    function loadMessages(incremental = true){
+      var url = '<?= base_url('users/chat/getMessages') ?>';
+      if (incremental && lastTimestamp) url += '?since=' + encodeURIComponent(lastTimestamp);
+
+      $.get(url, function(data){
         var $container = $('#chat-messages');
-        $container.empty();
-        
+
+        // If not incremental, clear and render full list
+        if(!incremental) {
+          $container.empty();
+          seenMessageIds.clear();
+        }
+
         if(data && data.length > 0) {
+          var atBottomBefore = isAtBottom($container[0]);
+
           data.forEach(function(m){
+            var mid = m.id || m.external_id || null;
+            if (mid && seenMessageIds.has(mid)) return; // already shown
+
             $container.append(formatBubble(m));
+            if (mid) seenMessageIds.add(mid);
+            if (m.created_at) lastTimestamp = m.created_at;
           });
-        } else {
+
+          // Only scroll if user was at or near bottom before new messages
+          if (atBottomBefore) $container.scrollTop($container[0].scrollHeight);
+        } else if (!incremental) {
+          // initial empty state
           $container.html('<div class="empty-state"><i class="bi bi-chat-text"></i><p>Start a conversation with our support team</p></div>');
         }
-        
-        $container.scrollTop($container[0].scrollHeight);
       });
     }
 
@@ -657,9 +715,9 @@
     // Focus on input
     $('#chat-input').focus();
 
-    // Initial load and polling
-    loadMessages();
-    setInterval(loadMessages, 3000);
+    // Initial load and polling: do a full initial load, then incremental polling to avoid flicker
+    loadMessages(false);
+    setInterval(function(){ loadMessages(true); }, 3000);
   });
   </script>
 </body>
