@@ -415,24 +415,7 @@ class Admin extends BaseController
         }
 
         try {
-            // Fetch payment record to ensure valid operation
-            $payment = $this->paymentsModel->find($paymentId);
-            if (!$payment) {
-                return $this->response->setJSON(['success' => false, 'message' => 'Payment record not found']);
-            }
-
-            // Only allow rejecting manual/pending payments from this endpoint
-            if ((isset($payment['method']) ? strtolower($payment['method']) : '') !== 'manual' || (isset($payment['status']) ? strtolower($payment['status']) : '') !== 'pending') {
-                return $this->response->setJSON(['success' => false, 'message' => 'Invalid payment type or status for rejection']);
-            }
-
-            // If adminRef is provided, ensure it matches the user's reference number
-            if (!empty($adminRef)) {
-                $userRef = $payment['reference_number'] ?? null;
-                if ($userRef === null || (string)$adminRef !== (string)$userRef) {
-                    return $this->response->setJSON(['success' => false, 'message' => 'Admin reference must match the user reference number']);
-                }
-            }
+            // Load text helper for sanitization/formatting
             helper(['text']);
 
             $firstName     = trim((string)$this->request->getPost('first_name'));
@@ -4508,20 +4491,89 @@ public function createManualBilling()
 
     $allPayments = $this->paymentsModel->getMonthlyPayments($filters);
 
+    // Also include payments whose `expires_at` falls in the requested month
+    // (covers cases where a gateway session expired in this month but was created earlier)
+    try {
+        $expiredPayments = [];
+        if (!empty($month)) {
+            $b = $this->paymentsModel->db->table('payments p');
+            $b->select('p.id, p.amount, p.method, p.status, p.reference_number, p.payment_intent_id, p.admin_reference, p.receipt_image, p.created_at, p.paid_at, p.expires_at, u.id as user_id, ui.first_name, ui.last_name, u.email, CONCAT(ui.first_name, " ", ui.last_name) as user_name, CONCAT(SUBSTRING(ui.first_name, 1, 1), SUBSTRING(ui.last_name, 1, 1)) as avatar');
+            $b->join('users u', 'u.id = p.user_id', 'left');
+            $b->join('user_information ui', 'ui.user_id = u.id', 'left');
+            $b->where('p.deleted_at', null);
+            $b->where('DATE_FORMAT(p.expires_at, "%Y-%m")', $month);
+            if (!empty($method)) {
+                $b->where('p.method', $method);
+            }
+            $expiredPayments = $b->get()->getResultArray();
+        }
+
+        if (!empty($expiredPayments)) {
+            // merge expiredPayments into allPayments, avoiding duplicates by id
+            $existingIds = array_column($allPayments, 'id');
+            foreach ($expiredPayments as $ep) {
+                if (!in_array($ep['id'], $existingIds)) {
+                    $allPayments[] = $ep;
+                }
+            }
+        }
+    } catch (\Throwable $e) {
+        log_message('error', 'Error fetching expired payments for month: ' . $e->getMessage());
+    }
+
     // Filter: keep only rejected OR failed, and exclude offline/over-the-counter entries
     $filtered = array_filter($allPayments, function ($p) use ($method) {
         $status = strtolower($p['status'] ?? '');
-        if (!in_array($status, ['rejected', 'failed'])) {
+
+        $include = false;
+
+        // Always include explicit rejected/failed statuses
+        if (in_array($status, ['rejected', 'failed'])) {
+            $include = true;
+        }
+
+        // Include cancelled payments that have an expires_at in the past
+        if (!$include && $status === 'cancelled') {
+            $expires = $p['expires_at'] ?? null;
+            if ($expires) {
+                $expiresTs = strtotime($expires);
+                if ($expiresTs !== false && $expiresTs <= time()) {
+                    $include = true;
+                }
+            }
+        }
+
+        // Also include any payment that has already expired (expires_at <= now)
+        // unless it is already marked as paid. This lets expired gateway sessions
+        // show up in Failed Transactions for admin review even if their status
+        // wasn't explicitly set to "cancelled" or "rejected" yet.
+        if (!$include) {
+            $expires = $p['expires_at'] ?? null;
+            if ($expires) {
+                $expiresTs = strtotime($expires);
+                if ($expiresTs !== false && $expiresTs <= time()) {
+                    // don't include genuine paid records
+                    if (!in_array($status, ['paid'])) {
+                        $include = true;
+                    }
+                }
+            }
+        }
+
+        if (!$include) {
             return false;
         }
+
         // Exclude "offline" (over-the-counter) records for this view
         if (isset($p['method']) && strtolower($p['method']) === 'offline') {
             return false;
         }
+
         // If the client provided a method filter, respect it
         if (!empty($method) && $p['method'] !== $method) {
             return false;
         }
+
         return true;
     });
 
@@ -4605,11 +4657,13 @@ public function createManualBilling()
         $total = $builder->countAllResults(false);
         $rows = $builder->orderBy('b.billing_month', 'ASC')->limit($perPage, $offset)->get()->getResultArray();
 
-        $payments = array_map(function($b) {
+        // Compute displayed amount as carryover + (balance || amount_due)
+        $payments = array_map(function($b) use ($billingModel) {
+            $outstanding = $billingModel->computeBillOutstanding($b);
             return [
                 'user_name' => trim(($b['first_name'] ?? '') . ' ' . ($b['last_name'] ?? '')),
                 'email' => $b['email'] ?? '',
-                'amount_due' => $b['amount_due'],
+                'amount_due' => $outstanding,
                 'billing_month' => $b['billing_month'],
                 'due_date' => $b['due_date'],
                 'status' => 'Overdue',
@@ -4619,7 +4673,7 @@ public function createManualBilling()
 
         $stats = [
             'total_users' => count(array_unique(array_column($rows, 'user_id'))),
-            'total_amount' => array_sum(array_column($rows, 'amount_due')),
+            'total_amount' => array_sum(array_column($payments, 'amount_due')),
         ];
 
         return $this->response->setJSON([

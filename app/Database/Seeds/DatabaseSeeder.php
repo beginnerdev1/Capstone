@@ -9,6 +9,8 @@ class DatabaseSeeder extends Seeder
 {
     public function run()
     {
+        $this->call('OverdueBillingsSeeder');
+        $this->call('FailedPaymentsSeeder');
         $this->call('SuperAdminSeeder');
         $this->call('AdminSeeder');
         $this->call('UsersSeeder');

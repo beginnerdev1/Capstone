@@ -115,9 +115,13 @@
             <input 
               type="text" 
               name="gcash_number" 
-              placeholder="e.g., 09XX-XXX-XXXX" 
+              id="gcashNumberInput"
+              placeholder="e.g., 09123456789" 
               required
-              maxlength="20"
+              maxlength="11"
+              pattern="\d{11}"
+              inputmode="numeric"
+              title="Enter 11 digits only (numbers only)"
               value="<?= isset($gcashSettings['gcash_number']) ? $gcashSettings['gcash_number'] : '' ?>"
               data-debug="current-gcash-number"
             >
@@ -213,6 +217,24 @@
   });
 
   fileInput.addEventListener('change', handleFileSelect);
+
+  // Enforce digits-only and length for GCash number input
+  const gcashInput = document.getElementById('gcashNumberInput');
+  if (gcashInput) {
+    // On input: strip non-digits and limit to 11 chars
+    gcashInput.addEventListener('input', (e) => {
+      const cleaned = e.target.value.replace(/\D+/g, '').slice(0, 11);
+      if (e.target.value !== cleaned) e.target.value = cleaned;
+    });
+
+    // On paste: sanitize pasted content
+    gcashInput.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const text = (e.clipboardData || window.clipboardData).getData('text') || '';
+      const cleaned = text.replace(/\D+/g, '').slice(0, 11);
+      document.execCommand('insertText', false, cleaned);
+    });
+  }
 
   function handleFileSelect() {
     const file = fileInput.files[0];

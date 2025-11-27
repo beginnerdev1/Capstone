@@ -125,12 +125,13 @@
       transform: scaleX(0);
       transition: transform 0.3s ease;
     }
-    /* Remove hover motion/visuals but keep color/gradients */
-    .stat-card:hover {
+    /* Remove hover motion/visuals except for clickable cards */
+    .stat-card.is-clickable:hover {
       transform: none;
       box-shadow: var(--card-shadow);
+      cursor: pointer;
     }
-    .stat-card:hover::before {
+    .stat-card.is-clickable:hover::before {
       transform: scaleX(0);
     }
     .stat-icon {
@@ -1498,6 +1499,66 @@ $(function () {
     // The previous updatePaymentChart and updateTrendIndicators functions were removed here
     setTimeout(() => loadDashboardData(), 500);
     setTimeout(() => loadRecentBills(), 800);
+
+    // Poll for billing/payment updates and auto-refresh the index when changes detected
+    (function startBillingPoll(){
+      // Create an initial fingerprint from the latest loaded data
+      let lastFingerprint = null;
+
+      function fingerprintFromPayload(payload){
+        if(!Array.isArray(payload)) return null;
+        // Build a simple fingerprint: count + max(updated_at|due_date|id) + sum of outstanding (rounded)
+        let count = payload.length;
+        let maxStamp = 0;
+        let sumOutstanding = 0;
+        payload.forEach(b => {
+          // prefer updated_at, then due_date, then id as a proxy
+          let ts = 0;
+          try {
+            if (b.updated_at) ts = Date.parse(b.updated_at) || ts;
+            if (!ts && b.due_date) ts = Date.parse(b.due_date) || ts;
+          } catch(e) { ts = ts || 0; }
+          if (!ts && b.id) ts = Number(b.id) || 0;
+          if (ts > maxStamp) maxStamp = ts;
+          const out = Number(b.outstanding ?? b.balance ?? b.amount_due ?? b.amount ?? 0) || 0;
+          sumOutstanding += Math.round(out);
+        });
+        return `${count}:${maxStamp}:${sumOutstanding}`;
+      }
+
+      // Do an initial fetch to establish baseline after page load
+      function fetchBaseline(){
+        $.get("<?= base_url('users/getBillingsAjax') ?>", { limit: 50 }, function(response){
+          const payload = Array.isArray(response) ? response : (response && Array.isArray(response.bills) ? response.bills : []);
+          lastFingerprint = fingerprintFromPayload(payload);
+        }).fail(function(){ /* ignore errors for baseline */ });
+      }
+
+      // Polling loop
+      function poll(){
+        $.get("<?= base_url('users/getBillingsAjax') ?>", { limit: 50, _poll:1 }, function(response){
+          const payload = Array.isArray(response) ? response : (response && Array.isArray(response.bills) ? response.bills : []);
+          const fp = fingerprintFromPayload(payload);
+          if (lastFingerprint && fp && fp !== lastFingerprint) {
+            console && console.info && console.info('Billing change detected; refreshing index.');
+            // If any modal is currently open, avoid full page reload to prevent losing context.
+            const modalOpen = document.body.classList.contains('modal-open');
+            if (modalOpen) {
+              // Refresh the dashboard widgets instead
+              try { loadDashboardData(); loadRecentBills(); } catch(e){ location.reload(); }
+            } else {
+              location.reload();
+            }
+          }
+          lastFingerprint = fp;
+        }).fail(function(){ /* poll error - ignore and retry next interval */ });
+      }
+
+      // Start
+      setTimeout(fetchBaseline, 1500);
+      // Poll every 15 seconds
+      setInterval(poll, 15000);
+    })();
 
     // Hook pay now button in disconnection modal to open payment flow
     document.getElementById('payNowBtn')?.addEventListener('click', function (e) {

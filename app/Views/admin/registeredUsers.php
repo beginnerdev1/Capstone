@@ -471,13 +471,13 @@ html,body { height:100%; margin:0; font-family: var(--font-sans); background: li
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label class="form-label">First Name <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" name="first_name" minlength="2" maxlength="50" required>
-                            <div class="invalid-feedback">Please enter a valid first name (2-50 characters)</div>
+                            <input type="text" class="form-control name-dot-only" name="first_name" minlength="2" maxlength="50" pattern="[A-Za-z.]{2,50}" title="Only letters and dot (.) allowed" required>
+                            <div class="invalid-feedback">Please enter a valid first name (2-50 characters). Only letters and a dot (.) are allowed.</div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Last Name <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" name="last_name" minlength="2" maxlength="50" required>
-                            <div class="invalid-feedback">Please enter a valid last name (2-50 characters)</div>
+                            <input type="text" class="form-control name-dot-only" name="last_name" minlength="2" maxlength="50" pattern="[A-Za-z.]{2,50}" title="Only letters and dot (.) allowed" required>
+                            <div class="invalid-feedback">Please enter a valid last name (2-50 characters). Only letters and a dot (.) are allowed.</div>
                         </div>
                     </div>
                     <div class="mb-3">
@@ -922,6 +922,25 @@ function initRegisteredUsersPage() {
             passwordField.attr('type', 'password');
             icon.removeClass('fa-eye-slash').addClass('fa-eye');
         }
+    });
+
+    // Restrict name inputs to letters and dot only (sanitize on input and paste)
+    $(document).on('input', 'input.name-dot-only', function(){
+        const orig = this.value || '';
+        const clean = orig.replace(/[^A-Za-z.]/g, '');
+        if (clean !== orig) this.value = clean;
+    });
+
+    $(document).on('paste', 'input.name-dot-only', function(e){
+        e.preventDefault();
+        const clipboard = (e.originalEvent || e).clipboardData;
+        const text = clipboard ? clipboard.getData('text/plain') : '';
+        const clean = (text || '').replace(/[^A-Za-z.]/g, '');
+        const el = this;
+        const start = el.selectionStart || 0;
+        const end = el.selectionEnd || 0;
+        const newVal = el.value.slice(0, start) + clean + el.value.slice(end);
+        el.value = newVal;
     });
 
     // Add User / Account Submission with validation

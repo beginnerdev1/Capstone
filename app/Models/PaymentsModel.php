@@ -49,6 +49,7 @@ class PaymentsModel extends Model
             p.receipt_image,
             p.created_at,
             p.paid_at,
+            p.expires_at,
             u.id as user_id,
             ui.first_name,
             ui.last_name,
@@ -159,7 +160,36 @@ class PaymentsModel extends Model
             $data['admin_reference'] = $adminReference;
         }
 
-        return $this->update($paymentId, $data);
+        $ok = $this->update($paymentId, $data);
+
+        // After confirming a manual/GCash payment, mark any same-day gateway awaiting payments
+        // for the same user as rejected so they appear in failed transactions.
+        try {
+            $payment = $this->find($paymentId);
+            if ($payment && in_array(strtolower($payment['method'] ?? ''), ['manual', 'offline', 'gcash'])) {
+                $userId = $payment['user_id'] ?? null;
+                $createdAt = isset($payment['created_at']) ? date('Y-m-d', strtotime($payment['created_at'])) : date('Y-m-d');
+                if ($userId) {
+                    // Use a safe created_at range for same-day matching instead of DATE() function
+                    $startOfDay = $createdAt . ' 00:00:00';
+                    $endOfDay = $createdAt . ' 23:59:59';
+
+                    $this->where('user_id', $userId)
+                        ->where('method', 'gateway')
+                        ->where('status', 'awaiting_payment')
+                        ->where('created_at >=', $startOfDay)
+                        ->where('created_at <=', $endOfDay)
+                        ->set(['status' => 'rejected', 'admin_reference' => 'superseded_by_manual_payment', 'updated_at' => date('Y-m-d H:i:s')])
+                        ->update();
+
+                    log_message('info', "Marked gateway awaiting payments as rejected for user {$userId} between {$startOfDay} and {$endOfDay}");
+                }
+            }
+        } catch (\Throwable $e) {
+            log_message('error', 'Error while marking gateway awaiting payments as rejected: ' . $e->getMessage());
+        }
+
+        return $ok;
     }
 
     /**

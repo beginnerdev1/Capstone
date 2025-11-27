@@ -56,7 +56,8 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: v
 /* Stats Grid: force a 2x2 layout on desktop for consistent appearance */
 .stats-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; margin-bottom: 2rem; align-items: stretch; }
 .stat-card { background: var(--bg-secondary); border-radius: var(--radius); padding: 1.5rem 1.75rem; box-shadow: var(--shadow-sm); border: 1px solid var(--border-color); transition: all 0.18s ease; display: flex; align-items: center; gap: 1rem; min-height: 110px; }
-.stat-card:hover { box-shadow: var(--shadow-md); transform: translateY(-4px); border-color: var(--primary); }
+.stat-card.is-clickable { transition: all 0.18s ease; }
+.stat-card.is-clickable:hover { box-shadow: var(--shadow-md); transform: translateY(-4px); border-color: var(--primary); cursor: pointer; }
 
 /* Layout fix: ensure content and icon align regardless of text wrap */
 .stat-content { flex: 1 1 auto; min-width: 0; }

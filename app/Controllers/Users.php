@@ -700,6 +700,26 @@ public function createCheckout()
             'created_at'     => date('Y-m-d H:i:s'),
         ];
 
+        // Before inserting a new gateway payment, mark any existing 'awaiting_payment' gateway
+        // payments for this user as rejected so they show up in failed transactions.
+        try {
+            $updated = $paymentsModel
+                ->where('user_id', $userId)
+                ->where('method', 'gateway')
+                ->where('status', 'awaiting_payment')
+                ->set([
+                    'status' => 'rejected',
+                    'admin_reference' => 'superseded_by_new_gateway_payment',
+                    'updated_at' => date('Y-m-d H:i:s')
+                ])->update();
+
+            if ($updated) {
+                log_message('info', "Superseded awaiting_payment gateway payments marked rejected for user: {$userId}");
+            }
+        } catch (\Throwable $e) {
+            log_message('error', 'Error marking previous awaiting payments as rejected: ' . $e->getMessage());
+        }
+
         $insertedPaymentId = $paymentsModel->insert($paymentData);
         if (!$insertedPaymentId) {
             return $this->response->setJSON([

@@ -658,8 +658,22 @@ body {
     <div class="profile-header-content">
       <div class="profile-avatar-section">
         <div class="profile-avatar" id="profileAvatarDisplay">
-          <?php if (!empty($admin['profile_picture']) && $admin['profile_picture'] !== 'default.png'): ?>
-            <img src="<?= base_url('uploads/profile/' . $admin['profile_picture']) ?>" alt="Profile">
+          <?php
+            $profilePic = $admin['profile_picture'] ?? '';
+            $profilePicSrc = '';
+            if (!empty($profilePic) && $profilePic !== 'default.png') {
+                // If it's already a full URL or already includes uploads/, use as-is (prefix with base_url if relative)
+                if (preg_match('#^https?://#i', $profilePic)) {
+                    $profilePicSrc = $profilePic;
+                } elseif (strpos($profilePic, 'uploads/') === 0 || strpos($profilePic, '/uploads/') === 0) {
+                    $profilePicSrc = base_url(ltrim($profilePic, '/'));
+                } else {
+                    $profilePicSrc = base_url('uploads/profile/' . $profilePic);
+                }
+            }
+          ?>
+          <?php if ($profilePicSrc): ?>
+            <img src="<?= esc($profilePicSrc) ?>" alt="Profile">
           <?php else: ?>
             <span>👤</span>
           <?php endif; ?>
@@ -736,12 +750,12 @@ body {
 
       <!-- Change Password (OTP Secured) -->
       <style>
-        /* Password change numbered steps */
-        .pwd-steps { list-style: none; padding: 0; margin: 0 0 12px 0; display:flex; gap:12px; flex-wrap:wrap; }
-        .pwd-steps li { counter-increment: step; background:#f3f4f6; padding:8px 12px; border-radius:8px; display:flex; align-items:center; gap:8px; color:#374151; }
-        .pwd-steps li::before { content: counter(step); counter-reset: none; display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:50%; background:#e5e7eb; color:#111827; font-weight:700; margin-right:6px; }
-        .pwd-steps li.active { background: linear-gradient(90deg,#10b981,#059669); color:white; }
-        .pwd-steps li.active::before { background: rgba(255,255,255,0.2); color:white; }
+        /* Password change steps: render as a simple vertical list (not button-like) */
+          .pwd-steps { list-style: decimal inside; padding-left: 1rem; margin: 0 0 12px 0; }
+          .pwd-steps li { display: block; margin: 0.35rem 0; padding: 0; color: var(--muted); font-size: 0.95rem; }
+          .pwd-steps li .step-desc { display:block; color: var(--muted); font-size:0.9rem; margin-top:4px; }
+          .pwd-steps li.active { color: var(--dark); font-weight: 700; }
+          .pwd-steps li.active::before { content: '✓ '; color: var(--success); font-weight:700; }
       </style>
 
       <div class="form-section" id="passwordChangeSection">
@@ -887,25 +901,42 @@ form.addEventListener('submit', async (e) => {
   }
 });
 
-// Load profile data from PHP
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('edit_profile script loaded at', new Date().toISOString());
-  const adminData = <?= json_encode($admin ?? []) ?>;
-  
-  if (adminData) {
-    // Populate form fields
-    if (form.first_name) form.first_name.value = adminData.first_name || '';
-    if (form.middle_name) form.middle_name.value = adminData.middle_name || '';
-    if (form.last_name) form.last_name.value = adminData.last_name || '';
-    if (form.email) form.email.value = adminData.email || '';
-    if (form.position && adminData.position) form.position.value = adminData.position || '';
-    
-    // Update profile picture if exists
-    if (adminData.profile_picture && adminData.profile_picture !== 'default.png') {
-      avatarDisplay.innerHTML = `<img src="<?= base_url('uploads/profile/') ?>${adminData.profile_picture}" alt="Profile">`;
+  // Load profile data from PHP (safe handling for profile picture paths)
+  document.addEventListener('DOMContentLoaded', () => {
+    console.log('edit_profile script loaded at', new Date().toISOString());
+    const adminData = <?= json_encode($admin ?? []) ?>;
+    const baseUrl = '<?= rtrim(base_url(), "\\/") ?>';
+
+    if (adminData) {
+      // Populate form fields
+      if (form.first_name) form.first_name.value = adminData.first_name || '';
+      if (form.middle_name) form.middle_name.value = adminData.middle_name || '';
+      if (form.last_name) form.last_name.value = adminData.last_name || '';
+      if (form.email) form.email.value = adminData.email || '';
+      if (form.position && adminData.position) form.position.value = adminData.position || '';
+
+      // Update profile picture if exists — avoid double-prefixing uploads/
+      const pic = adminData.profile_picture || '';
+      if (pic && pic !== 'default.png') {
+        let src = '';
+        // Absolute URL
+        if (/^https?:\/\//i.test(pic)) {
+          src = pic;
+        } else if (/^\//.test(pic)) {
+          // Leading slash path like '/uploads/...'
+          src = baseUrl + pic;
+        } else if (/^uploads\//.test(pic)) {
+          // Already includes uploads/ prefix
+          src = baseUrl + '/' + pic;
+        } else {
+          // Assume filename only, use uploads/profile/ folder
+          src = baseUrl + '/uploads/profile/' + pic;
+        }
+
+        avatarDisplay.innerHTML = `<img src="${src}" alt="Profile">`;
+      }
     }
-  }
-});
+  });
 
 // ================= PASSWORD CHANGE WITH OTP =================
 const sendOtpBtn = document.getElementById('sendOtpBtn');

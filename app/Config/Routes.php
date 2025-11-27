@@ -11,6 +11,10 @@ use CodeIgniter\Router\RouteCollection;
 // =====================================================
 $routes->get('/', 'Auth::login');
 
+// Route to serve uploaded files via controller so files outside public (e.g. writable/uploads)
+// still resolve when referenced as /uploads/<folder>/<file>
+$routes->get('uploads/(:segment)/(:any)', 'Uploads::serve/$1/$2');
+
 $routes->get('/login', 'Auth::login', ['filter' => 'guest']);
 $routes->post('/login', 'Auth::attemptLogin', ['filter' => 'guest']);
 
@@ -137,6 +141,8 @@ $routes->group('admin', ['namespace' => 'App\Controllers\Admin'], function ($rou
 $routes->get('getUser/(:num)', 'Admin::getUser/$1');//get user info for verify user
 $routes->get('filterUsers', 'Admin::filterUsers'); //filter users in User Management (registeredUsers.php) by name/purok
 $routes->post('addUser', 'Admin::addUser'); // Add new user account (AJAX)
+    // Update user (AJAX) - allow POST to update a specific user id
+    $routes->post('updateUser/(:num)', 'Admin::updateUser/$1');
 $routes->get('gcash-settings', 'Admin::gcashsettings');// GCash Settings Page
 $routes->post('saveGcashSettings', 'Admin::saveGcashSettings'); // Save GCash Settings
 $routes->get('transactionRecords', 'Admin::transactionRecords');// Transaction Records Page

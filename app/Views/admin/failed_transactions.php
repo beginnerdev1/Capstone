@@ -13,8 +13,9 @@
   .payments-header-icon { font-size: 3.5rem; animation: bounce 2s ease-in-out infinite; }
   @keyframes bounce { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-15px) rotate(5deg); } }
   .payments-date-range { background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(20px); padding: 1rem 1.75rem; border-radius: 16px; font-size: 1.1rem; font-weight: 700; border: 2px solid rgba(255, 255, 255, 0.3); box-shadow: 0 8px 32px rgba(31, 38, 135, 0.2); display: flex; align-items: center; gap: 0.75rem; }
-  .payments-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.75rem; }
-  .stat-item { background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(20px); padding: 2rem; border-radius: 18px; border: 2px solid rgba(255, 255, 255, 0.25); transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); position: relative; overflow: hidden; min-height: 220px; display: flex; flex-direction: column; justify-content: space-between; }
+  /* Force a stable 2x2 layout like the dashboard: 0 \t\t 0 \n 0 \t\t 0 where 0 = stat-item */
+  .payments-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; }
+  .stat-item { background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(20px); padding: 1.5rem; border-radius: 12px; border: 2px solid rgba(255, 255, 255, 0.18); transition: all 0.18s ease; position: relative; overflow: hidden; min-height: 110px; display: flex; flex-direction: column; justify-content: space-between; }
   .stat-item::before { content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent); transition: left 0.7s ease; }
   .stat-item:hover { background: rgba(255, 255, 255, 0.25); transform: translateY(-12px); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.2); border-color: rgba(255, 255, 255, 0.4); }
   .stat-item:hover::before { left: 100%; }
@@ -44,11 +45,20 @@
   .table-header { padding: 1.75rem; background: linear-gradient(135deg, var(--light) 0%, white 100%); border-bottom: 2px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
   .table-header-title { font-weight: 700; color: var(--dark); font-size: 1.1rem; }
   .table-wrapper { overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; }
-  th { padding: 1rem 1.5rem; text-align: left; font-weight: 700; color: var(--dark); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid var(--border); background: var(--light); }
-  td { padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
-  tbody tr { transition: all 0.2s ease; }
-  tbody tr:hover { background: rgba(102, 126, 234, 0.03); }
+  /* tables: more card-like spacing to match dashboard stat-cards */
+  table { width: 100%; border-collapse: separate; border-spacing: 0 10px; }
+  th { padding: 0.9rem 1.25rem; text-align: left; font-weight: 700; color: var(--dark); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid var(--border); background: transparent; }
+  td { padding: 1rem 1.25rem; font-size: 0.95rem; vertical-align: middle; background: #ffffff; }
+
+  /* container styling to resemble stat-cards */
+  .table-container { padding: 1rem; border-radius: 12px; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.04); border: 1px solid #e5e7eb; background: white; overflow: hidden; margin-bottom: 1.5rem; }
+  .table-header { padding: 1rem 1.25rem; }
+  .table-wrapper { padding: 0.5rem 1rem 1rem 1rem; }
+
+  tbody tr td:first-child { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
+  tbody tr td:last-child { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
+  tbody tr { transition: transform 0.18s ease, box-shadow 0.18s ease; }
+  tbody tr:hover td { box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04); transform: translateY(-4px); }
   .user-info { display: flex; align-items: center; gap: 0.75rem; }
   .user-avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.9rem; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3); }
   .user-details h4 { margin: 0; font-weight: 700; color: var(--dark); font-size: 0.95rem; }
@@ -100,7 +110,7 @@
   #pagination button:hover { background-color: var(--primary); color: white; border-color: var(--primary); }
   #pagination button.active { background-color: var(--primary); color: white; border-color: var(--primary); }
   @media (max-width: 1024px) { .payments-header { padding: 2.5rem; } .payments-header-title { font-size: 2.2rem; } .payments-stats { grid-template-columns: repeat(2, 1fr); gap: 1.5rem; } .stat-item { min-height: 200px; padding: 1.75rem; } .stat-value { font-size: 2.2rem; } }
-  @media (max-width: 768px) { .payments-wrapper { padding: 1rem; } .payments-header { padding: 1.75rem; } .payments-header-top { flex-direction: column; align-items: flex-start; margin-bottom: 1.5rem; } .payments-header-title { font-size: 1.8rem; } .payments-stats { grid-template-columns: 1fr; } .stat-item { min-height: 180px; padding: 1.5rem; } .stat-value { font-size: 2rem; } .filters-grid { grid-template-columns: 1fr; } th, td { padding: 0.75rem; } .modal-content { width: 95%; padding: 1.5rem; } .payment-details { grid-template-columns: 100px 1fr; gap: 0.75rem 1rem; } .modal-actions { flex-direction: column-reverse; } .btn-modal { width: 100%; } }
+  @media (max-width: 768px) { .payments-wrapper { padding: 1rem; } .payments-header { padding: 1.75rem; } .payments-header-top { flex-direction: column; align-items: flex-start; margin-bottom: 1.5rem; } .payments-header-title { font-size: 1.8rem; } .payments-stats { grid-template-columns: 1fr; } .stat-item { min-height: 120px; padding: 1.25rem; } .stat-value { font-size: 2rem; } .filters-grid { grid-template-columns: 1fr; } th, td { padding: 0.75rem; } .modal-content { width: 95%; padding: 1.5rem; } .payment-details { grid-template-columns: 100px 1fr; gap: 0.75rem 1rem; } .modal-actions { flex-direction: column-reverse; } .btn-modal { width: 100%; } }
   @media (max-width: 480px) { .payments-header { padding: 1.5rem; } .payments-header-title { font-size: 1.5rem; } .payments-stats { gap: 1rem; } .stat-item { min-height: auto; padding: 1.25rem; } .stat-value { font-size: 1.75rem; } .stat-label { font-size: 0.75rem; } .payment-details { grid-template-columns: 1fr; gap: 0.5rem; } .detail-label { font-size: 0.8rem; color: var(--muted); } .detail-value { font-size: 0.9rem; margin-bottom: 0.5rem; } .modal-actions { flex-direction: column-reverse; } .btn-modal { width: 100%; } }
   @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 </style>
@@ -409,10 +419,29 @@ function initFailedTransactionsPage() {
     paymentTableBody.innerHTML = '';
     const list = Array.isArray(data) ? data : [];
 
-    // Filter only failed and rejected
+    // Filter only failed/rejected, cancelled-but-already-expired, or already-expired items
     const filtered = list.filter(item => {
       const s = (item.status || '').toLowerCase().trim();
-      return s === 'rejected' || s === 'failed';
+      if (s === 'rejected' || s === 'failed') return true;
+
+      // Cancelled and expired
+      if (s === 'cancelled') {
+        if (item.expires_at) {
+          const exp = new Date(item.expires_at);
+          if (!isNaN(exp.getTime()) && exp.getTime() <= Date.now()) return true;
+        }
+      }
+
+      // Any payment that has already expired (expires_at in the past) should also be shown
+      if (item.expires_at) {
+        const exp2 = new Date(item.expires_at);
+        if (!isNaN(exp2.getTime()) && exp2.getTime() <= Date.now()) {
+          // avoid showing paid records as failed
+          if ((s || '').toLowerCase().trim() !== 'paid') return true;
+        }
+      }
+
+      return false;
     });
 
     if (!filtered.length) {

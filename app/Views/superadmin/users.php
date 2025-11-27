@@ -43,6 +43,7 @@
       </div>
       <div class="modal-body">
         <form id="newAdminForm" enctype="multipart/form-data">
+          <?= csrf_field() ?>
           <div class="row g-3">
             <div class="col-md-4">
               <label class="form-label">First Name</label>
@@ -100,6 +101,9 @@
     return [r.first_name, r.middle_name, r.last_name].filter(Boolean).join(' ');
   }
 
+  // CSRF token name (read from server-rendered helper) — used for AJAX posts
+  const csrfName = '<?= csrf_token() ?>';
+
   function loadAdmins(){
     $.getJSON('<?= site_url('superadmin/getUsers') ?>').done(function(rows){
       const $tb = $('#adminsTable tbody');
@@ -109,19 +113,27 @@
         return;
       }
       rows.forEach((r, idx) => {
-        const status = r.is_verified ? '<span class="badge bg-success">Verified</span>' : '<span class="badge bg-secondary">Unverified</span>';
-        const actions = `<button class=\"btn btn-sm btn-outline-danger retire-btn\" data-id=\"${r.id}\"><i class=\"fas fa-user-slash me-1\"></i>Retire</button>`;
-        $tb.append(`
-          <tr>
-            <td>${idx+1}</td>
-            <td>${buildFullName(r)}</td>
-            <td>${r.username || ''}</td>
-            <td>${r.email || ''}</td>
-            <td>${r.position || ''}</td>
-            <td>${status}</td>
-            <td>${r.created_at || ''}</td>
-            <td>${actions}</td>
-          </tr>`);
+        const $tr = $('<tr>');
+        $tr.append($('<td>').text(idx+1));
+        $tr.append($('<td>').text(buildFullName(r)));
+        $tr.append($('<td>').text(r.username || ''));
+        $tr.append($('<td>').text(r.email || ''));
+        $tr.append($('<td>').text(r.position || ''));
+        const $statusTd = $('<td>');
+        if (r.is_verified) {
+          $statusTd.append($('<span>').addClass('badge bg-success').text('Verified'));
+        } else {
+          $statusTd.append($('<span>').addClass('badge bg-secondary').text('Unverified'));
+        }
+        $tr.append($statusTd);
+        $tr.append($('<td>').text(r.created_at || ''));
+        const $actionsTd = $('<td>');
+        const $retireBtn = $('<button>').attr('type','button').addClass('btn btn-sm btn-outline-danger retire-btn').attr('data-id', r.id);
+        $retireBtn.prepend($('<i>').addClass('fas fa-user-slash me-1'));
+        $retireBtn.append('Retire');
+        $actionsTd.append($retireBtn);
+        $tr.append($actionsTd);
+        $tb.append($tr);
       });
     });
   }
@@ -214,7 +226,10 @@
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Processing...');
     const id = $('#retireAdminId').val();
     const code = $('#retireAdminCode').val() || '';
-    $.post('<?= site_url('superadmin/retireUser') ?>', {id, admin_code: code}).done(function(res){
+    const csrfVal = $('input[name="'+csrfName+'"]').val();
+    const postData = { id: id, admin_code: code };
+    if (csrfName && csrfVal !== undefined) postData[csrfName] = csrfVal;
+    $.post('<?= site_url('superadmin/retireUser') ?>', postData).done(function(res){
       if(res && res.status === 'success'){
         $('#retireAlerts').html('<div class="alert alert-success">'+res.message+'</div>');
         loadAdmins();

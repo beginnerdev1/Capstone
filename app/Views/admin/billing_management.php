@@ -252,9 +252,10 @@
             font-size: 1.1rem; 
         }
         .ubill-table-wrapper { overflow-x: auto; }
-        .ubill-table { width: 100%; border-collapse: collapse; }
+        /* Make billing tables visually consistent with dashboard stat-cards */
+        .ubill-table { width: 100%; border-collapse: separate; border-spacing: 0 10px; }
         .ubill-table th { 
-            padding: 1.2rem 1.5rem; 
+            padding: 0.9rem 1.25rem; 
             text-align: left; 
             font-weight: 700; 
             color: white;
@@ -265,13 +266,22 @@
             background: linear-gradient(135deg, var(--ubill-primary) 0%, var(--ubill-primary-dark) 100%);
         }
         .ubill-table td { 
-            padding: 1.2rem 1.5rem; 
-            border-bottom: 1px solid var(--ubill-border); 
-            font-size: 0.9rem; 
+            padding: 1rem 1.25rem; 
+            font-size: 0.95rem; 
+            vertical-align: middle;
+            background: #ffffff;
+            border-bottom: none;
         } 
-        .ubill-table tbody tr:hover { 
-            background: rgba(59, 130, 246, 0.03); 
-        }
+        .ubill-table tbody tr td:first-child { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
+        .ubill-table tbody tr td:last-child { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
+        .ubill-table tbody tr { transition: transform 0.18s ease, box-shadow 0.18s ease; }
+        .ubill-table tbody tr td { box-shadow: none; }
+        .ubill-table tbody tr:hover td { box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04); transform: translateY(-4px); }
+
+        /* container adjustments */
+        .ubill-table-container { padding: 1rem; border-radius: 12px; box-shadow: 0 12px 30px rgba(15,23,42,0.04); border: 1px solid #e5e7eb; background: white; }
+        .ubill-table-header { padding: 1rem 1.25rem; }
+        .ubill-table-wrapper { padding: 0.5rem 1rem 1rem 1rem; }
         .ubill-avatar { 
             width: 38px; 
             height: 38px; 
