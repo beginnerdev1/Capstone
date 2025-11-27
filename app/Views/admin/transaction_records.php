@@ -336,7 +336,7 @@
                 <form id="confirmGCashForm">
                     <div class="form-group">
                         <label class="form-label">✍️ Admin Reference (Required)</label>
-                        <input type="text" id="adminRef" class="form-input" placeholder="Enter reference or transaction ID" required maxlength="100">
+                        <input type="text" id="adminRef" class="form-input" placeholder="Enter reference or transaction ID" required maxlength="13" inputmode="numeric" pattern="[0-9]{1,13}">
                         <input type="hidden" id="modalPaymentId">
                         <small style="color: #6b7280; display: block; margin-top: 0.5rem;">This will be stored for record-keeping purposes</small>
                     </div>
@@ -406,6 +406,7 @@
                 <div class="form-group">
                     <label class="form-label">💵 Amount (Required)</label>
                     <input type="number" id="counterAmount" class="form-input" placeholder="Enter amount" required step="0.01" min="0">
+                    <small id="counterAmountError" style="color:#ef4444; display:none; margin-top: 0.5rem;">Amount cannot exceed outstanding billing amount.</small>
                 </div>
 
                 <div class="form-group">
@@ -442,7 +443,19 @@ function initTransactionPage() {
     const paymentTableBody = document.getElementById('paymentTableBody');
     const loadingIndicator = document.getElementById('loadingIndicator');
     const gcashModal = document.getElementById('gcashModal');
-    const confirmGCashForm = document.getElementById('confirmGCashForm');
+            const confirmGCashForm = document.getElementById('confirmGCashForm');
+            const adminRefInput = document.getElementById('adminRef');
+            if (adminRefInput) {
+                // Keep only digits while typing and limit to 13
+                adminRefInput.addEventListener('input', e => {
+                    const cleaned = (e.target.value || '').replace(/\D/g, '');
+                    if (cleaned.length > 13) {
+                        e.target.value = cleaned.slice(0, 13);
+                    } else {
+                        e.target.value = cleaned;
+                    }
+                });
+            }
     const exportBtn = document.getElementById('exportBtn');
     
     let paymentsData = [];
@@ -775,8 +788,18 @@ if (confirmGCashForm) {
             const userRef = currentPayment.reference_number; // Get user's reference
             const confirmBtn = document.getElementById('confirmBtn');
 
+            // Check admin reference numeric and length requirements
+            const adminRefValue = adminRef.trim();
+            const adminRefIsDigits = /^\d{1,13}$/.test(adminRefValue);
+            if (!adminRefIsDigits) {
+                alert('❌ Admin reference must be numeric and no more than 13 digits.');
+                confirmBtn.textContent = 'Confirm Payment';
+                confirmBtn.disabled = false;
+                return;
+            }
+
             // Check if admin reference matches user's reference
-            if (adminRef.trim() !== userRef.trim()) {
+            if (adminRefValue !== (userRef || '').trim()) {
                 alert('❌ Admin reference must match the user reference number.');
                 confirmBtn.textContent = 'Confirm Payment';
                 confirmBtn.disabled = false;
@@ -826,6 +849,12 @@ if (confirmGCashForm) {
         const adminRef = (document.getElementById('adminRef').value || '').trim();
 
         if (!paymentId) return;
+
+        // If admin reference is provided, validate numeric-only and max 13 digits
+        if (adminRef && !/^\d{1,13}$/.test(adminRef)) {
+            alert('❌ Admin reference must be numeric and no more than 13 digits.');
+            return;
+        }
 
         const payload = {
             payment_id: paymentId,
@@ -974,12 +1003,14 @@ window.populateBillingsByUser = function() {
                 return;
             }
 
-            billings.forEach(b => {
+                billings.forEach(b => {
                 const option = document.createElement('option');
                 option.value = b.id;
 
                 // Show only total outstanding
                 option.textContent = `Outstanding: ₱${parseFloat(b.total_outstanding).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+                // Attach outstanding value for client-side validation
+                option.dataset.outstanding = parseFloat(b.total_outstanding);
 
                 billingDropdown.appendChild(option);
             });
@@ -998,6 +1029,44 @@ window.populateBillingsByUser = function() {
 document.getElementById('counterPurok').addEventListener('change', populateUsersByPurok);
 document.getElementById('counterUser').addEventListener('change', populateBillingsByUser);
 
+// Validate amount against selected billing outstanding
+const counterBillingEl = document.getElementById('counterBilling');
+const counterAmountEl = document.getElementById('counterAmount');
+const counterAmountErrorEl = document.getElementById('counterAmountError');
+if (counterBillingEl) {
+    counterBillingEl.addEventListener('change', () => {
+        const selected = counterBillingEl.options[counterBillingEl.selectedIndex];
+        const outstanding = selected ? (parseFloat(selected.dataset.outstanding) || 0) : 0;
+        if (counterAmountEl) {
+            // update max attribute for native validation
+            counterAmountEl.max = outstanding;
+            // if input exceeds outstanding, show error
+            const currentVal = parseFloat(counterAmountEl.value || 0);
+            if (currentVal > outstanding) {
+                if (counterAmountErrorEl) counterAmountErrorEl.style.display = 'block';
+                document.getElementById('counterSubmitBtn').disabled = true;
+            } else {
+                if (counterAmountErrorEl) counterAmountErrorEl.style.display = 'none';
+                document.getElementById('counterSubmitBtn').disabled = false;
+            }
+        }
+    });
+}
+if (counterAmountEl) {
+    counterAmountEl.addEventListener('input', (e) => {
+        const billingSelected = counterBillingEl.options[counterBillingEl.selectedIndex];
+        const outstanding = billingSelected ? (parseFloat(billingSelected.dataset.outstanding) || 0) : 0;
+        const val = parseFloat(e.target.value || 0);
+        if (val > outstanding) {
+            if (counterAmountErrorEl) counterAmountErrorEl.style.display = 'block';
+            document.getElementById('counterSubmitBtn').disabled = true;
+        } else {
+            if (counterAmountErrorEl) counterAmountErrorEl.style.display = 'none';
+            document.getElementById('counterSubmitBtn').disabled = false;
+        }
+    });
+}
+
 
 
     // Submit Counter Payment
@@ -1011,6 +1080,16 @@ window.submitCounterPayment = function() {
 
         if (!purok || !userId || !billingId || !amount) {
             alert('❌ Please fill in all required fields.');
+            return;
+        }
+
+        // Final client-side check: amount should not exceed billing outstanding
+        const billingSelect = document.getElementById('counterBilling');
+        const billingSelected = billingSelect ? billingSelect.options[billingSelect.selectedIndex] : null;
+        const outstanding = billingSelected ? (parseFloat(billingSelected.dataset.outstanding) || 0) : 0;
+        if (amount > outstanding) {
+            alert('❌ Amount exceeds billing outstanding (₱' + outstanding.toFixed(2) + ').');
+            if (counterAmountErrorEl) counterAmountErrorEl.style.display = 'block';
             return;
         }
 
