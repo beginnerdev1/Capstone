@@ -364,7 +364,7 @@ html,body { height:100%; margin:0; font-family: var(--font-sans); background: li
                                 <div class="row mb-3">
                                     <div class="col-md-6">
                                         <label class="form-label">Contact Number</label>
-                                        <input type="text" class="form-control" id="editPhone" name="phone" maxlength="20">
+                                        <input type="text" class="form-control" id="editPhone" name="phone" maxlength="20" pattern="[0-9NnAa/]{1,20}" title="Only digits and characters N, A and / are allowed">
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">Password</label>
@@ -471,13 +471,13 @@ html,body { height:100%; margin:0; font-family: var(--font-sans); background: li
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label class="form-label">First Name <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control name-dot-only" name="first_name" minlength="2" maxlength="50" pattern="[A-Za-z.]{2,50}" title="Only letters and dot (.) allowed" required>
-                            <div class="invalid-feedback">Please enter a valid first name (2-50 characters). Only letters and a dot (.) are allowed.</div>
+                            <input type="text" class="form-control name-dot-only" name="first_name" minlength="2" maxlength="50" pattern="[A-Za-z. ]{2,50}" title="Only letters, spaces and dot (.) allowed" required>
+                            <div class="invalid-feedback">Please enter a valid first name (2-50 characters). Only letters, spaces and a dot (.) are allowed.</div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Last Name <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control name-dot-only" name="last_name" minlength="2" maxlength="50" pattern="[A-Za-z.]{2,50}" title="Only letters and dot (.) allowed" required>
-                            <div class="invalid-feedback">Please enter a valid last name (2-50 characters). Only letters and a dot (.) are allowed.</div>
+                            <input type="text" class="form-control name-dot-only" name="last_name" minlength="2" maxlength="50" pattern="[A-Za-z. ]{2,50}" title="Only letters, spaces and dot (.) allowed" required>
+                            <div class="invalid-feedback">Please enter a valid last name (2-50 characters). Only letters, spaces and a dot (.) are allowed.</div>
                         </div>
                     </div>
                     <div class="mb-3">
@@ -500,8 +500,8 @@ html,body { height:100%; margin:0; font-family: var(--font-sans); background: li
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label class="form-label">Contact Number <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" name="phone" maxlength="20" required>
-                            <div class="invalid-feedback">Please enter a contact number</div>
+                            <input type="text" class="form-control" name="phone" maxlength="20" pattern="[0-9NnAa/]{1,20}" title="Only digits and characters N, A and / are allowed" required>
+                            <div class="invalid-feedback">Please enter a valid contact number (digits, N, A, / only)</div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Gender <span class="text-danger">*</span></label>
@@ -924,10 +924,10 @@ function initRegisteredUsersPage() {
         }
     });
 
-    // Restrict name inputs to letters and dot only (sanitize on input and paste)
+    // Restrict name inputs to letters, spaces and dot only (sanitize on input and paste)
     $(document).on('input', 'input.name-dot-only', function(){
         const orig = this.value || '';
-        const clean = orig.replace(/[^A-Za-z.]/g, '');
+        const clean = orig.replace(/[^A-Za-z. ]/g, '');
         if (clean !== orig) this.value = clean;
     });
 
@@ -935,7 +935,26 @@ function initRegisteredUsersPage() {
         e.preventDefault();
         const clipboard = (e.originalEvent || e).clipboardData;
         const text = clipboard ? clipboard.getData('text/plain') : '';
-        const clean = (text || '').replace(/[^A-Za-z.]/g, '');
+        const clean = (text || '').replace(/[^A-Za-z. ]/g, '');
+        const el = this;
+        const start = el.selectionStart || 0;
+        const end = el.selectionEnd || 0;
+        const newVal = el.value.slice(0, start) + clean + el.value.slice(end);
+        el.value = newVal;
+    });
+
+    // Restrict phone inputs to digits and characters N, A and / only (sanitize on input and paste)
+    $(document).on('input', 'input[name="phone"], #editPhone', function(){
+        const orig = this.value || '';
+        const clean = orig.replace(/[^0-9NnAa\/]/g, '');
+        if (clean !== orig) this.value = clean;
+    });
+
+    $(document).on('paste', 'input[name="phone"], #editPhone', function(e){
+        e.preventDefault();
+        const clipboard = (e.originalEvent || e).clipboardData;
+        const text = clipboard ? clipboard.getData('text/plain') : '';
+        const clean = (text || '').replace(/[^0-9NnAa\/]/g, '');
         const el = this;
         const start = el.selectionStart || 0;
         const end = el.selectionEnd || 0;
