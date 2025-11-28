@@ -114,7 +114,7 @@
     <div style="margin-top: 1rem; display: flex; gap: 0.75rem; flex-wrap: wrap;">
       <button id="searchBtn" class="filter-btn filter-btn-search">🔍 Search</button>
       <button id="resetBtn" class="filter-btn filter-btn-reset">↻ Reset</button>
-      <button id="exportBtn" class="export-btn">📥 Export CSV</button>
+      <button id="printBtn" class="export-btn">🖨 Print</button>
     </div>
   </div>
 
@@ -125,7 +125,10 @@
 
   <div class="table-container">
     <div class="table-header">
-      <h3 class="table-header-title">⏰ Overdue Records</h3>
+      <div>
+        <h3 class="table-header-title">⏰ Overdue Records</h3>
+        <div id="tableMonthLabel" style="font-size:0.95rem;color:var(--muted);margin-top:6px;"></div>
+      </div>
     </div>
     <div class="table-wrapper">
       <table>
@@ -176,15 +179,25 @@ function initOverduePaymentsPage() {
     const month = filters.month || currentMonth;
     const search = filters.search || '';
     const page = filters.page || currentPage;
-    const url = `<?= site_url('admin/getOverduePaymentsData') ?>?month=${month}&search=${encodeURIComponent(search)}&page=${page}`;
+    const url = `<?= site_url('admin/getOverduePaymentsData') ?>?month=${encodeURIComponent(month)}&billing_month=${encodeURIComponent(month)}&search=${encodeURIComponent(search)}&page=${page}`;
     fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
       .then(res => res.json())
       .then(data => {
         overdueData = data.payments || [];
+        // Ensure client-side we only show records for the selected month (YYYY-MM)
+        if (month) {
+          overdueData = overdueData.filter(it => {
+            if (!it.billing_month) return false;
+            // billing_month may be full date 'YYYY-MM-DD' or 'YYYY-MM'
+            return it.billing_month.indexOf(month) === 0;
+          });
+        }
         renderTable(overdueData);
         updateStats(data.stats || {});
         const date = new Date(month + '-01');
         if (currentMonthDisplay) currentMonthDisplay.textContent = date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+        const tableMonthLabel = document.getElementById('tableMonthLabel');
+        if (tableMonthLabel) tableMonthLabel.textContent = date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
         renderPagination(data.stats.total_users || 0, page, perPage);
         hideLoading();
       })
@@ -245,30 +258,85 @@ function initOverduePaymentsPage() {
   }
 
   // Search / filters
-  if (document.getElementById('searchBtn')) {
-    document.getElementById('searchBtn').addEventListener('click', () => {
+  const monthFilterEl = document.getElementById('monthFilter');
+  const searchInputEl = document.getElementById('searchInput');
+  const searchBtnEl = document.getElementById('searchBtn');
+  const resetBtnEl = document.getElementById('resetBtn');
+
+  // Trigger load when month changes
+  if (monthFilterEl) {
+    monthFilterEl.addEventListener('change', () => {
       currentPage = 1;
       loadOverduePayments({
-        month: document.getElementById('monthFilter').value,
-        search: document.getElementById('searchInput').value,
+        month: monthFilterEl.value || currentMonth,
+        search: (searchInputEl && searchInputEl.value) || '',
         page: 1
       });
     });
   }
-  if (document.getElementById('resetBtn')) {
-    document.getElementById('resetBtn').addEventListener('click', () => {
-      document.getElementById('monthFilter').value = currentMonth;
-      document.getElementById('searchInput').value = '';
-      currentPage = 1;
-      loadOverduePayments({ page: 1 });
+
+  // Trigger search when pressing Enter in search input
+  if (searchInputEl) {
+    searchInputEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        currentPage = 1;
+        loadOverduePayments({
+          month: (monthFilterEl && monthFilterEl.value) || currentMonth,
+          search: searchInputEl.value || '',
+          page: 1
+        });
+      }
     });
   }
-  if (document.getElementById('exportBtn')) {
-    document.getElementById('exportBtn').addEventListener('click', () => {
+
+  // Search button
+  if (searchBtnEl) {
+    searchBtnEl.addEventListener('click', () => {
+      currentPage = 1;
+      loadOverduePayments({
+        month: (monthFilterEl && monthFilterEl.value) || currentMonth,
+        search: (searchInputEl && searchInputEl.value) || '',
+        page: 1
+      });
+    });
+  }
+
+  // Reset button
+  if (resetBtnEl) {
+    resetBtnEl.addEventListener('click', () => {
+      if (monthFilterEl) monthFilterEl.value = currentMonth;
+      if (searchInputEl) searchInputEl.value = '';
+      currentPage = 1;
+      loadOverduePayments({
+        month: (monthFilterEl && monthFilterEl.value) || currentMonth,
+        search: '',
+        page: 1
+      });
+    });
+  }
+  if (document.getElementById('printBtn')) {
+    document.getElementById('printBtn').addEventListener('click', () => {
       const month = document.getElementById('monthFilter').value || currentMonth;
       const search = document.getElementById('searchInput').value || '';
-      const exportUrl = `<?= site_url('admin/exportPayments') ?>?month=${month}&search=${encodeURIComponent(search)}&filter=overdue`;
-      window.location.href = exportUrl;
+      const indication = `Printing: ${month}${search ? ' | Search: ' + search : ''}`;
+
+      // Clone the table container HTML for printing
+      const tableWrapper = document.querySelector('.table-container .table-wrapper');
+      const printHtml = tableWrapper ? tableWrapper.innerHTML : document.querySelector('table').outerHTML;
+
+      const win = window.open('', '_blank');
+      win.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Print Overdue Payments</title>');
+      // Minimal styles to keep table readable in print
+      win.document.write('<style>body{font-family:Arial,Helvetica,sans-serif;padding:20px;color:#111}table{width:100%;border-collapse:collapse}th,td{padding:8px;border:1px solid #ddd;text-align:left}th{background:#f3f4f6;font-weight:700;text-transform:uppercase;font-size:12px} .indication{margin-bottom:12px;font-weight:700;}</style>');
+      win.document.write('</head><body>');
+      win.document.write('<div class="indication">' + indication + '</div>');
+      win.document.write(printHtml);
+      win.document.write('</body></html>');
+      win.document.close();
+      win.focus();
+      // Give the new window a moment to render then print
+      setTimeout(() => { try { win.print(); win.close(); } catch (e) { console.error(e); } }, 500);
     });
   }
 

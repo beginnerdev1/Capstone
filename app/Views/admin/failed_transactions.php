@@ -213,7 +213,6 @@
     <div style="margin-top: 1rem; display: flex; gap: 0.75rem; flex-wrap: wrap;">
       <button id="searchBtn" class="filter-btn filter-btn-search">🔍 Search</button>
       <button id="resetBtn" class="filter-btn filter-btn-reset">↻ Reset</button>
-      <button id="exportBtn" class="export-btn">📥 Export CSV</button>
     </div>
   </div>
 
@@ -549,15 +548,7 @@ function initFailedTransactionsPage() {
       loadPayments({ page: 1 });
     });
   }
-  if (document.getElementById('exportBtn')) {
-    document.getElementById('exportBtn').addEventListener('click', () => {
-      const month = document.getElementById('monthFilter').value || currentMonth;
-      const method = document.getElementById('methodFilter').value || '';
-      const search = document.getElementById('searchInput').value || '';
-      const exportUrl = `<?= site_url('admin/exportPayments') ?>?month=${month}&method=${encodeURIComponent(method)}&search=${encodeURIComponent(search)}&filter=failed`;
-      window.location.href = exportUrl;
-    });
-  }
+  
 
   function renderPagination(totalItems, currentPageLocal = 1, perPageLocal = 20) {
     const paginationEl = document.getElementById('pagination');

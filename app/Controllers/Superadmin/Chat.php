@@ -54,7 +54,27 @@ class Chat extends AdminChat
             $builder->where('created_at >', $ts);
         }
         $messages = $builder->findAll() ?: [];
-        return $this->response->setJSON($messages);
+
+        // Prefetch superadmin ids once per request
+        $superAdminIds = [];
+        try {
+            $saRows = (new \App\Models\SuperAdminModel())->select('id')->findAll() ?: [];
+            $superAdminIds = array_map(function($r){ return (int)$r['id']; }, $saRows);
+        } catch (\Throwable $_) { $superAdminIds = []; }
+
+        // enrich with role info using pre-fetched ids
+        $out = [];
+        foreach ($messages as $m) {
+            $isSuper = false;
+            $role = $m['sender'] ?? 'admin';
+            if (!empty($m['admin_id'])) {
+                $isSuper = in_array((int)$m['admin_id'], $superAdminIds, true);
+                $role = $isSuper ? 'superadmin' : 'admin';
+            }
+            $out[] = array_merge($m, ['is_superadmin' => $isSuper, 'role' => $role]);
+        }
+
+        return $this->response->setJSON($out);
     }
 
     // Override postMessage so superadmins post internal admin-only messages
@@ -104,6 +124,10 @@ class Chat extends AdminChat
             if ($db->fieldExists('is_internal', $table)) {
                 $data['is_internal'] = 1;
             }
+            // add sender_role if the column exists
+            if ($db->fieldExists('sender_role', $table)) {
+                $data['sender_role'] = 'superadmin';
+            }
         } catch (\Exception $e) {
             // ignore
         }
@@ -111,6 +135,10 @@ class Chat extends AdminChat
         try {
             $insertId = $this->chatModel->insert($data);
             $data['id'] = $insertId;
+            // enrich
+            $isSuper = false; $role = $data['sender'] ?? 'admin_internal';
+            try { $sa = (new \App\Models\SuperAdminModel())->find((int)$data['admin_id']); $isSuper = (bool)$sa; $role = $isSuper ? 'superadmin' : $role; } catch (\Throwable $_){}
+            $data['is_superadmin'] = $isSuper; $data['role'] = $role;
             return $this->response->setJSON($data);
         } catch (\Exception $e) {
             log_message('error', 'superadmin postMessage failed: ' . $e->getMessage());
@@ -137,17 +165,26 @@ class Chat extends AdminChat
         if (! empty($chatConfig->useAdminChats) && isset($this->adminChatModel)) {
             $rows = $this->adminChatModel->getConversationBetween($adminId, $recipientId, $since) ?: [];
             // Map admin_chats shape to legacy chat_messages shape expected by the views
-            $mapped = array_map(function($r){
+            // Prefetch superadmin ids for mapping
+            $superAdminIds = [];
+            try { $saRows = (new \App\Models\SuperAdminModel())->select('id')->findAll() ?: []; $superAdminIds = array_map(function($r){ return (int)$r['id']; }, $saRows); } catch (\Throwable $_) { $superAdminIds = []; }
+
+            $mapped = array_map(function($r) use ($superAdminIds) {
+                $adminId = $r['sender_admin_id'] ?? null;
+                $isSuper = false; $role = 'admin';
+                if (!empty($adminId)) { $isSuper = in_array((int)$adminId, $superAdminIds, true); $role = $isSuper ? 'superadmin' : 'admin'; }
                 return [
                     'id' => $r['id'] ?? null,
                     'external_id' => $r['external_id'] ?? null,
-                    'admin_id' => $r['sender_admin_id'] ?? null,
+                    'admin_id' => $adminId,
                     'admin_recipient_id' => $r['recipient_admin_id'] ?? null,
                     'sender' => 'admin_internal',
                     'is_internal' => !empty($r['is_broadcast']) ? 1 : 0,
                     'message' => $r['message'] ?? '',
                     'created_at' => $r['created_at'] ?? null,
                     'read_at' => $r['read_at'] ?? null,
+                    'is_superadmin' => $isSuper,
+                    'role' => $role,
                 ];
             }, $rows);
 
@@ -179,7 +216,15 @@ class Chat extends AdminChat
         }
 
         $messages = $builder->findAll() ?: [];
-        return $this->response->setJSON($messages);
+        $out = [];
+        foreach ($messages as $m) {
+            $isSuper = false; $role = $m['sender'] ?? 'admin';
+            if (!empty($m['admin_id'])) {
+                try { $sa = (new \App\Models\SuperAdminModel())->find((int)$m['admin_id']); $isSuper = (bool)$sa; $role = $isSuper ? 'superadmin' : 'admin'; } catch (\Throwable $_) { $isSuper = false; $role = 'admin'; }
+            }
+            $out[] = array_merge($m, ['is_superadmin' => $isSuper, 'role' => $role]);
+        }
+        return $this->response->setJSON($out);
     }
 
     // Post an admin->admin internal message to a specific admin
@@ -236,6 +281,8 @@ class Chat extends AdminChat
         try {
             $insertId = $this->chatModel->insert($data);
             $data['id'] = $insertId;
+            // add enrichment
+            try { $sa = (new \App\Models\SuperAdminModel())->find((int)$data['admin_id']); $data['is_superadmin'] = (bool)$sa; $data['role'] = ((bool)$sa) ? 'superadmin' : 'admin_internal'; } catch (\Throwable $_) { $data['is_superadmin'] = false; $data['role'] = 'admin_internal'; }
             // Also write to admin_chats table for cutover
             try {
                 // ensure adminChatModel exists on parent
