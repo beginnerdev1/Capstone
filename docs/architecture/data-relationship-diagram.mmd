@@ -1,0 +1,135 @@
+%% Data Relationship Diagram - Mermaid ER
+%% File: docs/architecture/data-relationship-diagram.mmd
+
+erDiagram
+    USERS {
+        int id PK "Primary Key"
+        varchar email
+        varchar password
+        tinyint active
+        varchar status
+        tinyint is_verified
+        datetime created_at
+        datetime updated_at
+    }
+
+    USER_INFORMATION {
+        int info_id PK
+        int user_id FK "FK -> USERS.id"
+        varchar first_name
+        varchar last_name
+        varchar phone
+        varchar purok
+        varchar barangay
+        datetime created_at
+        datetime updated_at
+    }
+
+    BILLINGS {
+        int id PK
+        int user_id FK "FK -> USERS.id"
+        varchar bill_no
+        decimal amount_due
+        decimal balance
+        decimal carryover
+        varchar status
+        date billing_month
+        datetime due_date
+        datetime paid_date
+        datetime created_at
+        datetime updated_at
+    }
+
+    PAYMENTS {
+        int id PK
+        int user_id FK "FK -> USERS.id"
+        int billing_id FK "FK -> BILLINGS.id"
+        varchar payment_intent_id
+        varchar method
+        decimal amount
+        varchar status
+        datetime paid_at
+        datetime created_at
+        datetime updated_at
+    }
+
+    CHAT_MESSAGES {
+        int id PK
+        varchar external_id
+        int user_id FK "nullable -> USERS.id"
+        int admin_id FK "nullable -> ADMIN.id"
+        varchar sender
+        text message
+        tinyint is_internal
+        tinyint is_read
+        datetime read_at
+        datetime created_at
+    }
+
+    ADMIN_CHATS {
+        int id PK
+        varchar external_id
+        int sender_admin_id FK "FK -> ADMIN.id"
+        int recipient_admin_id FK "FK -> ADMIN.id nullable"
+        text message
+        tinyint is_read
+        tinyint is_broadcast
+        json metadata
+        datetime created_at
+    }
+
+    ADMIN {
+        int id PK
+        varchar email
+        varchar password
+        varchar position
+        varchar first_name
+        varchar last_name
+        datetime created_at
+        datetime updated_at
+    }
+
+    SUPER_ADMIN {
+        int id PK
+        varchar admin_code
+        varchar email
+        varchar password
+        varchar first_name
+        varchar last_name
+        datetime created_at
+        datetime updated_at
+    }
+
+    ADMIN_ACTIVITY_LOGS {
+        int id PK
+        varchar actor_type
+        int actor_id
+        varchar action
+        varchar route
+        varchar method
+        text details
+        varchar ip_address
+        varchar user_agent
+        datetime created_at
+    }
+
+    %% Relationships
+    USERS ||--o{ USER_INFORMATION : "has"
+    USERS ||--o{ BILLINGS : "has"
+    BILLINGS ||--o{ PAYMENTS : "has"
+    USERS ||--o{ PAYMENTS : "makes"
+    USERS ||--o{ CHAT_MESSAGES : "sends"
+    ADMIN ||--o{ CHAT_MESSAGES : "sends as admin"
+
+    ADMIN ||--o{ ADMIN_CHATS : "sends"
+    ADMIN_CHATS }o--|| ADMIN : "recipient is"
+
+    ADMIN ||--o{ ADMIN_ACTIVITY_LOGS : "logged as actor"
+    SUPER_ADMIN ||--o{ ADMIN_ACTIVITY_LOGS : "logged as actor"
+
+    %% Notes
+    %% - PK = Primary Key, FK = Foreign Key
+    %% - Nullable FKs intentionally allowed for messages that may originate from system or broadcast
+    %% - Payment.billing_id is optional in some cases (e.g. manual off-system payments may not map to a billing row)
+
+

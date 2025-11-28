@@ -1,0 +1,80 @@
+%% System Architecture Diagram - Mermaid
+%% File: docs/architecture/system-architecture.mmd
+
+flowchart TD
+  %% Note: Labels containing slashes, parentheses, ampersands, or colons are quoted to avoid Mermaid parser tokenization issues.
+  subgraph Customers
+    U["Users (Web)"]
+    A["Admins / SuperAdmins (Web)"]
+  end
+
+  LB["Load Balancer / CDN"] -->|HTTPS| Web
+  Web["Web Server (Nginx or Apache)"] --> PHP["PHP-FPM (CodeIgniter 4)"]
+  PHP --> DB["MySQL/MariaDB"]
+  PHP --> Redis["Redis"]
+  PHP --> Storage["Object Storage - S3"]
+  PHP --> Logs["Centralized Logging"]
+  PHP -->|Webhook| Payment["Payment Provider / GCash"]
+  PHP -->|Email| Email["Email Provider (Brevo/Sendinblue/SMTP)"]
+
+  U --> LB
+  A --> LB
+
+  subgraph Internals
+    PHP --> API["Admin & Public APIs: REST endpoints"]
+    API --> ChatAPI["Chat endpoints"]
+    ChatAPI -->|Writes| DB
+    ChatAPI -->|Publish| RedisPub["Redis Pub/Sub"]
+
+    RedisPub --> SSEBroker(("SSE/WS Broker"))
+    SSEBroker -->|Streams| A
+
+    Worker["Background Workers (Queue)"]
+    Redis -->|Queue| Worker
+    Worker --> DB
+    Worker --> Storage
+    Worker --> Logs
+  end
+
+  subgraph Data
+    DB
+    Storage
+    Redis
+  end
+
+  subgraph Observability
+    Logs
+    Monitor["Metrics & Monitoring"]
+  end
+
+  Worker -.-> Monitor
+  SSEBroker -.-> Monitor
+  Web -.-> Monitor
+
+  Payment <--> LB
+  Email <--> LB
+
+  style LB fill:#f6f9ff,stroke:#b3c7f7
+  style Web fill:#fff7e6,stroke:#ffd59a
+  style PHP fill:#e6fff3,stroke:#a0d6b4
+  style DB fill:#ffe6f3,stroke:#f2a9d2
+  style Redis fill:#f2f2f2,stroke:#bfbfbf
+  style Storage fill:#f2f9ff,stroke:#abd9ff
+  style Worker fill:#f8f6ff,stroke:#d6caff
+  style SSEBroker fill:#fff2e6,stroke:#ffd7b3
+  style Logs fill:#f5f5f5,stroke:#d9d9d9
+  style Payment fill:#fff0f0,stroke:#ffb8b8
+  style Email fill:#f0fff9,stroke:#b4ffd8
+  style Monitor fill:#ffffff,stroke:#c8ffd6
+
+  classDef external fill:#ffffff,stroke:#bbbbbb,color:#333;
+  class Payment,Email,Storage,Logs,Monitor external;
+
+  click DB "https://example.com/docs/db" "Open DB docs"
+  click Redis "https://example.com/docs/redis" "Open Redis docs"
+
+  %% Notes
+  %% - Use Redis for sessions, caching, and pub/sub
+  %% - Add worker queue for exports and long background jobs
+  %% - SSEBroker can be a small PHP worker or Node.js websocket/SSE service
+  %% - For production, add replica DBs and backups
