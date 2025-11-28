@@ -35,7 +35,7 @@ class UserInformationModel extends Model
         'last_name'     => 'required|string|max_length[100]',
         'phone'         => 'required|string|max_length[20]',
         'gender'        => 'required|in_list[Male,Female,Other]',
-        'age'           => 'required|integer|greater_than[0]|less_than[120]',
+        'age'           => 'required|integer|greater_than[0]|less_than[101]',
         'family_number' => 'required|integer|greater_than[0]|less_than[21]',
         'purok'         => 'required|integer|greater_than[0]|less_than[8]', // updated for numeric purok
         'line_number'   => 'permit_empty|alpha_numeric|max_length[32]',
@@ -64,6 +64,18 @@ class UserInformationModel extends Model
 
         try {
             $existingInfo = $this->getByUserId($userId);
+
+            // Prevent duplicate line_number across users
+            if (!empty($data['line_number'])) {
+                $found = $this->where('line_number', $data['line_number'])->first();
+                if ($found && (empty($existingInfo) || ((int)$found['user_id'] !== (int)$userId))) {
+                    return [
+                        'success' => false,
+                        'message' => 'Validation failed',
+                        'errors' => ['line_number' => 'Line number already used by another user']
+                    ];
+                }
+            }
 
             if ($existingInfo) {
                 $updated = $this->update($existingInfo['info_id'], $data);

@@ -442,7 +442,7 @@ class Admin extends BaseController
             if ($purok === '' || !preg_match('/^\d+$/', $purok)) $errors['purok'] = 'Purok is required';
             if ($phone === '') $errors['phone'] = 'Contact number is required';
             if (!in_array($gender, ['Male','Female','Other'], true)) $errors['gender'] = 'Invalid gender';
-            if ($age < 1 || $age > 120) $errors['age'] = 'Age must be between 1 and 120';
+            if ($age < 1 || $age > 100) $errors['age'] = 'Age must be between 1 and 100';
             if ($familyNumber < 1 || $familyNumber > 20) $errors['family_number'] = 'Family members must be between 1 and 20';
 
             if (!empty($errors)) {
@@ -460,6 +460,18 @@ class Admin extends BaseController
                     'message' => 'Validation failed',
                     'errors' => ['line_number' => 'Line number may only contain letters and numbers']
                 ]);
+            }
+
+            // Server-side: ensure the provided line number is unique (no other user_information row uses it)
+            if ($lineNumber !== '') {
+                $existingLine = $this->userInfoModel->where('line_number', $lineNumber)->first();
+                if ($existingLine) {
+                    return $this->response->setJSON([
+                        'success' => false,
+                        'message' => 'Validation failed',
+                        'errors' => ['line_number' => 'This Line number is already assigned to another user']
+                    ]);
+                }
             }
 
             // Normalize email to lowercase for consistent storage and comparison
@@ -695,6 +707,27 @@ class Admin extends BaseController
         $rows = $builder->orderBy('iu.inactivated_at', 'DESC')->get()->getResultArray();
 
         return $this->response->setJSON($rows);
+    }
+
+    /**
+     * AJAX: check if a line_number already exists in the database
+     * Expects GET `line_number` and returns JSON { exists: true|false }
+     */
+    public function checkLineExists()
+    {
+        $line = trim((string)$this->request->getGet('line_number'));
+        if ($line === '') {
+            return $this->response->setJSON(['exists' => false]);
+        }
+
+        try {
+            $exists = (bool)$this->userInfoModel->where('line_number', $line)->countAllResults(false);
+            return $this->response->setJSON(['exists' => $exists]);
+        } catch (\Throwable $e) {
+            log_message('warning', 'checkLineExists error: ' . $e->getMessage());
+            // On error, return exists=false to avoid blocking UX; server-side addUser enforces uniqueness too.
+            return $this->response->setJSON(['exists' => false]);
+        }
     }
 
     // List archived bills (AJAX)
@@ -4626,7 +4659,9 @@ public function createManualBilling()
     // Get overdue payments data (AJAX)
     public function getOverduePaymentsData()
     {
+        // Accept either `billing_month` (YYYY-MM or YYYY-MM-DD) or `month` (YYYY-MM)
         $month = $this->request->getGet('month') ?? date('Y-m');
+        $billingMonth = $this->request->getGet('billing_month') ?? $month;
         $search = $this->request->getGet('search') ?? '';
         $page = max(1, (int) $this->request->getGet('page'));
         $perPage = 20;
@@ -4634,9 +4669,7 @@ public function createManualBilling()
 
         $billingModel = new \App\Models\BillingModel();
 
-        // Build query for overdue bills
-        // Use due_date-based detection so bills whose due_date has passed (and are not Paid)
-        // will be considered overdue. This is more reliable than filtering by billing_month.
+        // Build query for overdue bills: due_date past and not paid
         $builder = $billingModel->db->table('billings b')
             ->select('b.*, u.email, ui.first_name, ui.last_name')
             ->join('users u', 'u.id = b.user_id', 'left')
@@ -4644,6 +4677,12 @@ public function createManualBilling()
             ->where('DATE(b.due_date) <', date('Y-m-d'))
             ->where('b.status <>', 'Paid')
             ->where('b.paid_date IS NULL');
+
+        // Apply server-side billing_month filter if provided (match YYYY-MM prefix)
+        if (!empty($billingMonth)) {
+            // billing_month in DB might be stored as 'YYYY-MM-01' or 'YYYY-MM'. Use LIKE match on prefix.
+            $builder->like('b.billing_month', substr($billingMonth, 0, 7), 'after');
+        }
 
         if ($search !== '') {
             $builder->groupStart()

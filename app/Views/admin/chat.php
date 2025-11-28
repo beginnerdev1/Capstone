@@ -2,6 +2,7 @@
 /* FIXED CHAT STYLES:
     1. User Messages: Left, Subtle Blue (.bg-secondary)
     2. Admin Messages: Right, Prominent Blue (.bg-primary)
+    3. Superadmin Messages (in Admin-to-Admin chat): Left, Subtle Blue (.bg-secondary)
 */
 
     /* Reuse superadmin chat styles, keep admin toggle */
@@ -48,9 +49,9 @@
         color: rgba(255, 255, 255, 0.7) !important; 
     }
 
-    /* 2. USER MESSAGE (CUSTOMER) - LEFT ALIGNED */
+    /* 2. USER/SUPERADMIN MESSAGE - LEFT ALIGNED */
     .aqua-chat-bubble.bg-secondary {
-        /* Subtle Pale Blue/White for User (Left) */
+        /* Subtle Pale Blue/White for User or Superadmin (Left) */
         background: linear-gradient(135deg, #e6f4ff 0%, #dbeafe 100%) !important;
         color: #073763 !important;
         border-left: 3px solid #0072ff;
@@ -380,7 +381,7 @@
         <div id="aqua-side-panel" class="col-md-3 aqua-chat-side aqua-desktop-only">
             
             <button class="btn aqua-close-side d-md-none">
-                 <i class="fas fa-times me-1"></i>Close
+                <i class="fas fa-times me-1"></i>Close
             </button>
 
             <div class="card aqua-side-panel-card">
@@ -399,24 +400,6 @@
                     <i class="fas fa-comments me-2"></i>Conversations
                 </button>
             </div>
-
-     <!--        <div class="mb-2">
-                <div class="d-flex align-items-center">
-                    <div class="flex-shrink-0 me-2 d-md-none">
-                        <a href="#" class="btn btn-outline-secondary btn-sm btn-back" onclick="goBackWithFallback('<?= base_url('admin') ?>'); return false;" aria-label="Go back">
-                            <i class="fas fa-arrow-left"></i>
-                            <span class="d-none d-sm-inline"> Back</span>
-                        </a>
-                    </div>
-                    <div class="flex-shrink-0 d-none d-md-block">
-                        <a href="<?= base_url('admin') ?>" class="btn btn-outline-secondary btn-sm" aria-label="Dashboard">
-                            <i class="fas fa-home"></i>
-                            <span class="d-none d-sm-inline"> Dashboard</span>
-                        </a>
-                    </div>
-                    <div class="flex-grow-1"></div>
-                </div>
-            </div> -->
 
             <div class="card aqua-main-chat-card">
                 <div class="card-header aqua-chat-header d-flex justify-content-between align-items-center">
@@ -455,31 +438,51 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.4.0/purify.min.js"></script>
 <script src="<?= base_url('assets/js/safe-html.js') ?>"></script>
 <script>
-        // Navigate back safely: prefer same-origin referrer, otherwise fallback to admin dashboard
-        function goBackWithFallback(fallbackUrl) {
-            try {
-                var ref = document.referrer || '';
-                if (ref && ref.indexOf(location.origin) === 0) {
-                    history.back();
-                    return;
-                }
-                if (history.length > 1) {
-                    history.back();
-                    return;
-                }
-            } catch (e) {
-                // ignore and fall through to fallback
+    // Navigate back safely: prefer same-origin referrer, otherwise fallback to admin dashboard
+    function goBackWithFallback(fallbackUrl) {
+        try {
+            var ref = document.referrer || '';
+            if (ref && ref.indexOf(location.origin) === 0) {
+                history.back();
+                return;
             }
-            window.location.href = fallbackUrl || '/';
+            if (history.length > 1) {
+                history.back();
+                return;
+            }
+        } catch (e) {
+            // ignore and fall through to fallback
         }
+        window.location.href = fallbackUrl || '/';
+    }
 
-$(function(){
-    var adminMap = {}, selectedUserId = null, selectedAdminId = null;
-    // current admin id (prefer admin session, fall back to superadmin if present)
-    const currentAdminId = <?= (session()->get('admin_id') ?? session()->get('superadmin_id') ?? 'null') ?>;
-    const csrfName = '<?= csrf_token() ?>';
-    let csrfHash = '<?= csrf_hash() ?>';
-    const chatBase = '<?= base_url('admin/chat') ?>';
+(function(){
+    // If jQuery is available use it, otherwise attach to DOMContentLoaded
+    var ready = function(fn){
+        if (window.jQuery) { jQuery(fn); }
+        else if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fn);
+        else fn();
+    };
+
+    ready(function(){
+        var adminMap = {}, selectedUserId = null, selectedAdminId = null;
+        // current admin id (prefer admin session, fall back to superadmin if present)
+        const currentAdminId = <?= json_encode(session()->get('admin_id') ?? session()->get('superadmin_id') ?? null) ?>;
+        const csrfName = <?= json_encode(csrf_token()) ?>;
+        let csrfHash = <?= json_encode(csrf_hash()) ?>;
+        const chatBase = <?= json_encode(base_url('admin/chat')) ?>;
+
+        // helper sanitizer: prefer DOMPurify, else escape
+        function sanitizeMessage(msg){
+            if (!msg) return '';
+            try {
+                if (window.DOMPurify && typeof DOMPurify.sanitize === 'function') return DOMPurify.sanitize(msg);
+            } catch (e) { /* fallthrough to safe text */ }
+            // fallback: escape HTML by using a text node
+            var div = document.createElement('div');
+            div.textContent = msg;
+            return div.innerHTML;
+        }
 
     // Fetch unread count and update the global topbar badge (`#unreadChatsCount`).
     function fetchAndUpdateTopbarUnread() {
@@ -517,7 +520,6 @@ $(function(){
 
     /**
      * Renders the conversation list for the side panel.
-     * FIX: Removed all references to the obsolete mobile list element.
      */
     function renderSideList(items, type){
         var $list = $('#aqua-side-list');
@@ -603,6 +605,13 @@ $(function(){
             var senderId = m.admin_id || m.sender_admin_id || null;
             var senderType = m.sender || null;
             var isInternal = (m.sender === 'admin_internal') || (m.is_internal == 1) || (m.is_broadcast == 1);
+            
+            // --- ALIGNMENT LOGIC SETUP ---
+            // 1. Check if the message is sent by the currently logged-in Admin/Superadmin.
+            // This is TRUE if the message is NOT from a user AND the sender ID matches the logged-in user ID.
+            var isLoggedAdminSender = (senderType !== 'user' && senderId && senderId == currentAdminId);
+            // 2. Check if the message is from a User (always on the left in User Chat).
+            var isUserSender = (senderType === 'user');
 
             if (senderType && senderType !== 'user' && senderType !== 'admin' && senderType !== 'admin_internal') return;
 
@@ -613,17 +622,19 @@ $(function(){
             var author = 'System';
             if (senderType === 'admin' || senderType === 'admin_internal') author = adminMap[senderId] || 'Admin';
             if (senderType === 'user') author = m.author || m.user_name || 'User';
-            var safe = (window.DOMPurify && typeof DOMPurify.sanitize === 'function') ? DOMPurify.sanitize(m.message||'') : (m.message||'');
+            var safe = sanitizeMessage(m.message || '');
             var bubble = document.createElement('div'); bubble.className = 'aqua-chat-bubble p-2'; bubble.style.maxWidth = '75%';
 
             // --- MESSAGE ALIGNMENT LOGIC ---
-            if (senderType === 'user') {
-                // 1. User Message (Customer): LEFT ALIGNED
-                bubble.classList.add('bg-secondary'); 
-                bubble.innerHTML = '<div class="aqua-sender-name text-muted">' + author + ' <span class="ms-2 aqua-timestamp">' + (m.created_at||'') + '</span></div><div>' + safe + '</div>';
-                container.classList.add('justify-content-start'); 
-            } else {
-                // 2. Admin/Internal Message: RIGHT ALIGNED
+            
+            // Condition for RIGHT ALIGNMENT: 
+            // 1. In User View: Any message sent by an Admin (isLoggedAdminSender is TRUE).
+            // 2. In Admin View: Any message NOT sent by the logged-in Superadmin (the other admin).
+            
+            var alignRight = (viewMode === 'user' && isLoggedAdminSender) || (viewMode === 'admin' && !isLoggedAdminSender);
+
+            if (alignRight) {
+                // RIGHT ALIGNED: Admin reply to user OR The other admin's message in Admin-to-Admin chat
                 bubble.classList.add('text-white'); 
                 
                 if (isInternal) {
@@ -631,12 +642,17 @@ $(function(){
                     bubble.classList.add('bg-dark');
                     bubble.innerHTML = '<div class="aqua-sender-name text-white-50 text-end"><span class="badge aqua-internal-badge me-2">Internal</span> ' + author + ' <span class="ms-2 aqua-timestamp">' + (m.created_at||'') + '</span></div><div>' + safe + '</div>';
                 } else {
-                    // Regular Admin (Agent)
+                    // Regular Admin (Agent) / Other Admin in admin-to-admin chat
                     bubble.classList.add('bg-primary');
                     bubble.innerHTML = '<div class="aqua-sender-name text-white-50 text-end">' + author + ' <span class="ms-2 aqua-timestamp">' + (m.created_at||'') + '</span></div><div>' + safe + '</div>';
                 }
 
                 container.classList.add('justify-content-end'); 
+            } else {
+                // LEFT ALIGNED: User message OR Superadmin's OWN message (in Admin-to-Admin view)
+                bubble.classList.add('bg-secondary'); 
+                bubble.innerHTML = '<div class="aqua-sender-name text-muted">' + author + ' <span class="ms-2 aqua-timestamp">' + (m.created_at||'') + '</span></div><div>' + safe + '</div>';
+                container.classList.add('justify-content-start'); 
             }
             // --- END MESSAGE ALIGNMENT LOGIC ---
 
@@ -650,8 +666,8 @@ $(function(){
     function loadAdminMessages(incremental){ if (!selectedAdminId) return; var url = chatBase + '/getMessagesForAdmin/' + encodeURIComponent(selectedAdminId); if (incremental && lastTimestamp) url += '?since=' + encodeURIComponent(lastTimestamp); $.get(url, function(data){ if (!incremental) { $('#aqua-chat-messages').empty(); seenMessageIds.clear(); } appendMessages(data || []); }); }
 
     function loadConversationMessages(userId, incremental){ if (!userId) return; var url = chatBase + '/getMessages/' + encodeURIComponent(userId); if (incremental && lastTimestamp) url += '?since=' + encodeURIComponent(lastTimestamp); $.get(url, function(data){ if (!incremental) { $('#aqua-chat-messages').empty(); seenMessageIds.clear(); } appendMessages(data || []); if (!incremental || (data && data.length)) { var markPayload = {}; markPayload[csrfName] = csrfHash; $.post(chatBase + '/markRead/' + encodeURIComponent(userId), markPayload).always(function(){ loadConversations(); // Also refresh the global unread badge in the topbar so it reflects the recent markRead
-                    try { fetchAndUpdateTopbarUnread(); } catch(_) {}
-                }); } }); }
+                try { fetchAndUpdateTopbarUnread(); } catch(_) {}
+            }); } }); }
 
     function startPolling(){ stopPolling(); pollId = setInterval(function(){ if (document.hidden) return; if (viewMode === 'user' && selectedUserId) loadConversationMessages(selectedUserId, true); if (viewMode === 'admin' && selectedAdminId) loadAdminMessages(true); }, pollInterval); }
     function stopPolling(){ if (pollId) { clearInterval(pollId); pollId = null; } }
@@ -710,5 +726,6 @@ $(function(){
     loadAdmins(); loadConversations(); startPolling(); setInterval(function(){ if (viewMode === 'user') loadConversations(); }, 8000);
 
     $(document).on('click', '.ajax-link', function(){ stopPolling(); });
-});
+    });
+})();
 </script>

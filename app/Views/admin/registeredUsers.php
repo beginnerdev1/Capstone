@@ -321,7 +321,7 @@ html,body { height:100%; margin:0; font-family: var(--font-sans); background: li
                             <th style="width:22%;">Email</th>
                             <th style="width:10%;">Line #</th>
                             <th style="width:10%;">Purok</th>
-                            <th style="width:12%;">Status</th>
+                            
                             <th style="width:16%; text-align:right;">Actions</th>
                         </tr>
                     </thead>
@@ -500,8 +500,8 @@ html,body { height:100%; margin:0; font-family: var(--font-sans); background: li
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label class="form-label">Contact Number <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" name="phone" maxlength="20" pattern="[0-9NnAa/]{1,20}" title="Only digits and characters N, A and / are allowed" required>
-                            <div class="invalid-feedback">Please enter a valid contact number (digits, N, A, / only)</div>
+                            <input type="text" class="form-control" name="phone" maxlength="11" pattern="[0-9]{11}" title="Exactly 11 digits required" required>
+                            <div class="invalid-feedback">Please enter a valid contact number (exactly 11 digits)</div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Gender <span class="text-danger">*</span></label>
@@ -518,8 +518,8 @@ html,body { height:100%; margin:0; font-family: var(--font-sans); background: li
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label class="form-label">Age <span class="text-danger">*</span></label>
-                            <input type="number" class="form-control" name="age" min="1" max="120" required>
-                            <div class="invalid-feedback">Please enter a valid age (1-120)</div>
+                            <input type="number" class="form-control" name="age" min="1" max="100" required>
+                            <div class="invalid-feedback">Please enter a valid age (1-100)</div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Family Members <span class="text-danger">*</span></label>
@@ -640,7 +640,7 @@ function initRegisteredUsersPage() {
                 console.log("✅ Loaded users:", users);
                 const tbody = $('#usersTable tbody'); tbody.empty();
                 if(!users || users.length===0){
-                    tbody.html(`<tr><td colspan="7" class="text-center">No users found</td></tr>`);
+                    tbody.html(`<tr><td colspan="6" class="text-center">No users found</td></tr>`);
                     setUsersCount(0);
                     return;
                 }
@@ -665,7 +665,7 @@ function initRegisteredUsersPage() {
                             <td data-label="Email">${user.email || '-'}</td>
                             <td data-label="Line">${user.line_number || '-'}</td>
                             <td data-label="Purok">${user.purok || '-'}</td>
-                            <td data-label="Status"><span class="badge bg-${badgeClass}">${user.status||'-'}</span></td>
+                            
                             <td data-label="Actions" class="actions">
                                 <button class="btn btn-sm btn-primary viewUserBtn" data-id="${user.id}" title="View user details">
                                     <i class="fas fa-eye"></i> View
@@ -890,8 +890,32 @@ function initRegisteredUsersPage() {
 
     // Print
     $('#printUsersBtn').on('click',function(){
+        // Clone the table and remove only the # and Actions columns before printing (keep Status)
+        const $clone = $('#usersTable').clone();
+
+        // Remove header cells: # (1st) and Actions (now 6th)
+        $clone.find('thead th:nth-child(6), thead th:nth-child(1)').remove();
+
+        // Remove corresponding body cells for each row
+        $clone.find('tbody tr').each(function(){
+            $(this).find('td:nth-child(6), td:nth-child(1)').remove();
+        });
+
+        // Build a short indication line describing what will be printed (filters/search)
+        function esc(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+        const purokFilter = $('#filterPurok').val() || '';
+        const statusFilter = $('#filterStatus').val() || '';
+        const lineFilter = $('#filterLine').val() || '';
+        const searchFilter = $('#filterInput').val() || '';
+        const parts = [];
+        if (searchFilter) parts.push('Search: "' + esc(searchFilter) + '"');
+        if (purokFilter) parts.push('Purok: ' + esc(purokFilter));
+        if (lineFilter) parts.push('Line: ' + esc(lineFilter));
+        if (statusFilter) parts.push('Status: ' + esc(statusFilter));
+        const indicationHtml = '<div style="margin-bottom:12px; text-align:center; color:#6b7280;">Printing: ' + (parts.length ? parts.join(' | ') : 'All users') + '</div>';
+
         const printWindow = window.open('','', 'width=900,height=700');
-        const tableHTML = document.getElementById('usersTable').outerHTML;
+        const tableHTML = $clone.prop('outerHTML');
         printWindow.document.write(`
             <html>
                 <head>
@@ -900,6 +924,7 @@ function initRegisteredUsersPage() {
                 </head>
                 <body class="p-4">
                     <h4 class="text-center mb-4">Registered Users</h4>
+                    ${indicationHtml}
                     ${tableHTML}
                     <script>window.print();<\/script>
                 </body>
@@ -943,25 +968,6 @@ function initRegisteredUsersPage() {
         el.value = newVal;
     });
 
-    // Restrict phone inputs to digits and characters N, A and / only (sanitize on input and paste)
-    $(document).on('input', 'input[name="phone"], #editPhone', function(){
-        const orig = this.value || '';
-        const clean = orig.replace(/[^0-9NnAa\/]/g, '');
-        if (clean !== orig) this.value = clean;
-    });
-
-    $(document).on('paste', 'input[name="phone"], #editPhone', function(e){
-        e.preventDefault();
-        const clipboard = (e.originalEvent || e).clipboardData;
-        const text = clipboard ? clipboard.getData('text/plain') : '';
-        const clean = (text || '').replace(/[^0-9NnAa\/]/g, '');
-        const el = this;
-        const start = el.selectionStart || 0;
-        const end = el.selectionEnd || 0;
-        const newVal = el.value.slice(0, start) + clean + el.value.slice(end);
-        el.value = newVal;
-    });
-
     // Add User / Account Submission with validation
     $('#addUserForm').on('submit',function(e){
         e.preventDefault();
@@ -983,6 +989,68 @@ function initRegisteredUsersPage() {
                 '</div>');
             $('#addUserForm').prepend(errorAlert);
             return;
+        }
+
+        // Enforce Age max 100, Family Members max 20, and Contact number exactly 11 digits.
+        const ageVal = parseInt($(this).find('[name="age"]').val(), 10);
+        if (Number.isNaN(ageVal) || ageVal < 1 || ageVal > 100) {
+            const errorAlert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
+                '<i class="fas fa-exclamation-triangle me-2"></i>Please enter a valid age between 1 and 100.' +
+                '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                '</div>');
+            $('#addUserForm').prepend(errorAlert);
+            return;
+        }
+
+        const familyVal = parseInt($(this).find('[name="family_number"]').val(), 10);
+        if (Number.isNaN(familyVal) || familyVal < 1 || familyVal > 20) {
+            const errorAlert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
+                '<i class="fas fa-exclamation-triangle me-2"></i>Family Members must be a number between 1 and 20.' +
+                '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                '</div>');
+            $('#addUserForm').prepend(errorAlert);
+            return;
+        }
+
+        const phoneVal = ($(this).find('[name="phone"]').val() || '').trim();
+        if (!/^\d{11}$/.test(phoneVal)) {
+            const errorAlert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
+                '<i class="fas fa-exclamation-triangle me-2"></i>Contact Number must be exactly 11 digits (numbers only).' +
+                '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                '</div>');
+            $('#addUserForm').prepend(errorAlert);
+            return;
+        }
+
+        // Prevent duplicate water line number in DB. Expect endpoint to return JSON { exists: true/false }
+        if (addLineVal) {
+            let existsInDb = false;
+            try {
+                $.ajax({
+                    url: baseUrl + '/admin/checkLineExists',
+                    type: 'GET',
+                    data: { line_number: addLineVal },
+                    dataType: 'json',
+                    async: false,
+                    success: function(resp){
+                        if (resp && resp.exists) existsInDb = true;
+                    },
+                    error: function(){
+                        // If the check fails, do not block submission here; log and allow server to handle duplicates.
+                        console.warn('Line existence check failed; proceeding to server-side validation.');
+                    }
+                });
+            } catch(e) {
+                console.warn('Line existence check exception', e);
+            }
+            if (existsInDb) {
+                const errorAlert = $('<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
+                    '<i class="fas fa-exclamation-triangle me-2"></i>Water Line number already exists in the database. Please verify.' +
+                    '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+                    '</div>');
+                $('#addUserForm').prepend(errorAlert);
+                return;
+            }
         }
 
         const formData = $(this).serialize();

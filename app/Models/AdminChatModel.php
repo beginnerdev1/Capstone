@@ -19,6 +19,8 @@ class AdminChatModel extends Model
         'is_broadcast',
         'metadata',
         'created_at',
+        'sender_role',
+        'recipient_role',
     ];
 
     // Simple helper: return messages between two admins (both directions)

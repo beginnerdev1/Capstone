@@ -58,6 +58,61 @@ class Chat extends BaseController
         return $this->response->setJSON($list);
     }
 
+    // Server-Sent Events stream for unread chat count
+    // Sends `event: unread` with JSON payload {count: <number>} whenever the unread count changes.
+    public function stream()
+    {
+        // Ensure this endpoint is only used via GET
+        if ($this->request->getMethod() !== 'get') {
+            return $this->response->setStatusCode(405)->setBody('Method Not Allowed');
+        }
+
+        // SSE headers
+        header('Content-Type: text/event-stream');
+        header('Cache-Control: no-cache');
+        header('Connection: keep-alive');
+
+        @set_time_limit(0);
+
+        $lastCount = null;
+        $sleep = 10; // check interval in seconds
+
+        // Flush existing output buffers
+        while (ob_get_level() > 0) { ob_end_flush(); }
+
+        // Loop until client disconnects
+        while (true) {
+            if (connection_aborted() || connection_status() !== CONNECTION_NORMAL) {
+                break;
+            }
+
+            try {
+                $count = (int) $this->chatModel->where('sender', 'user')->where('is_read', 0)->countAllResults();
+            } catch (\Throwable $e) {
+                $count = 0;
+            }
+
+            if ($lastCount === null || $count !== $lastCount) {
+                $payload = json_encode(['count' => $count]);
+                echo "event: unread\n";
+                echo "data: {$payload}\n\n";
+                if (ob_get_level()) { @ob_flush(); }
+                @flush();
+                $lastCount = $count;
+            } else {
+                // send a comment ping to keep the connection alive
+                echo ": ping\n\n";
+                if (ob_get_level()) { @ob_flush(); }
+                @flush();
+            }
+
+            sleep($sleep);
+        }
+
+        // Close connection
+        return;
+    }
+
     // Return all chat messages (admin view)
     public function getMessages()
     {

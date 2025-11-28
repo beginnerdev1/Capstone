@@ -42,7 +42,7 @@
         <h4 style="margin:0 0 8px 0;color:#065f46;">Need help?</h4>
         <p style="margin:0;color:#047857;font-size:14px;">Please contact our support team to discuss the suspension and next steps. You can reach support by clicking the button below.</p>
         <p style="margin:12px 0 0 0;text-align:center;">
-            <a href="<?= esc($supportUrl ?? '#') ?>" style="display:inline-block;padding:10px 18px;background:#2563eb;color:#ffffff;border-radius:6px;text-decoration:none;font-weight:600;">Contact Support</a>
+            <a href="<?= esc(site_url('users/chat')) ?>" style="display:inline-block;padding:10px 18px;background:#2563eb;color:#ffffff;border-radius:6px;text-decoration:none;font-weight:600;">Contact Support</a>
         </p>
     </div>
 

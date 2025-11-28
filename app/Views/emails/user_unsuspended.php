@@ -42,7 +42,7 @@
         <h4 style="margin:0 0 8px 0;color:#064e3b;">Next steps</h4>
         <p style="margin:0;color:#065f46;font-size:14px;">You can now sign in and continue using all features. If anything looks incorrect, please contact support.</p>
         <p style="margin:12px 0 0 0;text-align:center;">
-            <a href="<?= esc($siteUrl ?? '#') ?>" style="display:inline-block;padding:10px 18px;background:#059669;color:#ffffff;border-radius:6px;text-decoration:none;font-weight:600;">Go to Dashboard</a>
+            <a href="<?= esc(site_url('users')) ?>" style="display:inline-block;padding:10px 18px;background:#059669;color:#ffffff;border-radius:6px;text-decoration:none;font-weight:600;">Go to Dashboard</a>
         </p>
     </div>
 
