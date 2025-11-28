@@ -326,6 +326,24 @@ body {
   transition: all 0.3s ease;
 }
 
+/* input with inline visibility toggle (eye) */
+.input-with-toggle { position: relative; }
+.input-with-toggle .form-input { padding-right: 2.6rem; }
+.input-with-toggle .toggle-visibility {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px 6px;
+  font-size: 1.05rem;
+  line-height: 1;
+  color: var(--muted);
+}
+.input-with-toggle .toggle-visibility:focus { outline: none; color: var(--dark); }
+
 .form-input::placeholder {
   color: var(--muted);
 }

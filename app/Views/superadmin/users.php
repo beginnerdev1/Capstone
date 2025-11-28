@@ -70,8 +70,6 @@
             <div class="col-md-6">
               <label class="form-label">Position</label>
               <select name="position" class="form-select" required>
-                <option value="President">President</option>
-                <option value="Vice President">Vice President</option>
                 <option value="Secretary">Secretary</option>
                 <option value="Treasurer">Treasurer</option>
               </select>
